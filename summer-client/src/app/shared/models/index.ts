@@ -192,6 +192,38 @@ export interface CollectionPayload {
   summaries?: string[];
 }
 
+/** A node in the hierarchy (/hierarchy). Folders nest via parentId; root folders have parentId null. */
+export interface IFolder {
+  _id: string;
+  name: string;
+  parentId: string | null;
+  /** collections + summaries directly in this folder (not counting subfolders) */
+  itemCount: number;
+  permissions: IPermission[];
+  /** user ids */
+  managers: string[];
+  createdBy: UserRef;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FolderItemType = 'collection' | 'summary';
+
+/** A collection or summary placed in a folder. Each item lives in at most one folder. */
+export interface IFolderItem {
+  type: FolderItemType;
+  _id: string;
+  name: string;
+}
+
+export interface FolderPayload {
+  name: string;
+  /** create only */
+  parentId?: string | null;
+  permissions: string[];
+  managers: string[];
+}
+
 /** Comparison operators for notification-rule conditions, offered per field type (spec §8.1). */
 export enum NotificationsFunctionsOptions {
   StringContains = 'stringContains',

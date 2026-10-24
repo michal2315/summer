@@ -17,9 +17,11 @@ import { CollectionEditorData, CollectionEditorModalComponent } from './collecti
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (collection(); as c) {
-      <app-summary-browser [ownerId]="userId()!" [collection]="c" [searchPlaceholder]="'חיפוש בתוך ' + c.name">
+      <app-summary-browser [ownerId]="userId()!" [collection]="c" [searchPlaceholder]="'חיפוש בתוך ' + c.name" [detailAside]="!embedded()">
         <header browser-header class="header">
-          <a routerLink="/collections" class="back"><span nz-icon nzType="arrow-right"></span> אוספים</a>
+          @if (!embedded()) {
+            <a routerLink="/collections" class="back"><span nz-icon nzType="arrow-right"></span> אוספים</a>
+          }
           <h1 class="page-title"><span nz-icon nzType="folder-open"></span> {{ c.name }}</h1>
           <span class="perms">
             @for (p of c.permissions; track p._id) {
@@ -56,6 +58,8 @@ export class CollectionSummariesPageComponent {
   private readonly modal = inject(NzModalService);
 
   readonly id = input.required<string>();
+  /** Shown inside /hierarchy: no back-to-collections link, and summaries open in the hierarchy viewer instead of a side panel. */
+  readonly embedded = input(false);
   readonly collection = signal<ICollection | null>(null);
   readonly userId = this.users.userId;
   readonly isManager = computed(() => !!this.collection()?.managers.includes(this.users.userId() ?? ''));

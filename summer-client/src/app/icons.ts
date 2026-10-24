@@ -1,4 +1,5 @@
 import {
+  ApartmentOutline,
   AppstoreAddOutline,
   AppstoreOutline,
   ArrowLeftOutline,
@@ -36,6 +37,7 @@ import {
   HomeOutline,
   InboxOutline,
   InfoCircleOutline,
+  LeftOutline,
   LinkOutline,
   LoadingOutline,
   LockOutline,
@@ -66,6 +68,7 @@ import {
 
 /** Statically registered icons (no runtime fetch). Anything else falls back to /assets/ (see angular.json). */
 export const ICONS = [
+  ApartmentOutline,
   AppstoreAddOutline,
   AppstoreOutline,
   ArrowLeftOutline,
@@ -103,6 +106,7 @@ export const ICONS = [
   HomeOutline,
   InboxOutline,
   InfoCircleOutline,
+  LeftOutline,
   LinkOutline,
   LoadingOutline,
   LockOutline,

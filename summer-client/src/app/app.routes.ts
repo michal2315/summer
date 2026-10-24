@@ -35,6 +35,11 @@ export const routes: Routes = [
       },
       { path: 'user-not-found', ...status('user-not-found') },
       { path: 'collections', loadChildren: () => import('./features/collections/collections.routes') },
+      {
+        path: 'hierarchy',
+        loadComponent: () => import('./features/hierarchy/hierarchy-page.component').then((m) => m.HierarchyPageComponent),
+        title: 'Summer · היררכיה',
+      },
       { path: 'notifications', loadChildren: () => import('./features/notifications/notifications.routes') },
       {
         path: 'permissions',

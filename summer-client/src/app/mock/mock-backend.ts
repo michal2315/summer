@@ -4,9 +4,9 @@
  */
 import { HttpErrorResponse, HttpEvent, HttpParams, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Observable, catchError, defer, delay, throwError } from 'rxjs';
-import { ICollection, IComment, INotificationSettings, IPermission, ISummary, ISummarySearch, SearchType, SummaryPayload, SummarySearch, UserRef } from '../shared/models';
+import { FolderItemType, ICollection, IComment, IFolder, IFolderItem, INotificationSettings, IPermission, ISummary, ISummarySearch, SearchType, SummaryPayload, SummarySearch, UserRef } from '../shared/models';
 import { toHttpParams } from '../shared/services/http-params';
-import { DB_VERSION, DbCollection, DbSummary, DbUser, MockDb, seedDb } from './mock-db';
+import { DB_VERSION, DbCollection, DbFolder, DbSummary, DbUser, MockDb, seedDb } from './mock-db';
 
 const STORAGE_KEY = 'summer-mock-db';
 const LATENCY_MS = 180;
@@ -590,6 +590,121 @@ on('DELETE', '/api/collection/:id', ({ me, params: [cid] }) => {
 
 on('GET', '/api/collection/:id', ({ params: [cid] }) => toCollection(getCollection(cid)));
 
+// ---------------- hierarchy (folders) ----------------
+
+function folderItems(fid: string, me: DbUser): IFolderItem[] {
+  const collections = db.collections.filter((c) => c.folderId === fid).map((c): IFolderItem => ({ type: 'collection', _id: c._id, name: c.name }));
+  const summaries = visibleTo(me)
+    .filter((s) => !s.isDraft && s.folderId === fid)
+    .map((s): IFolderItem => ({ type: 'summary', _id: s._id, name: s.title }));
+  return [...collections, ...summaries];
+}
+
+function toFolder(f: DbFolder, me: DbUser): IFolder {
+  return {
+    _id: f._id,
+    name: f.name,
+    parentId: f.parentId,
+    itemCount: folderItems(f._id, me).length,
+    permissions: f.permissions.flatMap((pid) => db.permissions.filter((p) => p._id === pid)),
+    managers: f.managers,
+    createdBy: ref(findUser(f.createdBy)),
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
+  };
+}
+
+function getFolder(fid: string): DbFolder {
+  const f = db.folders.find((x) => x._id === fid);
+  if (!f) throw new HttpError(404);
+  return f;
+}
+
+/** Open to everyone when it has no permission groups; managers always see their folders. */
+const canSeeFolder = (f: DbFolder, me: DbUser) => !f.permissions.length || f.managers.includes(me._id) || f.permissions.some((p) => me.permissions.includes(p));
+
+/** A folder is visible only if it and every ancestor are visible. */
+function visibleFolders(me: DbUser): DbFolder[] {
+  const byId = new Map(db.folders.map((f) => [f._id, f]));
+  const ok = (f: DbFolder | undefined): boolean => !!f && canSeeFolder(f, me) && (f.parentId === null || ok(byId.get(f.parentId)));
+  return db.folders.filter((f) => ok(f));
+}
+
+function assertFolderManager(f: DbFolder, me: DbUser) {
+  if (!f.managers.includes(me._id)) throw new HttpError(403);
+}
+
+function subtreeIds(fid: string): string[] {
+  const children = db.folders.filter((f) => f.parentId === fid).map((f) => f._id);
+  return [fid, ...children.flatMap(subtreeIds)];
+}
+
+const itemsOf = (body: any): { type: FolderItemType; _id: string }[] => (Array.isArray(body?.items) ? body.items : []);
+
+on('GET', '/api/folder', ({ me }) => visibleFolders(me).map((f) => toFolder(f, me)));
+
+on('GET', '/api/folder/:id/items', ({ me, params: [fid] }) => {
+  if (!visibleFolders(me).some((f) => f._id === fid)) throw new HttpError(404);
+  return folderItems(fid, me);
+});
+
+on('POST', '/api/folder/create', ({ me, body }) => {
+  const parentId: string | null = body.parentId ?? null;
+  // Anyone may create a root folder; subfolders need a manager of the parent.
+  if (parentId) assertFolderManager(getFolder(parentId), me);
+  const f: DbFolder = {
+    _id: id('fd'),
+    name: String(body.name ?? '').trim(),
+    parentId,
+    permissions: body.permissions ?? [],
+    managers: body.managers?.length ? body.managers : [me._id],
+    createdBy: me._id,
+    createdAt: now(),
+    updatedAt: now(),
+  };
+  if (!f.name) throw new HttpError(400);
+  db.folders.push(f);
+  return toFolder(f, me);
+});
+
+on('POST', '/api/folder/edit/:id', ({ me, params: [fid], body }) => {
+  const f = getFolder(fid);
+  assertFolderManager(f, me);
+  f.name = String(body.name ?? f.name).trim() || f.name;
+  f.permissions = body.permissions ?? f.permissions;
+  f.managers = body.managers?.length ? body.managers : f.managers;
+  f.updatedAt = now();
+  return toFolder(f, me);
+});
+
+on('POST', '/api/folder/:id/items/remove', ({ me, params: [fid], body }) => {
+  assertFolderManager(getFolder(fid), me);
+  const ids = new Set(itemsOf(body).map((i) => i._id));
+  for (const c of db.collections) if (c.folderId === fid && ids.has(c._id)) delete c.folderId;
+  for (const s of db.summaries) if (s.folderId === fid && ids.has(s._id)) delete s.folderId;
+  return {};
+});
+
+on('POST', '/api/folder/:id/items', ({ me, params: [fid], body }) => {
+  const f = getFolder(fid);
+  assertFolderManager(f, me);
+  for (const item of itemsOf(body)) {
+    const target = item.type === 'collection' ? db.collections.find((c) => c._id === item._id) : db.summaries.find((s) => s._id === item._id && !s.isDraft);
+    if (target) target.folderId = fid;
+  }
+  f.updatedAt = now();
+  return {};
+});
+
+on('DELETE', '/api/folder/:id', ({ me, params: [fid] }) => {
+  assertFolderManager(getFolder(fid), me);
+  const ids = new Set(subtreeIds(fid));
+  db.folders = db.folders.filter((f) => !ids.has(f._id));
+  for (const c of db.collections) if (c.folderId && ids.has(c.folderId)) delete c.folderId;
+  for (const s of db.summaries) if (s.folderId && ids.has(s.folderId)) delete s.folderId;
+  return {};
+});
+
 // ---------------- permissions admin ----------------
 
 const canManagePermissions = (me: DbUser) => me.permissions.includes('p5');
@@ -612,6 +727,7 @@ on('DELETE', '/api/permissions/:id', ({ me, params: [pid] }) => {
   db.permissions = db.permissions.filter((p) => p._id !== pid);
   for (const s of db.summaries) s.permissions = s.permissions.filter((x) => x !== pid);
   for (const c of db.collections) c.permissions = c.permissions.filter((x) => x !== pid);
+  for (const f of db.folders) f.permissions = f.permissions.filter((x) => x !== pid);
   return {};
 });
 

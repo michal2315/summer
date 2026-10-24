@@ -54,11 +54,26 @@ export interface DbSummary {
   seenBy: string[];
   color: string;
   timelineTitle?: string;
+  /** hierarchy folder holding this summary, if any */
+  folderId?: string;
 }
 
 export interface DbCollection {
   _id: string;
   name: string;
+  permissions: string[];
+  managers: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  /** hierarchy folder holding this collection, if any */
+  folderId?: string;
+}
+
+export interface DbFolder {
+  _id: string;
+  name: string;
+  parentId: string | null;
   permissions: string[];
   managers: string[];
   createdBy: string;
@@ -78,6 +93,7 @@ export interface MockDb {
   fields: IField[];
   contentTypes: IContentType[];
   collections: DbCollection[];
+  folders: DbFolder[];
   labels: string[];
   summaries: DbSummary[];
   notifications: DbNotification[];
@@ -86,7 +102,7 @@ export interface MockDb {
 }
 
 /** Bump to reseed browsers that already have an older mock DB in localStorage. */
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 // Deterministic PRNG so every fresh seed looks the same.
 function rng(seed: number) {
@@ -250,6 +266,37 @@ export function seedDb(): MockDb {
   }
   users[1].favoriteSummaries = ['s5', 's9', 's14'];
 
+  const folder = (id: string, name: string, parentId: string | null, extra: Partial<DbFolder> = {}): DbFolder => ({
+    _id: id,
+    name,
+    parentId,
+    permissions: [],
+    managers: ['u1'],
+    createdBy: 'u1',
+    createdAt: iso(now - 60 * DAY),
+    updatedAt: iso(now - 5 * DAY),
+    ...extra,
+  });
+  const folders: DbFolder[] = [
+    folder('fd1', 'שנה א׳', null),
+    folder('fd2', 'סמסטר א׳', 'fd1'),
+    folder('fd3', 'סמסטר ב׳', 'fd1'),
+    folder('fd4', 'מדעי המחשב', 'fd2', { permissions: ['p1'] }),
+    folder('fd5', 'מתמטיקה', 'fd2', { permissions: ['p2'], managers: ['u1', 'u3'] }),
+    folder('fd6', 'מדעי ההתנהגות', 'fd2'),
+    // Visible to the mock user (staff) but managed by someone else — read-only for them.
+    folder('fd7', 'חומרי הוראה לסגל', null, { permissions: ['p5'], managers: ['u3'], createdBy: 'u3' }),
+  ];
+  const place = (folderId: string, ...ids: string[]) => {
+    for (const c of collections) if (ids.includes(c._id)) c.folderId = folderId;
+    for (const s of summaries) if (ids.includes(s._id) && !s.isDraft) s.folderId = folderId;
+  };
+  place('fd4', 'c1', 'c2', 's1', 's2');
+  place('fd5', 'c3', 'c4');
+  place('fd6', 'c5');
+  place('fd1', 's3');
+  place('fd7', 's5', 's6');
+
   const notifications: DbNotification[] = [
     { _id: 'n1', userId: 'u1', text: 'דנה לוי תייגה אותך בסיכום "מבני נתונים — עצי AVL"', summaryId: 's7', creationDate: iso(now - 2 * 3_600_000), isViewed: false, createdBy: 'u2' },
     { _id: 'n2', userId: 'u1', text: 'תגובה חדשה על הסיכום שלך', summaryId: 's1', creationDate: iso(now - 26 * 3_600_000), isViewed: false, createdBy: 'u5' },
@@ -274,6 +321,7 @@ export function seedDb(): MockDb {
     fields,
     contentTypes,
     collections,
+    folders,
     labels: [...new Set([...LABELS, ...COURSES.map((c) => c.name)])],
     summaries,
     notifications,

@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router } from '@angular/router';
@@ -34,6 +35,7 @@ const jsonEqual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringi
 @Component({
   selector: 'app-summary-browser',
   imports: [
+    NgTemplateOutlet,
     FormsModule,
     NzButtonModule,
     NzEmptyModule,
@@ -68,6 +70,8 @@ export class SummaryBrowserComponent {
   readonly collection = input<ICollection | null>(null);
   /** Excel template download + upload in the toolbar (feed). */
   readonly excelActions = input(false);
+  /** Show the open summary in a side panel. Off when the host page shows `summaryId` itself (hierarchy). */
+  readonly detailAside = input(true);
 
   readonly tabs = TABS;
   private readonly params = toSignal(this.route.queryParams, { initialValue: {} as Params });

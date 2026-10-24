@@ -43,6 +43,7 @@ export class SideNavComponent {
       { label: 'דף הבית', icon: 'home', link: ['/summaries'] },
       { label: 'פרופיל', icon: 'user', link: ['/profile', this.users.userId() ?? ''] },
       { label: 'אוספים', icon: 'folder', link: ['/collections'] },
+      { label: 'היררכיה', icon: 'apartment', link: ['/hierarchy'] },
       { label: 'התראות', icon: 'notification', link: ['/notifications'] },
       { label: 'הרשאות', icon: 'lock', link: ['/permissions'] },
       { label: 'תוסף', icon: 'appstore-add', link: ['/extension'] },
