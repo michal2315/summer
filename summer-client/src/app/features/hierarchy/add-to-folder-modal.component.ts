@@ -6,8 +6,8 @@ import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { Subject, debounceTime, distinctUntilChanged, map, startWith, switchMap } from 'rxjs';
 import { UserService } from '../../core/auth/user.service';
-import { SearchType } from '../../shared/models';
-import { CatalogService } from '../../shared/services/catalog.service';
+import { SearchType, SummaryKind } from '../../shared/models';
+import { CollectionService } from '../../shared/services/collection.service';
 import { FolderService } from '../../shared/services/folder.service';
 import { SummaryService } from '../../shared/services/summary.service';
 
@@ -77,7 +77,7 @@ interface Option {
 export class AddToFolderModalComponent {
   readonly data = inject<AddToFolderData>(NZ_MODAL_DATA);
   readonly modal = inject(NzModalRef);
-  private readonly catalog = inject(CatalogService);
+  private readonly collectionService = inject(CollectionService);
   private readonly summaryService = inject(SummaryService);
   private readonly users = inject(UserService);
   private readonly folders = inject(FolderService);
@@ -97,7 +97,7 @@ export class AddToFolderModalComponent {
         startWith(''),
         debounceTime(200),
         distinctUntilChanged(),
-        switchMap((t) => this.catalog.collectionsByName(t)),
+        switchMap((t) => this.collectionService.byName(t)),
       )
       .subscribe((list) => this.merge(this.collectionOptions, this.collections(), list));
 
@@ -106,7 +106,7 @@ export class AddToFolderModalComponent {
         startWith(''),
         debounceTime(200),
         distinctUntilChanged(),
-        switchMap((t) => this.summaryService.search(this.users.userId()!, { text: t || undefined, searchTypes: [SearchType.Title], limit: 20 })),
+        switchMap((t) => this.summaryService.search(this.users.userId()!, { text: t || undefined, searchTypes: [SearchType.Title], kinds: [SummaryKind.Summary, SummaryKind.Running], limit: 20 })),
         map((res) => res.summaries.map((s) => ({ _id: s._id, name: s.title }))),
       )
       .subscribe((list) => this.merge(this.summaryOptions, this.summaries(), list));

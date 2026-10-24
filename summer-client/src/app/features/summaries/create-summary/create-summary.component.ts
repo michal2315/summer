@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, FormBuilder, FormControl, FormGroup, FormRecord, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzFormModule } from 'ng-zorro-antd/form';
@@ -11,6 +11,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
+import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTimePickerModule } from 'ng-zorro-antd/time-picker';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -22,8 +23,24 @@ import { HasPendingChanges } from '../../../core/auth/guards';
 import { UserService } from '../../../core/auth/user.service';
 import { AvatarComponent } from '../../../shared/components/avatar.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon.component';
-import { FieldsType, ICollectionRef, IContentType, IField, ISummary, SummaryPayload, UserRef } from '../../../shared/models';
-import { CatalogService } from '../../../shared/services/catalog.service';
+import {
+  FieldsType,
+  ICollectionRef,
+  IContentType,
+  IField,
+  ISummary,
+  ISummaryParent,
+  SUMMARY_KIND_LABEL,
+  SearchType,
+  SummaryKind,
+  SummaryPayload,
+  UserRef,
+} from '../../../shared/models';
+import { DateFormatPipe } from '../../../shared/pipes/pipes';
+import { CollectionService } from '../../../shared/services/collection.service';
+import { ContentTypeService } from '../../../shared/services/content-type.service';
+import { LabelService } from '../../../shared/services/label.service';
+import { PermissionService } from '../../../shared/services/permission.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 
 type FieldValue = string | number | Date | null;
@@ -34,6 +51,17 @@ interface DuplicateHit {
 }
 
 const GENERIC = 'generic';
+const DAY = 'yyyy-MM-dd';
+
+/** [published, updated] toast per kind. */
+const SAVED_TEXT: Record<SummaryKind, [string, string]> = {
+  [SummaryKind.Summary]: ['הסיכום פורסם', 'הסיכום עודכן'],
+  [SummaryKind.Running]: ['תמצית הרצף פורסמה', 'תמצית הרצף עודכנה'],
+  [SummaryKind.Sumaroon]: ['התמציתונית פורסמה', 'התמציתונית עודכנה'],
+};
+
+/** The running summary a sumaroon is written into, plus the content type it imposes. */
+type ParentInfo = ISummaryParent & { contentTypeId: string };
 const LABELS_PAGE = 20;
 
 /** `#word` in the content becomes a label on submit. */
@@ -57,6 +85,7 @@ export function hashtags(html: string): string[] {
     NzInputModule,
     NzInputNumberModule,
     NzPopoverModule,
+    NzRadioModule,
     NzSelectModule,
     NzTimePickerModule,
     NzToolTipModule,
@@ -64,6 +93,7 @@ export function hashtags(html: string): string[] {
     QuillEditorComponent,
     AvatarComponent,
     ContentTypeIconComponent,
+    DateFormatPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-summary.component.html',
@@ -73,7 +103,10 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private readonly fb = inject(FormBuilder).nonNullable;
   /** Content-type fields; controls are added/removed when the content type changes. */
   readonly typeFields = new FormRecord<FormControl<FieldValue>>({});
-  readonly catalog = inject(CatalogService);
+  readonly contentTypes = inject(ContentTypeService);
+  readonly permissionGroups = inject(PermissionService);
+  private readonly labels = inject(LabelService);
+  private readonly collectionService = inject(CollectionService);
   readonly users = inject(UserService);
   private readonly summaries = inject(SummaryService);
   private readonly router = inject(Router);
@@ -82,7 +115,13 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   /** Set by the edit route's resolver (withComponentInputBinding). */
   readonly summary = input<ISummary | undefined>(undefined);
+  /** /summaries/new?parentId=… — start a sumaroon inside that running summary. */
+  readonly parentId = input<string | undefined>(undefined);
   readonly isEdit = computed(() => !!this.summary());
+
+  readonly K = SummaryKind;
+  readonly kindLabel = SUMMARY_KIND_LABEL;
+  readonly kinds = [SummaryKind.Summary, SummaryKind.Running, SummaryKind.Sumaroon];
 
   readonly FT = FieldsType;
   readonly saving = signal(false);
@@ -90,6 +129,13 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly submitted = signal(false);
 
   readonly form = this.fb.group({
+    kind: [SummaryKind.Summary],
+    /** sumaroon: its running summary */
+    parent: [null as string | null],
+    /** running: [from, to] */
+    range: [[] as Date[]],
+    /** sumaroon: source link */
+    link: ['', Validators.pattern(/^(https?:\/\/\S+)?$/i)],
     contentType: ['', Validators.required],
     permissions: [[] as string[], Validators.required],
     title: ['', [Validators.required, Validators.maxLength(200)]],
@@ -118,23 +164,40 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private readonly contentTypeId = toSignal(this.form.controls.contentType.valueChanges.pipe(startWith(this.form.controls.contentType.value)), {
     requireSync: true,
   });
-  readonly contentType = computed<IContentType | undefined>(() => this.catalog.contentTypes().find((t) => t._id === this.contentTypeId()));
+  readonly contentType = computed<IContentType | undefined>(() => this.contentTypes.list().find((t) => t._id === this.contentTypeId()));
   readonly typeFieldDefs = computed(() =>
     (this.contentType()?.fields ?? []).flatMap((f) => {
-      const field = this.catalog.fieldsById().get(f.field);
+      const field = this.contentTypes.fieldsById().get(f.field);
       return field ? [{ field, required: f.required }] : [];
     }),
   );
   readonly extraFieldValues = toSignal(this.form.controls.extraFields.valueChanges, { initialValue: [] });
-  /** Catalog fields not already shown as type fields or extra rows. */
+  /** Custom fields not already shown as type fields or extra rows. */
   readonly availableExtraFields = computed(() => {
     const used = new Set([...this.typeFieldDefs().map((d) => d.field._id), ...this.extraFieldValues().map((r) => r.field)]);
     // Array fields (labels, permissions…) only exist for notification-rule conditions; summaries edit them elsewhere.
-    return this.catalog.fields().filter((f) => !used.has(f._id) && f.type !== FieldsType.Array);
+    return this.contentTypes.fields().filter((f) => !used.has(f._id) && f.type !== FieldsType.Array);
   });
   readonly newExtraField = signal<string | null>(null);
   private pendingTypeValues: Record<string, FieldValue> = {};
   readonly duplicates = signal<DuplicateHit[]>([]);
+
+  // ---- kind (summary / running / sumaroon) ----
+  readonly kind = toSignal(this.form.controls.kind.valueChanges.pipe(startWith(this.form.controls.kind.value)), { requireSync: true });
+  readonly parentInfo = signal<ParentInfo | null>(null);
+  readonly parentOptions = signal<{ _id: string; title: string }[]>([]);
+  private readonly parentSearch$ = new Subject<string>();
+  /** A sumaroon takes its running summary's content type; a running summary with sumaroons keeps its own. */
+  readonly contentTypeLocked = computed(
+    () => this.kind() === SummaryKind.Sumaroon || (this.kind() === SummaryKind.Running && !!this.summary()?.sumaroonCount),
+  );
+  /** Sumaroon dates must fall inside the running summary's range. */
+  readonly outsideParentRange = (d: Date): boolean => {
+    const p = this.parentInfo();
+    if (this.kind() !== SummaryKind.Sumaroon || !p) return false;
+    const day = format(d, DAY);
+    return day < p.rangeStart || day > p.rangeEnd;
+  };
 
   // ---- server-driven option lists ----
   readonly labelOptions = signal<string[]>([]);
@@ -151,7 +214,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   readonly sortedPermissions = computed(() => {
     const pinned = new Set(this.users.user()?.pinnedPermissions ?? []);
-    return [...this.catalog.permissions()].sort((a, b) => Number(pinned.has(b._id)) - Number(pinned.has(a._id)));
+    return [...this.permissionGroups.assignable()].sort((a, b) => Number(pinned.has(b._id)) - Number(pinned.has(a._id)));
   });
   readonly sortedLabels = computed(() => this.pinFirst(this.labelOptions(), (l) => l, 'pinnedLabels', 'favoriteLabels'));
   readonly sortedCollections = computed(() => this.pinFirst(this.collectionOptions(), (c) => c._id, 'pinnedCollections', 'favoriteCollections'));
@@ -174,17 +237,66 @@ export class CreateSummaryComponent implements HasPendingChanges {
       });
     });
 
-    // Collections are required only for the catch-all "generic" type.
+    // Collections are required only for the catch-all "generic" type — and never allowed on a sumaroon.
     effect(() => {
       const generic = this.contentType()?.name === GENERIC;
+      const sumaroon = this.kind() === SummaryKind.Sumaroon;
       untracked(() => {
         const c = this.form.controls.collections;
-        c.setValidators(generic ? Validators.required : null);
+        if (sumaroon && c.value.length) c.setValue([]);
+        c.setValidators(generic && !sumaroon ? Validators.required : null);
         c.updateValueAndValidity();
       });
     });
 
-    // Populate from the resolved summary (edit mode) once the catalogs needed to split type/extra fields are in.
+    // Required fields per kind: a sumaroon inherits permissions and labels, so its own are optional.
+    effect(() => {
+      const kind = this.kind();
+      untracked(() => {
+        const c = this.form.controls;
+        const set = (ctrl: FormControl<unknown>, required: boolean) => {
+          ctrl.setValidators(required ? Validators.required : null);
+          ctrl.updateValueAndValidity({ emitEvent: false });
+        };
+        set(c.parent as FormControl<unknown>, kind === SummaryKind.Sumaroon);
+        set(c.eventDate as FormControl<unknown>, kind === SummaryKind.Sumaroon);
+        set(c.range as FormControl<unknown>, kind === SummaryKind.Running);
+        set(c.permissions as FormControl<unknown>, kind !== SummaryKind.Sumaroon);
+        set(c.labels as FormControl<unknown>, kind !== SummaryKind.Sumaroon);
+        if (kind !== SummaryKind.Sumaroon) this.parentInfo.set(null);
+      });
+    });
+
+    // Opened from a running summary ("add sumaroon"): start inside it.
+    effect(() => {
+      const id = this.parentId();
+      if (id && !this.summary())
+        untracked(() => this.form.patchValue({ kind: SummaryKind.Sumaroon, parent: id }));
+    });
+
+    // Picking (or populating) the running summary pulls in what the sumaroon inherits.
+    this.form.controls.parent.valueChanges.pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef)).subscribe((id) => {
+      if (id) this.loadParent(id);
+      else this.parentInfo.set(null);
+    });
+
+    this.parentSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((text) =>
+          this.summaries.search(this.users.userId()!, { text: text || undefined, searchTypes: [SearchType.Title], kinds: [SummaryKind.Running], limit: 20 }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        const current = this.parentInfo();
+        const list = res.summaries.map((s) => ({ _id: s._id, title: s.title }));
+        this.parentOptions.set(mergeById(current ? [{ _id: current._id, title: current.title }] : [], list));
+      });
+    this.parentSearch$.next('');
+
+    // Populate from the resolved summary (edit mode) once the content types and fields needed to split type/extra fields are in.
     effect(() => {
       const s = this.summary();
       if (s) untracked(() => this.populate(s));
@@ -199,7 +311,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
           this.labelQuery = text;
           this.labelsDone = false;
           this.labelsLoading.set(true);
-          return this.catalog.labels(text, 0);
+          return this.labels.search(text, 0);
         }),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -213,7 +325,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       .pipe(
         debounceTime(250),
         distinctUntilChanged(),
-        switchMap((t) => this.catalog.collectionsByName(t)),
+        switchMap((t) => this.collectionService.byName(t)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((list) => this.collectionOptions.update((cur) => mergeById(cur.filter((c) => this.form.controls.collections.value.includes(c._id)), list)));
@@ -232,7 +344,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   }
 
   private populate(s: ISummary) {
-    forkJoin([this.catalog.contentTypes$.pipe(take(1)), this.catalog.fields$.pipe(take(1))])
+    forkJoin([this.contentTypes.list$.pipe(take(1)), this.contentTypes.fields$.pipe(take(1))])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(([types]) => this.fill(s, types.find((t) => t._id === s.contentType._id) ?? s.contentType));
   }
@@ -249,6 +361,11 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
     // The type-field group is rebuilt by an effect after contentType changes; it picks values up from here.
     this.pendingTypeValues = typeFields;
+    this.form.controls.kind.setValue(s.kind ?? SummaryKind.Summary);
+    if (s.parent) {
+      this.parentInfo.set({ ...s.parent, contentTypeId: s.contentType._id });
+      this.parentOptions.update((o) => mergeById([{ _id: s.parent!._id, title: s.parent!.title }], o));
+    }
     this.form.controls.contentType.setValue(s.contentType._id);
     this.form.controls.typeFields.patchValue(typeFields);
     this.form.patchValue({
@@ -262,6 +379,9 @@ export class CreateSummaryComponent implements HasPendingChanges {
       eventDate: s.eventDate ? new Date(s.eventDate) : null,
       eventSecTime: s.eventSecTime ? new Date(s.eventSecTime) : null,
       department: s.department,
+      parent: s.parentId ?? null,
+      range: s.rangeStart && s.rangeEnd ? [parseISO(s.rangeStart), parseISO(s.rangeEnd)] : [],
+      link: s.link ?? '',
     });
     this.form.controls.extraFields.clear();
     for (const e of extra) this.addExtraRow(e.field, e.value);
@@ -272,18 +392,44 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.form.markAsPristine();
   }
 
+  // ---- running summary (sumaroon parent) ----
+  onParentSearch(text: string) {
+    this.parentSearch$.next(text);
+  }
+
+  /** Take over the running summary's content type and move the event date inside its range. */
+  private loadParent(id: string) {
+    this.summaries.get(id).subscribe((p) => {
+      if (p.kind !== SummaryKind.Running || !p.rangeStart || !p.rangeEnd) return;
+      this.parentInfo.set({
+        _id: p._id,
+        title: p.title,
+        rangeStart: p.rangeStart,
+        rangeEnd: p.rangeEnd,
+        labels: p.labels,
+        permissions: p.permissions,
+        contentTypeId: p.contentType._id,
+      });
+      this.parentOptions.update((o) => mergeById([{ _id: p._id, title: p.title }], o));
+      this.form.controls.contentType.setValue(p.contentType._id);
+      const date = this.form.controls.eventDate.value;
+      if (!date || this.outsideParentRange(date)) this.form.controls.eventDate.setValue(parseISO(p.rangeStart));
+    });
+  }
+
   // ---- template helpers ----
   pickContentType(t: IContentType) {
+    if (this.contentTypeLocked()) return;
     this.form.controls.contentType.setValue(t._id);
     this.form.controls.contentType.markAsDirty();
   }
 
   fieldName(id: string): string {
-    return this.catalog.fieldsById().get(id)?.name ?? '';
+    return this.contentTypes.fieldsById().get(id)?.name ?? '';
   }
 
   fieldType(id: string): FieldsType {
-    return this.catalog.fieldsById().get(id)?.type ?? FieldsType.String;
+    return this.contentTypes.fieldsById().get(id)?.type ?? FieldsType.String;
   }
 
   addExtraField() {
@@ -313,7 +459,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const text = serialize(field.type, value);
     this.duplicates.update((d) => d.filter((x) => x.fieldId !== field._id));
     if (!text) return;
-    this.catalog.summariesByField(field._id, text).subscribe((list) => {
+    this.summaries.byField(field._id, text).subscribe((list) => {
       const others = list.filter((s) => s._id !== this.summary()?._id);
       if (others.length) this.duplicates.update((d) => [...d, { fieldId: field._id, summaries: others }]);
     });
@@ -335,7 +481,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   loadMoreLabels() {
     if (this.labelsDone || this.labelsLoading()) return;
     this.labelsLoading.set(true);
-    this.catalog.labels(this.labelQuery, this.labelOptions().length).subscribe((list) => {
+    this.labels.search(this.labelQuery, this.labelOptions().length).subscribe((list) => {
       this.labelOptions.update((cur) => [...new Set([...cur, ...list])]);
       this.labelsDone = list.length < LABELS_PAGE;
       this.labelsLoading.set(false);
@@ -372,7 +518,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   favoriteCollection = (id: string) => this.users.favoriteEntity('collection', id).subscribe();
 
   permissionColor(id: string) {
-    return this.catalog.permissions().find((p) => p._id === id)?.color ?? '#ccc';
+    return this.permissionGroups.list().find((p) => p._id === id)?.color ?? '#ccc';
   }
 
   removeExistingFile(name: string) {
@@ -400,18 +546,19 @@ export class CreateSummaryComponent implements HasPendingChanges {
   submit(isDraft: boolean) {
     this.submitted.set(true);
     const c = this.form.controls;
-    // Drafts only need a title; publishing validates everything.
-    const valid = isDraft ? c.title.valid : this.form.valid;
+    // Drafts only need a title (plus what their kind can't exist without); publishing validates everything.
+    const kindValid = c.parent.valid && c.range.valid && (this.kind() !== SummaryKind.Sumaroon || c.eventDate.valid);
+    const valid = isDraft ? c.title.valid && kindValid : this.form.valid;
     if (!valid) {
       this.form.markAllAsTouched();
       for (const ctrl of Object.values(c.typeFields.controls)) ctrl.markAsDirty();
-      for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.collections]) ctrl.markAsDirty();
+      for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.collections, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
       this.message.warning(isDraft ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
       return;
     }
 
     const v = this.form.getRawValue();
-    const fieldsById = this.catalog.fieldsById();
+    const fieldsById = this.contentTypes.fieldsById();
     const summaryFields = [
       ...Object.entries(v.typeFields).map(([field, value]) => ({ field, value })),
       ...v.extraFields.map((r) => ({ field: r.field, value: r.value })),
@@ -419,17 +566,24 @@ export class CreateSummaryComponent implements HasPendingChanges {
       .map(({ field, value }) => ({ field, value: serialize(fieldsById.get(field)?.type ?? FieldsType.String, value) }))
       .filter((f) => f.value !== '');
 
+    const kind = v.kind;
     const payload: SummaryPayload = {
       id: this.summary()?._id,
+      kind,
+      parentId: kind === SummaryKind.Sumaroon ? (v.parent ?? undefined) : undefined,
+      rangeStart: kind === SummaryKind.Running && v.range.length === 2 ? format(v.range[0], DAY) : undefined,
+      rangeEnd: kind === SummaryKind.Running && v.range.length === 2 ? format(v.range[1], DAY) : undefined,
+      link: kind === SummaryKind.Sumaroon ? v.link.trim() || undefined : undefined,
       title: v.title.trim(),
       contentHtml: v.content,
       notesHtml: v.notes,
       contentType: v.contentType,
-      eventDate: v.eventDate ? format(v.eventDate, 'yyyy-MM-dd') : undefined,
-      eventSecTime: v.eventSecTime ? format(v.eventSecTime, 'HH:mm') : undefined,
+      // A running summary is dated by its range.
+      eventDate: v.eventDate && kind !== SummaryKind.Running ? format(v.eventDate, DAY) : undefined,
+      eventSecTime: v.eventSecTime && kind !== SummaryKind.Running ? format(v.eventSecTime, 'HH:mm') : undefined,
       department: v.department,
       labels: [...new Set([...v.labels, ...hashtags(v.content)])],
-      collectionIds: v.collections,
+      collectionIds: kind === SummaryKind.Sumaroon ? [] : v.collections,
       permissions: v.permissions,
       taggedUsers: v.taggedUsers,
       summaryFields,
@@ -444,8 +598,11 @@ export class CreateSummaryComponent implements HasPendingChanges {
       next: (s) => {
         this.saved = true;
         this.saving.set(false);
-        this.message.success(isDraft ? 'הטיוטה נשמרה' : this.isEdit() ? 'הסיכום עודכן' : 'הסיכום פורסם');
+        this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
         if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });
+        // Running summaries have their own page; a sumaroon opens in its running summary's panel.
+        else if (s.kind === SummaryKind.Running) this.router.navigate(['/running', s._id]);
+        else if (s.parentId) this.router.navigate(['/running', s.parentId], { queryParams: { summaryId: s._id } });
         else this.router.navigate(['/summaries'], { queryParams: { summaryId: s._id } });
       },
       error: () => this.saving.set(false),

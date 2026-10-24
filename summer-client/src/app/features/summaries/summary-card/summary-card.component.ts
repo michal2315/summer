@@ -9,7 +9,7 @@ import { UserService } from '../../../core/auth/user.service';
 import { AvatarComponent } from '../../../shared/components/avatar.component';
 import { ColorPickerComponent } from '../../../shared/components/color-picker.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon.component';
-import { ISummary, ISummarySearch, SearchType } from '../../../shared/models';
+import { ISummary, ISummarySearch, SearchType, SummaryKind } from '../../../shared/models';
 import { colorGlow } from '../../../shared/models/colors';
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { SummaryActionsService } from '../summary-actions.service';
@@ -38,6 +38,7 @@ const VISIBLE_LABELS = 4;
   host: {
     '[class.active]': 'active()',
     '[class.focused]': 'focused()',
+    '[class.running]': 'summary().kind === "running"',
     '[style.--stripe]': 'summary().color || "transparent"',
   },
 })
@@ -56,11 +57,17 @@ export class SummaryCardComponent {
   readonly selectToggle = output<string>();
 
   readonly T = SearchType;
+  readonly K = SummaryKind;
   readonly glow = colorGlow;
   readonly isMine = computed(() => this.summary().user?._id === this.users.userId());
   readonly seen = computed(() => this.summary().seenBy?.includes(this.users.userId() ?? ''));
   readonly visibleLabels = computed(() => this.summary().labels.slice(0, VISIBLE_LABELS));
   readonly hiddenLabels = computed(() => this.summary().labels.slice(VISIBLE_LABELS));
+
+  /** A sumaroon's running summary has its own page. */
+  openParent(id: string) {
+    this.router.navigate(['/running', id]);
+  }
 
   searchLabel(name: string, event: Event) {
     event.stopPropagation();

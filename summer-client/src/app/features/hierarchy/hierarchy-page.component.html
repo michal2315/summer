@@ -85,7 +85,7 @@
                   <div class="node" [class.active]="isOpen(item.type, item._id)">
                     <span class="twisty"></span>
                     <a class="link" routerLink="/hierarchy" [queryParams]="itemParams(f._id, item)">
-                      <span class="icon" [class]="item.type" nz-icon [nzType]="item.type === 'collection' ? 'appstore' : 'file-text'"></span>
+                      <span class="icon" [class]="item.kind === 'running' ? 'running' : item.type" nz-icon [nzType]="itemIcon(item)" [nz-tooltip]="item.kind === 'running' ? 'תמצית רצף' : null"></span>
                       <span class="label">{{ item.name }}</span>
                     </a>
                     @if (manager) {

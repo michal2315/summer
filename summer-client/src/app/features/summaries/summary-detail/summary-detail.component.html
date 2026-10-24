@@ -17,12 +17,34 @@
         <span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'" [class.fav]="s.isFavorite"></span>
       </button>
       <button nz-button nzType="text" nzShape="circle" (click)="actions.openTimeline(s)" nz-tooltip="ציר זמן" aria-label="ציר זמן"><span nz-icon nzType="field-time"></span></button>
+      @if (fullScreen(); as link) {
+        <button nz-button nzType="text" nzShape="circle" (click)="openFullScreen(link)" nz-tooltip="מסך מלא" aria-label="מסך מלא"><span nz-icon nzType="fullscreen"></span></button>
+      }
       @if (mode() === 'panel') {
         <button nz-button nzType="text" nzShape="circle" (click)="openInNewTab()" nz-tooltip="פתיחה בחלון חדש" aria-label="פתיחה בחלון חדש"><span nz-icon nzType="arrows-alt"></span></button>
       }
     </div>
 
     <nz-alert nzType="warning" nzShowIcon nzMessage="שימו לב! אין לצטט סיכום ללא תיאום עם המחבר.ת שלו." class="tip" />
+
+    @if (s.parent; as p) {
+      <section class="running-header" aria-label="תמצית הרצף">
+        <div class="part-of">
+          <span nz-icon nzType="unordered-list"></span>
+          <span class="muted">תמציתונית מתוך</span>
+          <button nz-button nzType="link" class="parent-link" (click)="openParent(p._id)">{{ p.title }}</button>
+        </div>
+        <div class="inherited">
+          <span class="muted">{{ p.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ p.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
+          @for (l of p.labels; track l.name) {
+            <nz-tag class="label-chip" (click)="searchLabel(l.name)">#{{ l.name }}</nz-tag>
+          }
+          @for (perm of p.permissions; track perm._id) {
+            <span class="perm"><i [style.background]="perm.color"></i>{{ perm.name }}</span>
+          }
+        </div>
+      </section>
+    }
 
     <header class="author">
       <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="36" />
@@ -58,7 +80,12 @@
         </dl>
       </nz-collapse-panel>
       <ng-template #docHeader>
-        <span class="section-head"><app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}{{ s.isDraft ? ' · טיוטה' : '' }}</span>
+        <span class="section-head">
+          <app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}{{ s.isDraft ? ' · טיוטה' : '' }}
+          @if (s.kind !== K.Summary) {
+            <span class="kind-badge" [class.running]="s.kind === K.Running">{{ kindLabel[s.kind] }}</span>
+          }
+        </span>
       </ng-template>
 
       @if (s.files.length) {
@@ -87,6 +114,9 @@
     </nz-collapse>
 
     <h1 class="title" [innerHTML]="s.title | highlight: search() : T.Title"></h1>
+    @if (s.link) {
+      <a class="source-link" [href]="s.link" target="_blank" rel="noopener noreferrer" dir="ltr"><span nz-icon nzType="link"></span> {{ s.link }}</a>
+    }
 
     <div class="ql-container ql-snow read-only content">
       <div class="ql-editor" [innerHTML]="s.content | richHtml: search() : T.Content"></div>
@@ -103,6 +133,9 @@
 
     @if (s.labels.length) {
       <div class="labels">
+        @if (s.parent) {
+          <span class="muted">תגיות נוספות:</span>
+        }
         @for (l of s.labels; track l.name) {
           <nz-tag class="label-chip" (click)="searchLabel(l.name)"><span [innerHTML]="'#' + l.name | highlight: search() : T.Label"></span></nz-tag>
         }
@@ -120,10 +153,17 @@
 
     @if (s.permissions.length) {
       <div class="permissions">
+        @if (s.parent) {
+          <span class="muted">הרשאות נוספות:</span>
+        }
         @for (p of s.permissions; track p._id) {
           <span class="perm"><i [style.background]="p.color"></i>{{ p.name }}</span>
         }
       </div>
+    }
+
+    @if (s.kind === K.Running) {
+      <app-sumaroon-list [running]="s" />
     }
 
     <app-comments [summary]="s" [search]="search()" (summaryChange)="onCommentsChange($event)" />

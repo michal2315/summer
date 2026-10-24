@@ -11,7 +11,9 @@ import { NzStepsModule } from 'ng-zorro-antd/steps';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzUploadFile, NzUploadModule } from 'ng-zorro-antd/upload';
 import { ICollectionRef } from '../../../shared/models';
-import { CatalogService } from '../../../shared/services/catalog.service';
+import { CollectionService } from '../../../shared/services/collection.service';
+import { ContentTypeService } from '../../../shared/services/content-type.service';
+import { PermissionService } from '../../../shared/services/permission.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { ImportTarget, SheetData, guessMapping, readSheet, targetsFor } from './excel-fields';
 
@@ -31,7 +33,9 @@ const PREVIEW_ROWS = 5;
   styleUrl: './upload-excel-wizard.component.scss',
 })
 export class UploadExcelWizardComponent {
-  readonly catalog = inject(CatalogService);
+  readonly contentTypes = inject(ContentTypeService);
+  readonly permissionGroups = inject(PermissionService);
+  private readonly collectionService = inject(CollectionService);
   private readonly summaries = inject(SummaryService);
   private readonly modal = inject(NzModalRef);
   private readonly message = inject(NzMessageService);
@@ -57,8 +61,8 @@ export class UploadExcelWizardComponent {
   readonly headers = signal<string[]>([]);
   readonly targets = computed<ImportTarget[]>(() =>
     targetsFor(
-      this.catalog.contentTypes().find((t) => t._id === this.contentTypeId()),
-      this.catalog.fieldsById(),
+      this.contentTypes.list().find((t) => t._id === this.contentTypeId()),
+      this.contentTypes.fieldsById(),
     ),
   );
   /** target key → Excel header */
@@ -95,7 +99,7 @@ export class UploadExcelWizardComponent {
   };
 
   searchCollections(text: string) {
-    this.catalog.collectionsByName(text).subscribe((list) => this.collectionOptions.set(list));
+    this.collectionService.byName(text).subscribe((list) => this.collectionOptions.set(list));
   }
 
   setMapping(key: string, header: string | null) {

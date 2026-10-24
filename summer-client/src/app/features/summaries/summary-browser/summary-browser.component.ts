@@ -9,7 +9,7 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { FormsModule } from '@angular/forms';
 import { ResizablePageComponent } from '../../../shared/components/resizable-page.component';
-import { ICollection, ISummary, ISummarySearch, SortKey, SummarySearch } from '../../../shared/models';
+import { ICollection, ISummary, ISummarySearch, SortKey, SummaryKind, SummarySearch } from '../../../shared/models';
 import { DEFAULT_SORT, searchFromParams, searchToParams } from '../search-query';
 import { SortRowComponent } from '../sort-row.component';
 import { SummaryActionsBarComponent } from '../summary-actions-bar.component';
@@ -72,6 +72,10 @@ export class SummaryBrowserComponent {
   readonly excelActions = input(false);
   /** Show the open summary in a side panel. Off when the host page shows `summaryId` itself (hierarchy). */
   readonly detailAside = input(true);
+  /** List this running summary's sumaroons. */
+  readonly runningId = input<string | null>(null);
+  /** Route prefix for the side panel's full-screen button (the open summary's id is appended). */
+  readonly fullScreenBase = input<string[] | null>(null);
 
   readonly tabs = TABS;
   private readonly params = toSignal(this.route.queryParams, { initialValue: {} as Params });
@@ -91,6 +95,7 @@ export class SummaryBrowserComponent {
         collectionId: this.collection()?._id ?? null,
         search: {
           ...this.search(),
+          ...(this.runningId() ? { parentId: this.runningId()!, kinds: [SummaryKind.Sumaroon] } : {}),
           sort: this.sort(),
           isProfile: this.isProfile(),
           summarySearch: tab,
@@ -118,9 +123,15 @@ export class SummaryBrowserComponent {
     this.patchParams({ tab: tab === SummarySearch.Summary ? null : tab });
   }
 
-  /** Eye toggle: open in the aside, or close if already open. */
+  /** Eye toggle: open in the aside, or close if already open. A running summary has its own page. */
   toggle(s: ISummary) {
-    this.patchParams({ summaryId: s._id === this.openId() ? null : s._id });
+    if (s.kind === SummaryKind.Running) this.router.navigate(['/running', s._id]);
+    else this.patchParams({ summaryId: s._id === this.openId() ? null : s._id });
+  }
+
+  fullScreenLink(id: string): string[] | null {
+    const base = this.fullScreenBase();
+    return base ? [...base, id] : null;
   }
 
   close() {

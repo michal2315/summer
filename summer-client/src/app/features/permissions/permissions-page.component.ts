@@ -12,7 +12,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { catchError, of } from 'rxjs';
 import { NotificationBellComponent } from '../../shared/components/notification-bell.component';
 import { IPermission } from '../../shared/models';
-import { CatalogService } from '../../shared/services/catalog.service';
+import { PermissionService } from '../../shared/services/permission.service';
 
 interface Draft {
   name: string;
@@ -41,10 +41,10 @@ const NEW_ID = '__new__';
   styleUrl: './permissions-page.component.scss',
 })
 export class PermissionsPageComponent {
-  readonly catalog = inject(CatalogService);
+  readonly permissionGroups = inject(PermissionService);
   private readonly message = inject(NzMessageService);
 
-  readonly isPermitted = toSignal(this.catalog.canManagePermissions().pipe(catchError(() => of(false))), { initialValue: false });
+  readonly isPermitted = toSignal(this.permissionGroups.canManage().pipe(catchError(() => of(false))), { initialValue: false });
 
   /** Row being edited (permission id, or NEW_ID for the unsaved new row) and its draft values. */
   readonly editingId = signal<string | null>(null);
@@ -53,7 +53,7 @@ export class PermissionsPageComponent {
   readonly NEW_ID = NEW_ID;
 
   readonly rows = computed<IPermission[]>(() => {
-    const list = this.catalog.permissions();
+    const list = this.permissionGroups.list();
     return this.editingId() === NEW_ID ? [{ _id: NEW_ID, name: '', groupName: '', color: this.draft().color }, ...list] : list;
   });
 
@@ -83,7 +83,7 @@ export class PermissionsPageComponent {
       return;
     }
     this.saving.set(true);
-    this.catalog.savePermission({ ...(id && id !== NEW_ID ? { _id: id } : {}), name: d.name.trim(), groupName: d.groupName.trim(), color: d.color }).subscribe({
+    this.permissionGroups.save({ ...(id && id !== NEW_ID ? { _id: id } : {}), name: d.name.trim(), groupName: d.groupName.trim(), color: d.color }).subscribe({
       next: () => {
         this.message.success(id === NEW_ID ? 'ההרשאה נוצרה' : 'ההרשאה עודכנה');
         this.editingId.set(null);
@@ -94,6 +94,6 @@ export class PermissionsPageComponent {
   }
 
   remove(p: IPermission) {
-    this.catalog.deletePermission(p._id).subscribe(() => this.message.success('ההרשאה נמחקה'));
+    this.permissionGroups.delete(p._id).subscribe(() => this.message.success('ההרשאה נמחקה'));
   }
 }

@@ -11,7 +11,7 @@ import { UserService } from '../../../core/auth/user.service';
 import { AvatarComponent } from '../../../shared/components/avatar.component';
 import { IMention, ISummary, ISummarySearch, SearchType, UserRef } from '../../../shared/models';
 import { HighlightPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
-import { CatalogService } from '../../../shared/services/catalog.service';
+import { LabelService } from '../../../shared/services/label.service';
 import { CommentService } from '../../../shared/services/comment.service';
 
 interface Suggestion {
@@ -103,7 +103,7 @@ interface Suggestion {
 })
 export class CommentsComponent {
   readonly users = inject(UserService);
-  private readonly catalog = inject(CatalogService);
+  private readonly labels = inject(LabelService);
   private readonly comments = inject(CommentService);
 
   readonly summary = input.required<ISummary>();
@@ -126,7 +126,7 @@ export class CommentsComponent {
         debounceTime(200),
         switchMap(({ value, prefix }) => {
           this.searching.set(true);
-          if (prefix === '#') return this.catalog.labels(value).pipe(map((list) => list.map(labelSuggestion)));
+          if (prefix === '#') return this.labels.search(value).pipe(map((list) => list.map(labelSuggestion)));
           return value ? this.users.query(value).pipe(map((list) => list.map(userSuggestion))) : of([]);
         }),
       )

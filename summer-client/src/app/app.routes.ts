@@ -1,7 +1,5 @@
-import { inject } from '@angular/core';
-import { Router, Routes } from '@angular/router';
+import { Routes } from '@angular/router';
 import { userGuard } from './core/auth/guards';
-import { APP_CONFIG } from './core/config/app-config';
 import { LayoutComponent } from './core/layout/layout.component';
 import { dashboardGuard } from './features/dashboard/dashboard.guard';
 
@@ -11,13 +9,6 @@ const status = (kind: string) => ({
 });
 
 export const routes: Routes = [
-  {
-    path: 'login',
-    // On the mock API the identity is fixed, so there is nothing to log in to.
-    canActivate: [() => (inject(APP_CONFIG).mockApi ? inject(Router).createUrlTree(['/summaries']) : true)],
-    loadComponent: () => import('./core/pages/login.component').then((m) => m.LoginComponent),
-    title: 'Summer · התחברות',
-  },
   { path: 'server-error', ...status('server-error'), title: 'Summer · שגיאה' },
   { path: 'unauthorized', ...status('unauthorized'), title: 'Summer · אין הרשאה' },
   {
@@ -34,6 +25,7 @@ export const routes: Routes = [
         title: 'Summer · פרופיל',
       },
       { path: 'user-not-found', ...status('user-not-found') },
+      { path: 'running', loadChildren: () => import('./features/running/running.routes') },
       { path: 'collections', loadChildren: () => import('./features/collections/collections.routes') },
       {
         path: 'hierarchy',

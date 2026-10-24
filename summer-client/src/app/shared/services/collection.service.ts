@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, Subject, map, tap } from 'rxjs';
-import { CollectionPayload, ICollection, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch } from '../models';
+import { Observable, Subject, map, of, tap } from 'rxjs';
+import { CollectionPayload, ICollection, ICollectionRef, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch } from '../models';
 import { toHttpParams } from './http-params';
 
 const BASE = '/api/collection';
@@ -24,6 +24,16 @@ export class CollectionService {
 
   get(id: string): Observable<ICollection> {
     return this.http.get<ICollection>(`${BASE}/${id}`);
+  }
+
+  /** Collections (visible to the user) whose name contains `text`. */
+  byName(text: string): Observable<ICollectionRef[]> {
+    return this.http.get<ICollectionRef[]>(`${BASE}/collectionName/${encodeURIComponent(text)}`);
+  }
+
+  byIds(ids: string[]): Observable<ICollectionRef[]> {
+    if (!ids.length) return of([]);
+    return this.http.get<ICollectionRef[]>(`${BASE}/ids`, { params: { _ids: ids.join(',') } });
   }
 
   byUser(userId: string, query: CollectionsQuery): Observable<ICollection[]> {

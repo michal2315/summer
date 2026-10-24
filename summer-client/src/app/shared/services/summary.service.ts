@@ -21,6 +21,11 @@ export class SummaryService {
     return this.http.get<ISummary>(`${BASE}/${id}/${isMine}`);
   }
 
+  /** Summaries (visible to the user) whose custom field `fieldId` equals `value`. */
+  byField(fieldId: string, value: string): Observable<Pick<ISummary, '_id' | 'title'>[]> {
+    return this.http.get<Pick<ISummary, '_id' | 'title'>[]>('/api/field/summaries', { params: { fieldId, value } });
+  }
+
   search(userId: string, search: ISummarySearch): Observable<ISummariesResponse> {
     return this.http
       .get<{ summaries: ISummary[]; lengths: ISummariesLength | number }>(`${BASE}/user/${userId}`, { params: toHttpParams(search) })

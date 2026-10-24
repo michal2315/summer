@@ -206,3 +206,34 @@
   text-align: center;
   padding: 6px;
 }
+
+// ---- running summary / sumaroon ----
+.kind-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.inherited {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: $gray-tag;
+    border-radius: 12px;
+    padding: 1px 10px;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+}
+.types.locked .type-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

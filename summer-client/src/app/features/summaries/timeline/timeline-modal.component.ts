@@ -11,7 +11,7 @@ import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { Observable } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
-import { ISummariesResponse, ISummary } from '../../../shared/models';
+import { ISummariesResponse, ISummary, SummaryKind } from '../../../shared/models';
 import { CollectionService } from '../../../shared/services/collection.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { saveFile } from '../../../shared/utils/save-file';
@@ -47,7 +47,7 @@ export class TimelineModalComponent {
   readonly events = signal<ISummary[] | null>(null);
   readonly exporting = signal(false);
   readonly editingTitle = signal(false);
-  readonly title = signal(this.current.timelineTitle || this.current.collectionIds[0]?.name || this.current.labels[0]?.name || this.current.title);
+  readonly title = signal(this.current.timelineTitle || this.current.parent?.title || this.current.collectionIds[0]?.name || this.current.labels[0]?.name || this.current.title);
   readonly draftTitle = signal(this.title());
 
   readonly isMine = this.current.user._id === this.users.userId();
@@ -58,9 +58,13 @@ export class TimelineModalComponent {
   constructor() {
     const collection = this.current.collectionIds[0];
     const search = { sort: 'eventDate' as const, limit: MAX_EVENTS, skip: 0 };
-    const req: Observable<ISummariesResponse> = collection
-      ? this.collections.summaries(collection._id, search)
-      : this.summaries.search(this.users.userId()!, { ...search, labels: this.current.labels.slice(0, 1).map((l) => l.name) });
+    // A running summary (or one of its sumaroons) is its own series: the sumaroons in date order.
+    const runningId = this.current.kind === SummaryKind.Running ? this.current._id : this.current.parentId;
+    const req: Observable<ISummariesResponse> = runningId
+      ? this.summaries.search(this.users.userId()!, { ...search, parentId: runningId, kinds: [SummaryKind.Sumaroon] })
+      : collection
+        ? this.collections.summaries(collection._id, search)
+        : this.summaries.search(this.users.userId()!, { ...search, labels: this.current.labels.slice(0, 1).map((l) => l.name) });
     req.subscribe({
       next: (res) => this.events.set(res.summaries.some((s) => s._id === this.current._id) ? res.summaries : [this.current, ...res.summaries]),
       error: () => this.events.set([this.current]),
@@ -73,7 +77,9 @@ export class TimelineModalComponent {
 
   open(s: ISummary) {
     this.ref.close();
-    this.router.navigate(['/summaries'], { queryParams: { summaryId: s._id } });
+    if (s.kind === SummaryKind.Running) this.router.navigate(['/running', s._id]);
+    else if (s.parentId) this.router.navigate(['/running', s.parentId], { queryParams: { summaryId: s._id } });
+    else this.router.navigate(['/summaries'], { queryParams: { summaryId: s._id } });
   }
 
   saveTitle() {

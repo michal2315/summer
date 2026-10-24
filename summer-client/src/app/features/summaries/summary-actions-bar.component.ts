@@ -5,8 +5,8 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
-import { ICollection, IContentType } from '../../shared/models';
-import { CatalogService } from '../../shared/services/catalog.service';
+import { ICollection, IContentType, SummaryKind } from '../../shared/models';
+import { ContentTypeService } from '../../shared/services/content-type.service';
 import { CollectionService } from '../../shared/services/collection.service';
 import { SummaryService } from '../../shared/services/summary.service';
 import { AddToCollectionData, AddToCollectionModalComponent } from '../collections/add-to-collection-modal.component';
@@ -31,7 +31,7 @@ import { SummaryListStore } from './summary-list.store';
         </button>
         <nz-dropdown-menu #templates="nzDropdownMenu">
           <ul nz-menu>
-            @for (t of catalog.contentTypes(); track t._id) {
+            @for (t of contentTypes.list(); track t._id) {
               <li nz-menu-item (click)="downloadTemplate(t)">{{ t.displayName }}</li>
             }
           </ul>
@@ -58,7 +58,7 @@ import { SummaryListStore } from './summary-list.store';
 })
 export class SummaryActionsBarComponent {
   readonly store = inject(SummaryListStore);
-  readonly catalog = inject(CatalogService);
+  readonly contentTypes = inject(ContentTypeService);
   private readonly summaries = inject(SummaryService);
   private readonly collections = inject(CollectionService);
   private readonly modal = inject(NzModalService);
@@ -72,7 +72,7 @@ export class SummaryActionsBarComponent {
   readonly exporting = signal(false);
 
   downloadTemplate(t: IContentType) {
-    const fieldNames = targetsFor(t, this.catalog.fieldsById()).map((f) => f.label);
+    const fieldNames = targetsFor(t, this.contentTypes.fieldsById()).map((f) => f.label);
     this.summaries.downloadTemplate(fieldNames, `תבנית-${t.displayName}.xlsx`).subscribe();
   }
 
@@ -90,11 +90,20 @@ export class SummaryActionsBarComponent {
   }
 
   addToCollection() {
+    // A sumaroon lives only inside its running summary.
+    const sumaroons = new Set(this.store.summaries().filter((s) => s.kind === SummaryKind.Sumaroon).map((s) => s._id));
+    const summaryIds = [...this.store.selected()].filter((id) => !sumaroons.has(id));
+    const skipped = this.store.selectedCount() - summaryIds.length;
+    if (!summaryIds.length) {
+      this.message.warning('תמציתוניות לא נוספות לאוספים — הן שייכות לתמצית הרצף שלהן');
+      return;
+    }
+    if (skipped) this.message.info(`${skipped} תמציתוניות דולגו — הן שייכות לתמצית הרצף שלהן`);
     this.modal
       .create<AddToCollectionModalComponent, AddToCollectionData, boolean>({
         nzTitle: 'הוספה לאוסף',
         nzContent: AddToCollectionModalComponent,
-        nzData: { summaryIds: [...this.store.selected()] },
+        nzData: { summaryIds },
         nzFooter: null,
         nzWidth: 280,
       })

@@ -118,6 +118,11 @@ export class HierarchyPageComponent {
     for (const id of this.items().keys()) this.loadItems(id);
   }
 
+  itemIcon(item: IFolderItem): string {
+    if (item.type === 'collection') return 'appstore';
+    return item.kind === 'running' ? 'unordered-list' : 'file-text';
+  }
+
   canExpand(f: IFolder) {
     return f.itemCount > 0 || !!this.children().get(f._id)?.length;
   }

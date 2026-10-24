@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
@@ -15,10 +15,11 @@ import { StorageService } from '../../../core/storage/storage.service';
 import { AvatarComponent } from '../../../shared/components/avatar.component';
 import { ColorPickerComponent } from '../../../shared/components/color-picker.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon.component';
-import { FieldsType, ISummary, ISummaryField, ISummarySearch, SearchType } from '../../../shared/models';
+import { FieldsType, ISummary, ISummaryField, ISummarySearch, SUMMARY_KIND_LABEL, SearchType, SummaryKind } from '../../../shared/models';
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { SummaryActionsService } from '../summary-actions.service';
+import { SumaroonListComponent } from '../running/sumaroon-list.component';
 import { CommentsComponent } from './comments.component';
 
 const SNAPSHOT_KEY = 'currSummary';
@@ -39,6 +40,7 @@ const SNAPSHOT_KEY = 'currSummary';
     ColorPickerComponent,
     ContentTypeIconComponent,
     CommentsComponent,
+    SumaroonListComponent,
     DateFormatPipe,
     HighlightPipe,
     RichHtmlPipe,
@@ -52,12 +54,20 @@ export class SummaryDetailComponent {
   private readonly storage = inject(StorageService);
   private readonly users = inject(UserService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   readonly actions = inject(SummaryActionsService);
+  readonly K = SummaryKind;
+  readonly kindLabel = SUMMARY_KIND_LABEL;
 
   readonly summaryId = input.required<string>();
   readonly mode = input<'panel' | 'page'>('panel');
   readonly search = input<ISummarySearch | null>(null);
+  /** Panel: route of a full-screen view of this summary (shows a "full screen" button). */
+  readonly fullScreen = input<string[] | null>(null);
+  /** Page: where to go once this summary is deleted (default: the feed). */
+  readonly exitTo = input<string[] | null>(null);
   readonly closed = output<void>();
+  readonly loaded = output<ISummary>();
 
   readonly summary = signal<ISummary | null>(null);
   readonly loading = signal(false);
@@ -81,7 +91,7 @@ export class SummaryDetailComponent {
     this.service.removed$.pipe(takeUntilDestroyed(destroyRef)).subscribe((id) => {
       if (id !== this.summary()?._id) return;
       this.storage.remove(SNAPSHOT_KEY, 'session');
-      if (this.mode() === 'page') this.router.navigate(['/summaries']);
+      if (this.mode() === 'page') this.router.navigate(this.exitTo() ?? ['/summaries']);
       else this.closed.emit();
     });
   }
@@ -107,6 +117,7 @@ export class SummaryDetailComponent {
 
   private set(s: ISummary) {
     this.summary.set(s);
+    this.loaded.emit(s);
     this.storage.set(SNAPSHOT_KEY, s, 'session');
   }
 
@@ -122,6 +133,16 @@ export class SummaryDetailComponent {
 
   download(file: string) {
     this.service.downloadAttachment(this.summaryId(), file).subscribe();
+  }
+
+  /** A sumaroon's running summary has its own page. */
+  openParent(id: string) {
+    this.router.navigate(['/running', id]);
+  }
+
+  /** Full screen keeps the list's query params so "back" restores them. */
+  openFullScreen(link: string[]) {
+    this.router.navigate(link, { queryParams: { ...this.route.snapshot.queryParams, summaryId: null } });
   }
 
   searchLabel(name: string) {

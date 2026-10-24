@@ -1,35 +1,125 @@
 @let c = form.controls;
 <form class="page" [formGroup]="form" (ngSubmit)="submit(false)" nzLayout="vertical" nz-form>
   <header class="title-bar">
-    <h1 class="page-title">{{ isEdit() ? 'עריכת סיכום' : 'כתיבת סיכום' }}</h1>
+    <h1 class="page-title">{{ isEdit() ? 'עריכת ' + kindLabel[kind()] : 'כתיבת ' + kindLabel[kind()] }}</h1>
     <button nz-button nzType="link" type="button" (click)="resetForm()">נקה הכל</button>
   </header>
+
+  <!-- 0. Kind: fixed once created -->
+  @if (!isEdit()) {
+    <section class="block">
+      <h2>מה כותבים?</h2>
+      <nz-radio-group formControlName="kind" nzButtonStyle="solid" aria-label="סוג הסיכום">
+        @for (k of kinds; track k) {
+          <label nz-radio-button [nzValue]="k">{{ kindLabel[k] }}</label>
+        }
+      </nz-radio-group>
+      <p class="muted kind-hint">
+        @switch (kind()) {
+          @case (K.Running) {
+            סדרה ממוקדת (למשל "ספר 1, פרק 3") עם טווח תאריכים, שאליה מוסיפים תמציתוניות.
+          }
+          @case (K.Sumaroon) {
+            חלק אחד מתוך תמצית רצף — יורש ממנה את סוג התוכן, התגיות וההרשאות.
+          }
+          @default {
+            סיכום רגיל, שאפשר להוסיף לאוספים.
+          }
+        }
+      </p>
+    </section>
+  }
+
+  <!-- 0b. Sumaroon: its running summary and what it inherits -->
+  @if (kind() === K.Sumaroon) {
+    <section class="block">
+      <nz-form-item>
+        <nz-form-label nzRequired>תמצית רצף</nz-form-label>
+        <nz-form-control nzErrorTip="חובה לבחור תמצית רצף">
+          <nz-select
+            formControlName="parent"
+            nzShowSearch
+            nzServerSearch
+            nzPlaceHolder="חיפוש תמצית רצף לפי כותרת"
+            [nzDisabled]="isEdit()"
+            (nzOnSearch)="onParentSearch($event)"
+          >
+            @for (p of parentOptions(); track p._id) {
+              <nz-option [nzValue]="p._id" [nzLabel]="p.title" />
+            }
+          </nz-select>
+        </nz-form-control>
+      </nz-form-item>
+      @if (parentInfo(); as p) {
+        <div class="inherited">
+          <span class="muted">טווח: {{ p.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ p.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
+          <span class="muted">יורשת:</span>
+          @for (l of p.labels; track l.name) {
+            <span class="chip">#{{ l.name }}</span>
+          }
+          @for (perm of p.permissions; track perm._id) {
+            <span class="chip"><i class="dot" [style.background]="perm.color"></i>{{ perm.name }}</span>
+          }
+        </div>
+      }
+    </section>
+  }
 
   <!-- 1. Content type -->
   <section class="block">
     <h2>על מה הסיכום?</h2>
-    <div class="types" role="radiogroup" aria-label="סוג תוכן" [class.no-selection-error]="submitted() && c.contentType.invalid">
-      @for (t of catalog.contentTypes(); track t._id) {
-        <button type="button" role="radio" class="type-chip" [class.selected]="c.contentType.value === t._id" [attr.aria-checked]="c.contentType.value === t._id" (click)="pickContentType(t)">
+    <div class="types" role="radiogroup" aria-label="סוג תוכן" [class.no-selection-error]="submitted() && c.contentType.invalid" [class.locked]="contentTypeLocked()">
+      @for (t of contentTypes.list(); track t._id) {
+        <button
+          type="button"
+          role="radio"
+          class="type-chip"
+          [class.selected]="c.contentType.value === t._id"
+          [attr.aria-checked]="c.contentType.value === t._id"
+          [disabled]="contentTypeLocked() && c.contentType.value !== t._id"
+          (click)="pickContentType(t)"
+        >
           <app-content-type-icon [type]="t" /> {{ t.displayName }}
         </button>
       }
     </div>
+    @if (contentTypeLocked()) {
+      <div class="muted">{{ kind() === K.Sumaroon ? 'סוג התוכן נקבע לפי תמצית הרצף' : 'לא ניתן לשנות סוג תוכן כשיש תמציתוניות' }}</div>
+    }
     @if (submitted() && c.contentType.invalid) {
       <div class="error-text">חובה לבחור סוג</div>
     }
   </section>
 
-  <!-- 2. Details: event date/time, department, content-type fields -->
+  <!-- 2. Details: event date/time (or the running summary's range), department, link -->
   <section class="block grid">
-    <nz-form-item>
-      <nz-form-label>תאריך האירוע</nz-form-label>
-      <nz-form-control><nz-date-picker formControlName="eventDate" nzFormat="dd/MM/yyyy" /></nz-form-control>
-    </nz-form-item>
-    <nz-form-item>
-      <nz-form-label>שעה</nz-form-label>
-      <nz-form-control><nz-time-picker formControlName="eventSecTime" nzFormat="HH:mm" /></nz-form-control>
-    </nz-form-item>
+    @if (kind() === K.Running) {
+      <nz-form-item>
+        <nz-form-label nzRequired>טווח תאריכים</nz-form-label>
+        <nz-form-control nzErrorTip="חובה לבחור טווח">
+          <nz-range-picker formControlName="range" nzFormat="dd/MM/yyyy" />
+        </nz-form-control>
+      </nz-form-item>
+    } @else {
+      <nz-form-item>
+        <nz-form-label [nzRequired]="kind() === K.Sumaroon">תאריך האירוע</nz-form-label>
+        <nz-form-control nzErrorTip="חובה לבחור תאריך בתוך טווח תמצית הרצף">
+          <nz-date-picker formControlName="eventDate" nzFormat="dd/MM/yyyy" [nzDisabledDate]="outsideParentRange" />
+        </nz-form-control>
+      </nz-form-item>
+      <nz-form-item>
+        <nz-form-label>שעה</nz-form-label>
+        <nz-form-control><nz-time-picker formControlName="eventSecTime" nzFormat="HH:mm" /></nz-form-control>
+      </nz-form-item>
+    }
+    @if (kind() === K.Sumaroon) {
+      <nz-form-item>
+        <nz-form-label nzFor="link">קישור</nz-form-label>
+        <nz-form-control nzErrorTip="קישור צריך להתחיל ב-http:// או https://">
+          <input nz-input id="link" formControlName="link" placeholder="https://" dir="ltr" />
+        </nz-form-control>
+      </nz-form-item>
+    }
     <nz-form-item>
       <nz-form-label>מחלקה / פקולטה</nz-form-label>
       <nz-form-control><input nz-input formControlName="department" /></nz-form-control>
@@ -80,9 +170,9 @@
 
   <!-- 5. Permissions -->
   <nz-form-item>
-    <nz-form-label nzRequired>הרשאות</nz-form-label>
+    <nz-form-label [nzRequired]="kind() !== K.Sumaroon">{{ kind() === K.Sumaroon ? 'הרשאות נוספות' : 'הרשאות' }}</nz-form-label>
     <nz-form-control nzErrorTip="חובה לבחור הרשאה">
-      <nz-select formControlName="permissions" nzMode="multiple" nzPlaceHolder="בחרו למי לתת הרשאות" nzShowSearch [nzCustomTemplate]="permTag">
+      <nz-select formControlName="permissions" nzMode="multiple" [nzPlaceHolder]="kind() === K.Sumaroon ? 'בנוסף להרשאות של תמצית הרצף' : 'בחרו למי לתת הרשאות'" nzShowSearch [nzCustomTemplate]="permTag">
         @for (p of sortedPermissions(); track p._id) {
           <nz-option nzCustomContent [nzValue]="p._id" [nzLabel]="p.name">
             <span class="opt">
@@ -125,7 +215,7 @@
   <div class="grid">
     <!-- 8. Labels -->
     <nz-form-item>
-      <nz-form-label nzRequired>תגיות</nz-form-label>
+      <nz-form-label [nzRequired]="kind() !== K.Sumaroon">{{ kind() === K.Sumaroon ? 'תגיות נוספות' : 'תגיות' }}</nz-form-label>
       <nz-form-control nzErrorTip="חובה להוסיף לפחות תגית אחת">
         <nz-select
           formControlName="labels"
@@ -153,8 +243,8 @@
       </nz-form-control>
     </nz-form-item>
 
-    <!-- 9. Collections -->
-    <nz-form-item>
+    <!-- 9. Collections (a sumaroon lives only inside its running summary) -->
+    <nz-form-item [hidden]="kind() === K.Sumaroon">
       <nz-form-label [nzRequired]="contentType()?.name === 'generic'">אוספים</nz-form-label>
       <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור אוסף">
         <nz-select formControlName="collections" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="הוספה לאוספים" (nzOnSearch)="onCollectionSearch($event)">

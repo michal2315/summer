@@ -6,7 +6,6 @@ import { AppEnvironment } from '../app/core/config/app-config';
  */
 export const baseEnvironment: AppEnvironment = {
   production: true,
-  mockApi: false,
   usersMail: ['support@example-university.edu'],
   summariesTableFields: [
     { name: 'eventDate', displayName: 'תאריך האירוע', width: '20%', type: 'date' },
@@ -14,8 +13,6 @@ export const baseEnvironment: AppEnvironment = {
     { name: 'content', displayName: 'סיכום', width: '50%', type: 'string' },
   ],
   summariesLimit: 20,
-  ssoUrl: 'https://sso.example-university.edu/saml/summer',
-  ssoPopupFeatures: 'width=0,height=0,left=-1000,top=-1000',
   avatarUrl: 'https://avatars.example-university.edu/{username}?default=true',
   userMonitoring: 'https://monitoring.example-university.edu/api/event',
   notificationsPollMs: 60_000,

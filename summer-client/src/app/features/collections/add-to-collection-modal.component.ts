@@ -6,7 +6,6 @@ import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { Subject, debounceTime, distinctUntilChanged, startWith, switchMap } from 'rxjs';
 import { ICollectionRef } from '../../shared/models';
-import { CatalogService } from '../../shared/services/catalog.service';
 import { CollectionService } from '../../shared/services/collection.service';
 
 export interface AddToCollectionData {
@@ -48,7 +47,6 @@ export interface AddToCollectionData {
 export class AddToCollectionModalComponent {
   readonly data = inject<AddToCollectionData>(NZ_MODAL_DATA);
   readonly modal = inject(NzModalRef);
-  private readonly catalog = inject(CatalogService);
   private readonly collections = inject(CollectionService);
   private readonly message = inject(NzMessageService);
 
@@ -63,7 +61,7 @@ export class AddToCollectionModalComponent {
         startWith(''),
         debounceTime(200),
         distinctUntilChanged(),
-        switchMap((t) => this.catalog.collectionsByName(t)),
+        switchMap((t) => this.collections.byName(t)),
       )
       .subscribe((list) => {
         const keep = this.options().filter((o) => this.selected().includes(o._id));

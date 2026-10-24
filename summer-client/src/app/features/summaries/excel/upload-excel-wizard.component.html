@@ -16,7 +16,7 @@
           <label>
             <span class="req">סוג תוכן</span>
             <nz-select [ngModel]="contentTypeId()" (ngModelChange)="contentTypeId.set($event)" nzPlaceHolder="בחרו סוג">
-              @for (t of catalog.contentTypes(); track t._id) {
+              @for (t of contentTypes.list(); track t._id) {
                 <nz-option [nzValue]="t._id" [nzLabel]="t.displayName" />
               }
             </nz-select>
@@ -24,7 +24,7 @@
           <label>
             <span class="req">הרשאות</span>
             <nz-select nzMode="multiple" nzShowSearch [ngModel]="permissions()" (ngModelChange)="permissions.set($event)" nzPlaceHolder="למי לתת הרשאות">
-              @for (p of catalog.permissions(); track p._id) {
+              @for (p of permissionGroups.assignable(); track p._id) {
                 <nz-option [nzValue]="p._id" [nzLabel]="p.name" />
               }
             </nz-select>

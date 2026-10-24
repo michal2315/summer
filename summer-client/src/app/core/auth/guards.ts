@@ -2,28 +2,27 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { CanActivateFn, CanDeactivateFn, Router } from '@angular/router';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { Observable, catchError, map, of } from 'rxjs';
+import { Observable, catchError, map, of, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { UserService } from './user.service';
 
-/** Shell guard: no token → /login?RelayState=…; then load the user (401 → login, 403 → unauthorized, else → server-error). */
-export const userGuard: CanActivateFn = (_route, state) => {
+/** Shell guard: sign in automatically, then load the user (403 → unauthorized, other failures → server-error). */
+export const userGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const users = inject(UserService);
   const router = inject(Router);
-  const toLogin = () => router.createUrlTree(['/login'], { queryParams: { RelayState: state.url } });
+  const signIn = () => auth.ensureToken().pipe(switchMap(() => users.ensureLoaded()));
 
-  if (!auth.isAuthenticated()) return toLogin();
-
-  return users.ensureLoaded().pipe(
-    map(() => true),
+  return signIn().pipe(
+    // A stale stored token (e.g. the server's secret changed): drop it and sign in once more.
     catchError((e: HttpErrorResponse) => {
-      if (e.status === 401) {
-        auth.clearToken();
-        return of(toLogin());
-      }
-      return of(router.createUrlTree([e.status === 403 ? '/unauthorized' : '/server-error']));
+      if (e.status !== 401) throw e;
+      auth.clearToken();
+      users.clear();
+      return signIn();
     }),
+    map(() => true),
+    catchError((e: HttpErrorResponse) => of(router.createUrlTree([e.status === 403 ? '/unauthorized' : '/server-error']))),
   );
 };
 

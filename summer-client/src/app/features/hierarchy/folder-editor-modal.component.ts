@@ -10,7 +10,7 @@ import { Subject, debounceTime, distinctUntilChanged, filter, switchMap } from '
 import { UserService } from '../../core/auth/user.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { IFolder, UserRef } from '../../shared/models';
-import { CatalogService } from '../../shared/services/catalog.service';
+import { PermissionService } from '../../shared/services/permission.service';
 import { FolderService } from '../../shared/services/folder.service';
 
 export interface FolderEditorData {
@@ -34,10 +34,10 @@ export interface FolderEditorData {
         </nz-form-control>
       </nz-form-item>
       <nz-form-item>
-        <nz-form-label>הרשאות</nz-form-label>
-        <nz-form-control nzExtra="ללא הרשאות — התיקייה גלויה לכל מי שרואה את תיקיית האב">
+        <nz-form-label nzRequired>הרשאות</nz-form-label>
+        <nz-form-control nzErrorTip="חובה לבחור לפחות הרשאה אחת" nzExtra="רק מי שיש לו את כל ההרשאות שנבחרו (וגם את ההרשאות של תיקיות האב) יראה את התיקייה">
           <nz-select formControlName="permissions" nzMode="multiple" nzPlaceHolder="מי יכול לראות את התיקייה" nzShowSearch>
-            @for (p of catalog.permissions(); track p._id) {
+            @for (p of permissionGroups.assignable(); track p._id) {
               <nz-option nzCustomContent [nzValue]="p._id" [nzLabel]="p.name"><i class="dot" [style.background]="p.color"></i> {{ p.name }}</nz-option>
             }
           </nz-select>
@@ -67,7 +67,7 @@ export interface FolderEditorData {
 export class FolderEditorModalComponent {
   readonly data = inject<FolderEditorData>(NZ_MODAL_DATA, { optional: true });
   readonly modal = inject<NzModalRef<FolderEditorModalComponent, IFolder>>(NzModalRef);
-  readonly catalog = inject(CatalogService);
+  readonly permissionGroups = inject(PermissionService);
   private readonly users = inject(UserService);
   private readonly folders = inject(FolderService);
   private readonly message = inject(NzMessageService);
@@ -75,7 +75,8 @@ export class FolderEditorModalComponent {
   readonly f = this.data?.folder;
   readonly form = inject(FormBuilder).nonNullable.group({
     name: [this.f?.name ?? '', [Validators.required, Validators.maxLength(120)]],
-    permissions: [this.f?.permissions.map((p) => p._id) ?? ([] as string[])],
+    // The server requires at least one permission group per folder.
+    permissions: [this.f?.permissions.map((p) => p._id) ?? ([] as string[]), Validators.required],
     // New folders are managed by their creator by default.
     managers: [this.f?.managers ?? [this.users.userId()!]],
   });
@@ -103,6 +104,7 @@ export class FolderEditorModalComponent {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.form.controls.name.markAsDirty();
+      this.form.controls.permissions.markAsDirty();
       return;
     }
     const v = this.form.getRawValue();

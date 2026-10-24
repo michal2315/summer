@@ -103,6 +103,30 @@ export interface ICollection extends ICollectionRef {
   isDeleted: boolean;
 }
 
+/** summary = regular; running = תמצית רצף (a focused series with a date range); sumaroon = תמציתונית (one entry of a series). */
+export enum SummaryKind {
+  Summary = 'summary',
+  Running = 'running',
+  Sumaroon = 'sumaroon',
+}
+
+export const SUMMARY_KIND_LABEL: Record<SummaryKind, string> = {
+  [SummaryKind.Summary]: 'סיכום',
+  [SummaryKind.Running]: 'תמצית רצף',
+  [SummaryKind.Sumaroon]: 'תמציתונית',
+};
+
+/** A sumaroon's running summary: what it inherits (labels, permissions) and the range its date must fall in. */
+export interface ISummaryParent {
+  _id: string;
+  title: string;
+  /** yyyy-MM-dd */
+  rangeStart: string;
+  rangeEnd: string;
+  labels: ILabel[];
+  permissions: IPermission[];
+}
+
 export interface ISummary {
   _id: string;
   title: string;
@@ -127,6 +151,16 @@ export interface ISummary {
   color: string;
   isFavorite: boolean;
   timelineTitle?: string;
+  kind: SummaryKind;
+  /** sumaroon only */
+  parentId?: string;
+  parent?: ISummaryParent;
+  link?: string;
+  /** running only: yyyy-MM-dd */
+  rangeStart?: string;
+  rangeEnd?: string;
+  /** running only: published sumaroons the viewer can see */
+  sumaroonCount?: number;
 }
 
 export interface ISummariesLength {
@@ -182,6 +216,10 @@ export interface ISummarySearch {
   colors?: string[];
   labels?: string[];
   collections?: string[];
+  /** only these kinds; empty = all */
+  kinds?: SummaryKind[];
+  /** the sumaroons of this running summary */
+  parentId?: string;
 }
 
 export interface CollectionPayload {
@@ -214,6 +252,8 @@ export interface IFolderItem {
   type: FolderItemType;
   _id: string;
   name: string;
+  /** summaries only (sumaroons never sit in folders) */
+  kind?: SummaryKind;
 }
 
 export interface FolderPayload {
@@ -280,4 +320,13 @@ export interface SummaryPayload {
   /** existing attachment names to keep (edit) */
   files: string[];
   isDraft: boolean;
+  /** fixed at creation */
+  kind: SummaryKind;
+  /** sumaroon: its running summary (fixed at creation) */
+  parentId?: string;
+  /** running: yyyy-MM-dd */
+  rangeStart?: string;
+  rangeEnd?: string;
+  /** sumaroon */
+  link?: string;
 }

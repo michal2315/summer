@@ -16,7 +16,8 @@ import { UserService } from '../../../core/auth/user.service';
 import { NotificationBellComponent } from '../../../shared/components/notification-bell.component';
 import { ICollectionRef, ISummarySearch, SearchType, UserRef } from '../../../shared/models';
 import { SUMMARY_COLORS } from '../../../shared/models/colors';
-import { CatalogService } from '../../../shared/services/catalog.service';
+import { CollectionService } from '../../../shared/services/collection.service';
+import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { SearchHistoryService, stripPaging } from '../../../shared/services/search-history.service';
 import { activeFilterCount } from '../search-query';
 
@@ -63,7 +64,8 @@ const normalize = (s: ISummarySearch) =>
 export class SummarySearchComponent {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly users = inject(UserService);
-  private readonly catalog = inject(CatalogService);
+  private readonly contentTypes = inject(ContentTypeService);
+  private readonly collectionService = inject(CollectionService);
   private readonly history = inject(SearchHistoryService);
 
   /** Currently applied search (from the URL). */
@@ -78,7 +80,7 @@ export class SummarySearchComponent {
   readonly searchTypeOptions = SEARCH_TYPE_OPTIONS;
   readonly colors = SUMMARY_COLORS;
   readonly contentTypeOptions = computed<NzCheckboxOption[]>(() =>
-    this.catalog.contentTypes().map((t) => ({ label: t.displayName, value: t.name })),
+    this.contentTypes.list().map((t) => ({ label: t.displayName, value: t.name })),
   );
   readonly pinned = computed(() => this.users.user()?.pinnedSearches ?? []);
   readonly recent = computed(() => this.history.recent().slice(0, 5));
@@ -127,7 +129,7 @@ export class SummarySearchComponent {
       .pipe(
         debounceTime(250),
         distinctUntilChanged(),
-        switchMap((t) => this.catalog.collectionsByName(t)),
+        switchMap((t) => this.collectionService.byName(t)),
       )
       .subscribe((list) => this.collectionOptions.set(this.mergeById(this.selectedCollections(), list)));
   }
@@ -150,7 +152,7 @@ export class SummarySearchComponent {
       this.users.byIds(s.users).subscribe((list) => this.userOptions.set(this.mergeById(list, this.userOptions())));
     }
     if (s.collections?.length) {
-      this.catalog.collectionsByIds(s.collections).subscribe((list) => this.collectionOptions.set(this.mergeById(list, this.collectionOptions())));
+      this.collectionService.byIds(s.collections).subscribe((list) => this.collectionOptions.set(this.mergeById(list, this.collectionOptions())));
     }
   }
 

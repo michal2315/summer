@@ -4,7 +4,7 @@
 
     <div aside>
       @if (openId(); as id) {
-        <app-summary-detail [summaryId]="id" [search]="search()" (closed)="close()" />
+        <app-summary-detail [summaryId]="id" [search]="search()" [fullScreen]="fullScreenLink(id)" (closed)="close()" />
       } @else {
         <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו סיכום מהרשימה כדי לצפות בו כאן" />
       }

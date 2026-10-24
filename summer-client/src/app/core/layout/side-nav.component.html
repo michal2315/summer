@@ -27,9 +27,6 @@
   <div class="footer">
     <button type="button" (click)="whatsNew.open()"><span nz-icon nzType="gift"></span> מה חדש</button>
     <a [href]="contactHref"><span nz-icon nzType="mail"></span> צרו קשר במייל</a>
-    @if (canLogout) {
-      <button type="button" (click)="logout()"><span nz-icon nzType="logout"></span> התנתקות</button>
-    }
     <small class="credit">פותח ב-💗 על ידי האוניברסיטה</small>
   </div>
 </nav>

@@ -10,7 +10,7 @@ import { Subject, debounceTime, distinctUntilChanged, filter, switchMap } from '
 import { UserService } from '../../core/auth/user.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { ICollection, UserRef } from '../../shared/models';
-import { CatalogService } from '../../shared/services/catalog.service';
+import { PermissionService } from '../../shared/services/permission.service';
 import { CollectionService } from '../../shared/services/collection.service';
 
 export interface CollectionEditorData {
@@ -31,10 +31,10 @@ export interface CollectionEditorData {
         </nz-form-control>
       </nz-form-item>
       <nz-form-item>
-        <nz-form-label>הרשאות</nz-form-label>
-        <nz-form-control>
+        <nz-form-label nzRequired>הרשאות</nz-form-label>
+        <nz-form-control nzErrorTip="חובה לבחור לפחות הרשאה אחת" nzExtra="רק מי שיש לו את כל ההרשאות שנבחרו יראה את האוסף">
           <nz-select formControlName="permissions" nzMode="multiple" nzPlaceHolder="מי יכול לראות את האוסף" nzShowSearch>
-            @for (p of catalog.permissions(); track p._id) {
+            @for (p of permissionGroups.assignable(); track p._id) {
               <nz-option nzCustomContent [nzValue]="p._id" [nzLabel]="p.name"><i class="dot" [style.background]="p.color"></i> {{ p.name }}</nz-option>
             }
           </nz-select>
@@ -64,7 +64,7 @@ export interface CollectionEditorData {
 export class CollectionEditorModalComponent {
   readonly data = inject<CollectionEditorData>(NZ_MODAL_DATA, { optional: true });
   readonly modal = inject<NzModalRef<CollectionEditorModalComponent, ICollection>>(NzModalRef);
-  readonly catalog = inject(CatalogService);
+  readonly permissionGroups = inject(PermissionService);
   private readonly users = inject(UserService);
   private readonly collections = inject(CollectionService);
   private readonly message = inject(NzMessageService);
@@ -72,7 +72,8 @@ export class CollectionEditorModalComponent {
   private readonly c = this.data?.collection;
   readonly form = inject(FormBuilder).nonNullable.group({
     name: [this.c?.name ?? '', [Validators.required, Validators.maxLength(120)]],
-    permissions: [this.c?.permissions.map((p) => p._id) ?? ([] as string[])],
+    // The server requires at least one permission group per collection.
+    permissions: [this.c?.permissions.map((p) => p._id) ?? ([] as string[]), Validators.required],
     // New collections are managed by their creator by default.
     managers: [this.c?.managers ?? [this.users.userId()!]],
   });
@@ -100,6 +101,7 @@ export class CollectionEditorModalComponent {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.form.controls.name.markAsDirty();
+      this.form.controls.permissions.markAsDirty();
       return;
     }
     const v = this.form.getRawValue();

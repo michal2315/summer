@@ -6,13 +6,14 @@ import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { Subject, debounceTime, switchMap } from 'rxjs';
 import { FieldsType, IField, INotificationSettingsCondition, NotificationsFunctionsOptions } from '../../shared/models';
-import { CatalogService } from '../../shared/services/catalog.service';
+import { ContentTypeService } from '../../shared/services/content-type.service';
+import { LabelService } from '../../shared/services/label.service';
 import { OPTIONS_BY_TYPE, isBetween } from './notification-rules';
 
 type Operand = string | number | Date | null;
 
 /**
- * One rule condition as a form control: field (catalog) → operator (per field type) → value input typed by the field.
+ * One rule condition as a form control: field → operator (per field type) → value input typed by the field.
  * *Between operators take two operands; an empty bound is open-ended.
  */
 @Component({
@@ -25,7 +26,7 @@ type Operand = string | number | Date | null;
   ],
   template: `
     <nz-select class="field" nzShowSearch nzPlaceHolder="שדה" [ngModel]="field()?._id" (ngModelChange)="setField($event)" [nzDisabled]="disabled()" aria-label="שדה">
-      @for (f of catalog.fields(); track f._id) {
+      @for (f of contentTypes.fields(); track f._id) {
         <nz-option [nzValue]="f._id" [nzLabel]="f.name" />
       }
     </nz-select>
@@ -80,7 +81,8 @@ type Operand = string | number | Date | null;
   `,
 })
 export class CreateNotificationConditionComponent implements ControlValueAccessor, Validator {
-  readonly catalog = inject(CatalogService);
+  readonly contentTypes = inject(ContentTypeService);
+  private readonly labels = inject(LabelService);
   readonly FT = FieldsType;
 
   readonly field = signal<IField | null>(null);
@@ -102,7 +104,7 @@ export class CreateNotificationConditionComponent implements ControlValueAccesso
     this.labelQuery$
       .pipe(
         debounceTime(200),
-        switchMap((t) => this.catalog.labels(t)),
+        switchMap((t) => this.labels.search(t)),
       )
       .subscribe((l) => this.labelOptions.set(l));
     this.labelQuery$.next('');
@@ -113,7 +115,7 @@ export class CreateNotificationConditionComponent implements ControlValueAccesso
   }
 
   setField(id: string) {
-    const f = this.catalog.fieldsById().get(id) ?? null;
+    const f = this.contentTypes.fieldsById().get(id) ?? null;
     if (f?.type !== this.field()?.type) {
       // Operators and operand types depend on the field type — reset them.
       this.funcName.set(OPTIONS_BY_TYPE[f?.type ?? FieldsType.String]?.[0]?.value ?? null);

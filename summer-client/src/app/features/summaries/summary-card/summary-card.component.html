@@ -1,5 +1,20 @@
 @let s = summary();
-<article class="card" [attr.aria-label]="s.title">
+<article class="card" [attr.aria-label]="s.title" [class.sumaroon]="!!s.parent">
+  @if (s.kind === K.Running) {
+    <div class="running-banner">
+      <span nz-icon nzType="unordered-list"></span>
+      <strong>תמצית רצף</strong>
+      <span>· {{ s.sumaroonCount ?? 0 }} תמציתוניות</span>
+      @if (s.rangeStart) {
+        <span class="range">· {{ s.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ s.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
+      }
+    </div>
+  }
+  @if (s.parent; as p) {
+    <button type="button" class="running-strip" (click)="openParent(p._id)" [nz-tooltip]="'פתיחת תמצית הרצף'">
+      <span nz-icon nzType="unordered-list"></span> תמציתונית מתוך <strong>{{ p.title }}</strong>
+    </button>
+  }
   <header class="head">
     @if (selectable()) {
       <label nz-checkbox [nzChecked]="selected()" (nzCheckedChange)="selectToggle.emit(s._id)" aria-label="בחירת הסיכום"></label>
@@ -38,7 +53,7 @@
       @if (seen()) {
         <span class="seen" nz-tooltip="נקרא"><span nz-icon nzType="check-circle"></span></span>
       }
-      <button class="icon" type="button" (click)="toggleOpen.emit(s)" [nz-tooltip]="active() ? 'סגירת הסיכום' : 'פתיחת הסיכום'" [attr.aria-pressed]="active()" aria-label="פתיחת הסיכום">
+      <button class="icon" type="button" (click)="toggleOpen.emit(s)" [nz-tooltip]="s.kind === K.Running ? 'פתיחת תמצית הרצף' : active() ? 'סגירת הסיכום' : 'פתיחת הסיכום'" [attr.aria-pressed]="active()" aria-label="פתיחת הסיכום">
         <span nz-icon [nzType]="active() ? 'eye-invisible' : 'eye'"></span>
       </button>
       <button class="icon" type="button" (click)="actions.openTimeline(s)" nz-tooltip="ציר זמן" aria-label="ציר זמן">
