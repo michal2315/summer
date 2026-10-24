@@ -1,0 +1,182 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+}
+
+.detail {
+  padding: 10px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &.page {
+    max-width: 900px;
+    margin: 0 auto;
+    background: $white;
+    border-radius: 15px;
+    padding: 18px 24px 32px;
+  }
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  .spacer {
+    flex: 1;
+  }
+  .fav {
+    color: #fadb14;
+  }
+}
+
+.tip {
+  border-radius: $border-radius;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.author {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  line-height: 1.4;
+  .name {
+    font-weight: 800;
+    color: $dark-blue;
+    font-size: 13px;
+  }
+  .dept {
+    color: $dark-gray;
+    margin-inline-start: 8px;
+  }
+  .dates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    font-size: 11px;
+    color: $gray;
+  }
+}
+
+.sections {
+  background: $app-background;
+  border-radius: $border-radius;
+}
+
+.section-head {
+  font-weight: 700;
+  font-size: 12.5px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.fields {
+  display: grid;
+  font-size: 12.5px;
+  grid-template-columns: minmax(80px, max-content) minmax(0, 1fr);
+  gap: 4px 16px;
+  margin: 0;
+  dt {
+    font-weight: 700;
+  }
+  dd {
+    margin: 0;
+    word-break: break-word;
+  }
+}
+
+.files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  a {
+    color: $dark-blue;
+  }
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 8px 0 0;
+  line-height: 1.3;
+}
+
+.content {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.notes {
+  background: #fffbe6;
+  border-radius: $border-radius;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  h4 {
+    margin: 0 0 6px;
+    font-weight: 700;
+  }
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  nz-tag {
+    margin: 0;
+  }
+}
+
+.tagged {
+  display: flex;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  a {
+    font-weight: 700;
+  }
+}
+
+.permissions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  .perm {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    background: $gray-tag;
+    padding: 1px 10px;
+    border-radius: 12px;
+    i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+  }
+}
+
+.state {
+  padding: 64px 16px;
+}
+
+// Denser collapse panels than ant's defaults.
+.sections ::ng-deep .ant-collapse-header {
+  padding: 6px 10px !important;
+}
+.sections ::ng-deep .ant-collapse-content-box {
+  padding: 4px 12px 10px !important;
+}
+
+// Quill's default heading sizes are far larger than the panel's body text.
+.content ::ng-deep .ql-editor,
+.notes ::ng-deep .ql-editor {
+  h1 { font-size: 1.35em; }
+  h2 { font-size: 1.2em; }
+  h3 { font-size: 1.1em; }
+  :is(h4, h5, h6) { font-size: 1em; }
+  :is(h1, h2, h3, h4, h5, h6) { font-weight: 700; margin: 0.4em 0 0.2em; }
+}

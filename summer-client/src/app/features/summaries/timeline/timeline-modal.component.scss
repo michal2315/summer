@@ -1,0 +1,130 @@
+@use 'tokens' as *;
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  h2 {
+    font-size: 16px;
+    font-weight: 800;
+    margin: 0;
+  }
+  .title-input {
+    max-width: 320px;
+  }
+  .spacer {
+    flex: 1;
+  }
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  padding: 40px;
+}
+
+.viewport {
+  overflow-x: auto;
+}
+
+// Alternating cards above/below a horizontal line; width grows with the number of events.
+.track {
+  list-style: none;
+  margin: 0;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  width: max-content;
+  min-width: 100%;
+  height: 260px;
+  position: relative;
+  background: $white;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 3px;
+    background: $background;
+    border-radius: 2px;
+  }
+}
+
+.track-title {
+  position: absolute;
+  top: 6px;
+  inset-inline-start: 20px;
+  font-weight: 800;
+  font-size: 13px;
+  color: $dark-gray;
+}
+
+.event {
+  position: relative;
+  width: 150px;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  // Even events hang below the line, odd ones sit above it.
+  justify-content: flex-end;
+  padding-bottom: 4px;
+
+  &.up {
+    justify-content: flex-start;
+    padding-top: 30px;
+    padding-bottom: 0;
+  }
+}
+
+.dot {
+  position: absolute;
+  top: calc(50% - 6px);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: $primary-orange;
+  border: 3px solid $white;
+  box-shadow: 0 0 0 1px #ddd;
+}
+
+.card {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 136px;
+  height: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: $app-background;
+  border: 1px solid #e8e8e8;
+  border-inline-start-width: 3px;
+  border-radius: 8px;
+  font-size: 12px;
+  overflow: hidden;
+
+  &:hover {
+    box-shadow: $card-shadow;
+  }
+  .date {
+    color: $gray;
+    font-weight: 700;
+  }
+  .name {
+    font-weight: 700;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+.event.current .card {
+  background: #fff4f5;
+  border-color: $primary-pink;
+}

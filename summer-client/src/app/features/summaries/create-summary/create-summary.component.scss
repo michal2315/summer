@@ -1,0 +1,208 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+  background: $white;
+  min-height: 100%;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  @media (max-width: $bp-mobile) {
+    padding: 16px 12px 40px;
+  }
+}
+
+.title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.block {
+  margin-bottom: 6px;
+  h2 {
+    font-size: 14px;
+    font-weight: 800;
+    margin: 0 0 8px;
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0 16px;
+  nz-date-picker,
+  nz-time-picker,
+  nz-input-number,
+  nz-select {
+    width: 100%;
+  }
+}
+
+// Content-type fields share one row, however many the type defines.
+.type-fields {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0 16px;
+  nz-date-picker,
+  nz-time-picker,
+  nz-input-number {
+    width: 100%;
+  }
+  nz-form-item {
+    min-width: 0;
+  }
+  @media (max-width: $bp-mobile) {
+    grid-auto-flow: row;
+  }
+}
+
+.types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px;
+  border-radius: $border-radius;
+
+  &.no-selection-error .type-chip {
+    border-color: $error-color;
+    color: $error-color;
+  }
+}
+
+.type-chip {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 16px;
+  border: 1px solid #d9d9d9;
+  background: $white;
+  font-weight: 700;
+  transition: all 0.15s;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $primary-pink;
+  }
+  &.selected {
+    background: $background;
+    color: $white;
+    border-color: transparent;
+  }
+}
+
+.error-text {
+  color: $error-color;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.dup {
+  color: #d48806;
+  font-size: 13px;
+  margin-top: 4px;
+  cursor: help;
+}
+.dup-list {
+  margin: 0;
+  padding-inline-start: 18px;
+}
+
+.editor {
+  display: block;
+  &.invalid ::ng-deep .ql-container,
+  &.invalid ::ng-deep .ql-toolbar {
+    border-color: $error-color;
+  }
+}
+
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  .opt-label {
+    flex: 1;
+  }
+}
+.opt-btn {
+  all: unset;
+  cursor: pointer;
+  color: $gray;
+  padding: 0 2px;
+  &:hover {
+    color: $dark-blue;
+  }
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.extra-add {
+  display: flex;
+  gap: 8px;
+  nz-select {
+    flex: 1;
+    max-width: 360px;
+  }
+}
+
+.extra-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.extra-row {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  .extra-name {
+    font-weight: 700;
+  }
+  @media (max-width: $bp-mobile) {
+    grid-template-columns: 1fr auto;
+    .extra-name {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+.existing {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.actions {
+  position: sticky;
+  bottom: 0;
+  background: $white;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid #f0f0f0;
+  z-index: 5;
+}
+
+.loading-more {
+  text-align: center;
+  padding: 6px;
+}

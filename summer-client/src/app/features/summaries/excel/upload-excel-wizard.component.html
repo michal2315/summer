@@ -1,0 +1,116 @@
+<nz-steps [nzCurrent]="step()" nzSize="small" class="steps">
+  <nz-step nzTitle="קובץ" />
+  <nz-step nzTitle="מיפוי עמודות" />
+  <nz-step nzTitle="תצוגה מקדימה" />
+</nz-steps>
+
+<nz-spin [nzSpinning]="busy()" nzTip="מעבד…">
+  <div class="body">
+    @if (error(); as e) {
+      <nz-alert nzType="error" [nzMessage]="e" nzShowIcon class="error" />
+    }
+
+    @switch (step()) {
+      @case (0) {
+        <div class="fields">
+          <label>
+            <span class="req">סוג תוכן</span>
+            <nz-select [ngModel]="contentTypeId()" (ngModelChange)="contentTypeId.set($event)" nzPlaceHolder="בחרו סוג">
+              @for (t of catalog.contentTypes(); track t._id) {
+                <nz-option [nzValue]="t._id" [nzLabel]="t.displayName" />
+              }
+            </nz-select>
+          </label>
+          <label>
+            <span class="req">הרשאות</span>
+            <nz-select nzMode="multiple" nzShowSearch [ngModel]="permissions()" (ngModelChange)="permissions.set($event)" nzPlaceHolder="למי לתת הרשאות">
+              @for (p of catalog.permissions(); track p._id) {
+                <nz-option [nzValue]="p._id" [nzLabel]="p.name" />
+              }
+            </nz-select>
+          </label>
+          <label>
+            <span>אוספים</span>
+            <nz-select
+              nzMode="multiple"
+              nzShowSearch
+              nzServerSearch
+              [ngModel]="collections()"
+              (ngModelChange)="collections.set($event)"
+              (nzOnSearch)="searchCollections($event)"
+              nzPlaceHolder="הוספה לאוספים (לא חובה)"
+            >
+              @for (c of collectionOptions(); track c._id) {
+                <nz-option [nzValue]="c._id" [nzLabel]="c.name" />
+              }
+            </nz-select>
+          </label>
+        </div>
+        <nz-upload nzType="drag" [nzBeforeUpload]="beforeUpload" [nzFileList]="fileList()" nzAccept=".xlsx,.xls,.csv" [nzShowUploadList]="{ showRemoveIcon: false }">
+          <p class="ant-upload-drag-icon"><span nz-icon nzType="file-excel"></span></p>
+          <p class="ant-upload-text">גררו לכאן קובץ Excel או לחצו לבחירה</p>
+          <p class="ant-upload-hint">השורה הראשונה בקובץ היא שורת הכותרות</p>
+        </nz-upload>
+      }
+
+      @case (1) {
+        <p class="muted">לכל שדה בחרו את עמודת ה-Excel שממנה ימולא. זיהינו אוטומטית עמודות עם שם תואם.</p>
+        <div class="mapping">
+          @for (t of targets(); track t.key) {
+            <span [class.req]="t.required">{{ t.label }}</span>
+            <nz-select nzAllowClear nzPlaceHolder="— לא למלא —" [ngModel]="mapping()[t.key]" (ngModelChange)="setMapping(t.key, $event)" [attr.aria-label]="t.label">
+              @for (h of headers(); track h) {
+                <nz-option [nzValue]="h" [nzLabel]="h" />
+              }
+            </nz-select>
+          }
+        </div>
+        @if (missingRequired().length) {
+          <nz-alert nzType="warning" nzShowIcon [nzMessage]="'חובה למפות: ' + missingRequired()[0].label" />
+        }
+      }
+
+      @case (2) {
+        <p>
+          <strong>{{ rowCount() }}</strong> שורות ייובאו כסיכומים.
+          @if (rowCount() > preview().length) {
+            <span class="muted">מוצגות {{ preview().length }} הראשונות.</span>
+          }
+        </p>
+        <div class="preview">
+          <nz-table [nzData]="preview()" [nzFrontPagination]="false" [nzShowPagination]="false" nzSize="small" [nzScroll]="{ x: 'max-content' }">
+            <thead>
+              <tr>
+                @for (t of mappedTargets(); track t.key) {
+                  <th>{{ t.label }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of preview(); track $index) {
+                <tr>
+                  @for (t of mappedTargets(); track t.key) {
+                    <td class="cell">{{ cell(row, t) }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </nz-table>
+        </div>
+      }
+    }
+  </div>
+</nz-spin>
+
+<footer class="footer">
+  <button nz-button type="button" (click)="cancel()">ביטול</button>
+  <span class="spacer"></span>
+  @if (step() > 0) {
+    <button nz-button type="button" (click)="back()">הקודם</button>
+  }
+  @if (step() < 2) {
+    <button nz-button nzType="primary" type="button" [disabled]="!canNext()" (click)="next()">הבא</button>
+  } @else {
+    <button nz-button nzType="primary" type="button" [nzLoading]="busy()" (click)="import()">ייבוא {{ rowCount() }} סיכומים</button>
+  }
+</footer>

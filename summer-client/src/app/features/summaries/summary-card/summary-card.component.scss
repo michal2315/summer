@@ -1,0 +1,16 @@
+@use 'tokens' as *;
+@use 'card';
+
+.collections {
+  all: unset;
+  cursor: pointer;
+  background: $gray-tag;
+  border-radius: 10px;
+  padding: 0 7px;
+  font-weight: 700;
+}
+
+.seen {
+  color: #ff6975;
+  font-size: 13px;
+}

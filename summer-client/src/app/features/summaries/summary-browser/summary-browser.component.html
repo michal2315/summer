@@ -1,0 +1,42 @@
+<app-resizable-page [asideOpen]="!!openId()" (closeAside)="close()">
+  <div main class="main">
+    <div class="search-row">
+      <app-summary-search [search]="search()" [showBell]="showBell()" [placeholder]="searchPlaceholder()" (searchChange)="onSearch($event)" />
+    </div>
+
+    <ng-content select="[browser-header]" />
+
+    @if (showTabs()) {
+      <nz-tabset [nzSelectedIndex]="tabIndex()" (nzSelectedIndexChange)="setTab($event)" nzSize="small" class="tabs">
+        @for (t of tabs; track t.value) {
+          <nz-tab [nzTitle]="t.label + ' (' + store.lengths()[t.key] + ')'" />
+        }
+      </nz-tabset>
+    }
+
+    <div class="toolbar">
+      <span class="count">{{ store.total() }} {{ tabs[tabIndex()].label }}</span>
+      <app-summary-actions-bar [excelActions]="excelActions()" [collection]="collection()" />
+      <span class="spacer"></span>
+      <app-sort-row [sort]="sort()" (sortChange)="onSort($event)" />
+      <nz-radio-group [ngModel]="view()" (ngModelChange)="setView($event)" nzSize="small" nzButtonStyle="solid" aria-label="תצוגה">
+        <label nz-radio-button nzValue="list" aria-label="תצוגת כרטיסים"><span nz-icon nzType="unordered-list"></span></label>
+        <label nz-radio-button nzValue="table" aria-label="תצוגת טבלה"><span nz-icon nzType="table"></span></label>
+      </nz-radio-group>
+    </div>
+
+    @if (view() === 'list') {
+      <app-summary-list [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
+    } @else {
+      <app-summaries-table [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
+    }
+  </div>
+
+  <div aside>
+    @if (openId(); as id) {
+      <app-summary-detail [summaryId]="id" [search]="search()" (closed)="close()" />
+    } @else {
+      <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו סיכום מהרשימה כדי לצפות בו כאן" />
+    }
+  </div>
+</app-resizable-page>

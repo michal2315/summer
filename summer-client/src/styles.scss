@@ -1,0 +1,124 @@
+@use 'tokens' as *;
+@import 'quill/dist/quill.core.css';
+@import 'quill/dist/quill.snow.css';
+
+:root {
+  --primary-pink: #{$primary-pink};
+  --primary-orange: #{$primary-orange};
+  --dark-blue: #{$dark-blue};
+  --gray: #{$gray};
+  --app-background: #{$app-background};
+  --radius: #{$border-radius};
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  color: $dark-blue;
+  background: $white;
+}
+
+// Scrollbars hidden everywhere — areas still scroll by wheel, touch and keyboard.
+* {
+  scrollbar-width: none;
+}
+::-webkit-scrollbar {
+  display: none;
+}
+
+// Search hit
+.highlight {
+  background: yellow;
+  font-weight: bold;
+}
+
+// Primary button = 137° orange→pink gradient
+.ant-btn-primary:not([disabled]) {
+  background: $background;
+  border: none;
+  &:hover,
+  &:focus {
+    background: $background-hover;
+  }
+}
+
+// Tag chips
+.ant-tag.label-chip {
+  background: $gray-tag;
+  border: none;
+  font-weight: 700;
+  color: $dark-blue;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+// Quill's own CSS forces `text-align: left`; the app is RTL, so lines without an explicit alignment go right.
+.ql-editor {
+  direction: rtl;
+  text-align: right;
+}
+
+// Denser forms than ant's 24px default
+.ant-form-item {
+  margin-bottom: 14px;
+}
+.ant-form-vertical .ant-form-item-label {
+  padding-bottom: 4px;
+}
+
+// Read-only Quill HTML
+.ql-container.ql-snow.read-only {
+  border: 0;
+  font: inherit;
+  .ql-editor {
+    padding: 0;
+    min-height: 0;
+    overflow: visible;
+  }
+}
+
+// Quill editors in forms: keep RTL toolbar sensible
+.ql-toolbar.ql-snow,
+.ql-container.ql-snow {
+  border-color: #d9d9d9;
+}
+.ql-toolbar.ql-snow {
+  border-radius: $border-radius $border-radius 0 0;
+}
+.ql-container.ql-snow:not(.read-only) {
+  border-radius: 0 0 $border-radius $border-radius;
+  font: inherit;
+  font-size: 14px;
+}
+.ql-editor.ql-blank::before {
+  right: 15px;
+  left: 15px;
+  font-style: normal;
+  color: $gray;
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.muted {
+  color: $gray;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

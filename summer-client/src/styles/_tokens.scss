@@ -1,0 +1,43 @@
+// Spec §9.1 design tokens. Import with `@use 'tokens' as *;` (src/styles is on the include path).
+
+$content-padding: 4rem;
+
+// Colors
+$app-background: #f7f7f7;
+$input-color: #efefef;
+$input-hover-color: #e1e1e1;
+$primary-pink: #ff4056;
+$primary-orange: #ff9155;
+$accent: #01004f;
+$background: linear-gradient(137deg, $primary-orange 0%, $primary-pink 100%);
+$background-hover: linear-gradient(125deg, #ec854d 0%, #e7364b 100%);
+$success-color: #2dd070;
+$error-color: #e74d3d;
+$warning-color: #f1c40f;
+$card-background: #f7f7f7;
+$white: #ffffff;
+$black: #000000;
+
+// Text
+$dark-blue: #05043d;
+$gray: #9b9bb1;
+$dark-gray: #666666;
+
+// Tag
+$gray-tag: #efefef;
+
+// Summary color palette — keep in sync with SUMMARY_COLORS (shared/models/colors.ts)
+$summary-colors: #fe9eae, #ff0000, #ffa500, #008000, #00b2b2, #0000c9, #800080, #808080;
+
+// Shadow / radius
+$shadow: 0 2px 20px #00000038;
+$card-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+$border-radius: 8px;
+
+// AI suggestion buttons
+$accept-hover: #73d13d;
+$decline-hover: #ff7875;
+
+// Breakpoints
+$bp-narrow: 1100px;
+$bp-mobile: 768px;

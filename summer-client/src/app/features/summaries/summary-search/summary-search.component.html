@@ -1,0 +1,146 @@
+<div class="bar">
+<form class="form" [formGroup]="form" (ngSubmit)="submit()" role="search">
+  <nz-input-group class="input" [nzPrefix]="searchIcon" [nzSuffix]="suffix">
+    <input
+      #searchInput
+      nz-input
+      formControlName="text"
+      [placeholder]="placeholder()"
+      (focus)="openPanel()"
+      aria-label="חיפוש"
+      autocomplete="off"
+    />
+  </nz-input-group>
+  <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+  <ng-template #suffix>
+    @if (search().text || filterCount()) {
+      <button type="button" class="icon-btn" (click)="togglePin()" [nz-tooltip]="isPinned() ? 'ביטול נעיצה' : 'נעיצת החיפוש'" aria-label="נעיצת החיפוש">
+        <span nz-icon nzType="pushpin" [nzTheme]="isPinned() ? 'fill' : 'outline'"></span>
+      </button>
+      <button type="button" class="icon-btn" (click)="clear()" nz-tooltip="ניקוי החיפוש" aria-label="ניקוי החיפוש">
+        <span nz-icon nzType="close-circle"></span>
+      </button>
+    }
+    <nz-badge [nzCount]="filterCount()" nzSize="small">
+      <button type="button" class="icon-btn" (click)="open() ? close() : openPanel()" nz-tooltip="חיפוש מתקדם" aria-label="חיפוש מתקדם" [attr.aria-expanded]="open()">
+        <span nz-icon nzType="filter"></span>
+      </button>
+    </nz-badge>
+    <span class="kbd" nz-tooltip="יש ללחוץ על / כדי לעבור לתיבת החיפוש">/</span>
+  </ng-template>
+
+  @if (open()) {
+    <div class="overlay" (click)="close()" aria-hidden="true"></div>
+    <section class="panel" aria-label="חיפוש מתקדם">
+      <button type="button" class="close" (click)="close()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+
+      @if (pinned().length) {
+        <div class="group">
+          <h4><span nz-icon nzType="pushpin"></span> חיפושים נעוצים</h4>
+          <div class="chips">
+            @for (p of pinned(); track $index) {
+              <nz-tag class="chip" nzMode="closeable" (click)="apply(p)" (nzOnClose)="unpin(p, $event)">{{ describe(p) }}</nz-tag>
+            }
+          </div>
+        </div>
+      }
+
+      @if (recent().length) {
+        <div class="group">
+          <h4><span nz-icon nzType="history"></span> חיפושים אחרונים</h4>
+          <div class="chips">
+            @for (r of recent(); track $index) {
+              <nz-tag class="chip" (click)="apply(r)">{{ describe(r) }}</nz-tag>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="group">
+        <h4>חיפוש על</h4>
+        @let st = allState(form.controls.searchTypes.value, searchTypeOptions);
+        <label nz-checkbox [nzChecked]="st === 'all'" [nzIndeterminate]="st === 'some'" (nzCheckedChange)="setAll('searchTypes', searchTypeOptions, $event)">הכל</label>
+        <nz-checkbox-group formControlName="searchTypes" [nzOptions]="searchTypeOptions" />
+        <div class="colors" role="group" aria-label="סינון לפי צבע">
+          @for (c of colors; track c) {
+            <button
+              type="button"
+              class="swatch"
+              [style.background]="c"
+              [class.selected]="form.controls.colors.value.includes(c)"
+              (click)="toggleColor(c)"
+              [attr.aria-pressed]="form.controls.colors.value.includes(c)"
+              [attr.aria-label]="c"
+            ></button>
+          }
+        </div>
+      </div>
+
+      <div class="group">
+        <h4>סוג תוכן</h4>
+        @let ct = allState(form.controls.contentTypes.value, contentTypeOptions());
+        <label nz-checkbox [nzChecked]="ct === 'all'" [nzIndeterminate]="ct === 'some'" (nzCheckedChange)="setAll('contentTypes', contentTypeOptions(), $event)">הכל</label>
+        <nz-checkbox-group formControlName="contentTypes" [nzOptions]="contentTypeOptions()" />
+      </div>
+
+      <div class="grid">
+        <div class="group">
+          <h4><nz-switch formControlName="allUsers" nzSize="small" /> סיכומים של כולם</h4>
+          @if (!allUsers()) {
+            <nz-select
+              formControlName="users"
+              nzMode="multiple"
+              nzShowSearch
+              nzServerSearch
+              nzPlaceHolder="חיפוש משתמשים"
+              (nzOnSearch)="searchUsers($event)"
+              [nzNotFoundContent]="'הקלידו לפחות 2 תווים'"
+            >
+              @for (u of userOptions(); track u._id) {
+                <nz-option [nzValue]="u._id" [nzLabel]="u.fullName" />
+              }
+            </nz-select>
+          }
+        </div>
+
+        <div class="group">
+          <h4><nz-switch formControlName="allCollections" nzSize="small" /> כל האוספים</h4>
+          @if (!allCollections()) {
+            <nz-select
+              formControlName="collections"
+              nzMode="multiple"
+              nzShowSearch
+              nzServerSearch
+              nzPlaceHolder="חיפוש אוספים"
+              (nzOnSearch)="searchCollections($event)"
+            >
+              @for (c of collectionOptions(); track c._id) {
+                <nz-option [nzValue]="c._id" [nzLabel]="c.name" />
+              }
+            </nz-select>
+          }
+        </div>
+
+        <div class="group">
+          <h4>תאריך האירוע</h4>
+          <nz-range-picker formControlName="dates" nzFormat="dd/MM/yyyy" />
+        </div>
+
+        <div class="group">
+          <h4>תאריך יצירה</h4>
+          <nz-range-picker formControlName="createdDates" nzFormat="dd/MM/yyyy" />
+        </div>
+      </div>
+
+      <div class="footer">
+        <button nz-button type="button" (click)="form.reset()">איפוס</button>
+        <button nz-button nzType="primary" type="submit"><span nz-icon nzType="search"></span> חיפוש</button>
+      </div>
+    </section>
+  }
+</form>
+
+  @if (showBell()) {
+    <app-notification-bell />
+  }
+</div>
