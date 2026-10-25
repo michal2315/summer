@@ -1,0 +1,5 @@
+:host { display: block; background: #fff; border-radius: 12px; padding: 8px; }
+tr { cursor: pointer; }
+tr.active td { background: #fff4f5; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.files { font-size: 12px; color: #9b9bb1; margin-top: 4px; }

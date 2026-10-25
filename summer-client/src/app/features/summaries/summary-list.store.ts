@@ -45,7 +45,7 @@ export class SummaryListStore {
   readonly selected = signal<ReadonlySet<string>>(new Set());
   readonly selectedCount = computed(() => this.selected().size);
 
-  /** Total for the active bucket (drives "N סיכומים", table pagination and end-of-list detection). */
+  /** Total for the active bucket (drives "N תמציות", table pagination and end-of-list detection). */
   readonly total = computed(() => {
     const l = this.lengths();
     switch (this.tab()) {

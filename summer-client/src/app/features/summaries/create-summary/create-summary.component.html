@@ -1,20 +1,20 @@
 @let c = form.controls;
 <form class="page" [formGroup]="form" (ngSubmit)="submit(false)" nzLayout="vertical" nz-form>
-  <header class="title-bar">
-    <h1 class="page-title">{{ isEdit() ? 'עריכת ' + kindLabel[kind()] : 'כתיבת ' + kindLabel[kind()] }}</h1>
+  <div class="title-bar">
+    <div class="page-title" role="heading" aria-level="1">{{ isEdit() ? 'עריכת ' + kindLabel[kind()] : 'כתיבת ' + kindLabel[kind()] }}</div>
     <button nz-button nzType="link" type="button" (click)="resetForm()">נקה הכל</button>
-  </header>
+  </div>
 
   <!-- 0. Kind: fixed once created -->
   @if (!isEdit()) {
-    <section class="block">
-      <h2>מה כותבים?</h2>
-      <nz-radio-group formControlName="kind" nzButtonStyle="solid" aria-label="סוג הסיכום">
+    <div class="block">
+      <div class="block-title" role="heading" aria-level="2">מה כותבים?</div>
+      <nz-radio-group formControlName="kind" nzButtonStyle="solid" aria-label="סוג התמצית">
         @for (k of kinds; track k) {
           <label nz-radio-button [nzValue]="k">{{ kindLabel[k] }}</label>
         }
       </nz-radio-group>
-      <p class="muted kind-hint">
+      <div class="muted kind-hint">
         @switch (kind()) {
           @case (K.Running) {
             סדרה ממוקדת (למשל "ספר 1, פרק 3") עם טווח תאריכים, שאליה מוסיפים תמציתוניות.
@@ -23,16 +23,16 @@
             חלק אחד מתוך תמצית רצף — יורש ממנה את סוג התוכן, התגיות וההרשאות.
           }
           @default {
-            סיכום רגיל, שאפשר להוסיף לאוספים.
+            תמצית רגילה, שאפשר להוסיף ללקטים.
           }
         }
-      </p>
-    </section>
+      </div>
+    </div>
   }
 
   <!-- 0b. Sumaroon: its running summary and what it inherits -->
   @if (kind() === K.Sumaroon) {
-    <section class="block">
+    <div class="block">
       <nz-form-item>
         <nz-form-label nzRequired>תמצית רצף</nz-form-label>
         <nz-form-control nzErrorTip="חובה לבחור תמצית רצף">
@@ -58,16 +58,16 @@
             <span class="chip">#{{ l.name }}</span>
           }
           @for (perm of p.permissions; track perm._id) {
-            <span class="chip"><i class="dot" [style.background]="perm.color"></i>{{ perm.name }}</span>
+            <span class="chip"><span class="dot" [style.background]="perm.color"></span>{{ perm.name }}</span>
           }
         </div>
       }
-    </section>
+    </div>
   }
 
   <!-- 1. Content type -->
-  <section class="block">
-    <h2>על מה הסיכום?</h2>
+  <div class="block">
+    <div class="block-title" role="heading" aria-level="2">על מה התמצית?</div>
     <div class="types" role="radiogroup" aria-label="סוג תוכן" [class.no-selection-error]="submitted() && c.contentType.invalid" [class.locked]="contentTypeLocked()">
       @for (t of contentTypes.list(); track t._id) {
         <button
@@ -89,10 +89,10 @@
     @if (submitted() && c.contentType.invalid) {
       <div class="error-text">חובה לבחור סוג</div>
     }
-  </section>
+  </div>
 
   <!-- 2. Details: event date/time (or the running summary's range), department, link -->
-  <section class="block grid">
+  <div class="block grid">
     @if (kind() === K.Running) {
       <nz-form-item>
         <nz-form-label nzRequired>טווח תאריכים</nz-form-label>
@@ -124,11 +124,11 @@
       <nz-form-label>מחלקה / פקולטה</nz-form-label>
       <nz-form-control><input nz-input formControlName="department" /></nz-form-control>
     </nz-form-item>
-  </section>
+  </div>
 
   <!-- 3. Content-type fields — always a single row -->
   @if (typeFieldDefs().length) {
-  <section class="block type-fields" formGroupName="typeFields">
+  <div class="block type-fields" formGroupName="typeFields">
     <ng-container>
       @for (def of typeFieldDefs(); track def.field._id) {
         @let dup = duplicateFor(def.field._id);
@@ -151,7 +151,7 @@
             }
             @if (dup) {
               <div class="dup" nz-popover [nzPopoverContent]="dupList" nzPopoverTrigger="hover">
-                <span nz-icon nzType="exclamation-circle"></span> קיים סיכום למזהה זה (ניתן ליצור בכל זאת) — {{ dup.summaries.length }} סיכומים
+                <span nz-icon nzType="exclamation-circle"></span> קיימת תמצית למזהה זה (ניתן ליצור בכל זאת) — {{ dup.summaries.length }} תמציות
               </div>
               <ng-template #dupList>
                 <ul class="dup-list">
@@ -165,7 +165,7 @@
         </nz-form-item>
       }
     </ng-container>
-  </section>
+  </div>
   }
 
   <!-- 5. Permissions -->
@@ -176,7 +176,7 @@
         @for (p of sortedPermissions(); track p._id) {
           <nz-option nzCustomContent [nzValue]="p._id" [nzLabel]="p.name">
             <span class="opt">
-              <i class="dot" [style.background]="p.color"></i>
+              <span class="dot" [style.background]="p.color"></span>
               <span class="opt-label">{{ p.name }}</span>
               <button type="button" class="opt-btn" (mousedown)="optionAction($event, pinPermission.bind(this, p._id))" [attr.aria-label]="'נעיצה ' + p.name">
                 <span nz-icon nzType="pushpin" [nzTheme]="isPinned('pinnedPermissions', p._id) ? 'fill' : 'outline'"></span>
@@ -185,7 +185,7 @@
           </nz-option>
         }
       </nz-select>
-      <ng-template #permTag let-selected><i class="dot" [style.background]="permissionColor(selected.nzValue)"></i> {{ selected.nzLabel }}</ng-template>
+      <ng-template #permTag let-selected><span class="dot" [style.background]="permissionColor(selected.nzValue)"></span> {{ selected.nzLabel }}</ng-template>
     </nz-form-control>
   </nz-form-item>
 
@@ -193,14 +193,14 @@
   <nz-form-item>
     <nz-form-label nzRequired nzFor="title">כותרת</nz-form-label>
     <nz-form-control nzErrorTip="חובה למלא כותרת">
-      <input nz-input id="title" formControlName="title" placeholder="כותרת הסיכום" />
+      <input nz-input id="title" formControlName="title" placeholder="כותרת התמצית" />
     </nz-form-control>
   </nz-form-item>
 
   <!-- 7. Content -->
   <nz-form-item>
     <nz-form-label nzRequired>תוכן</nz-form-label>
-    <nz-form-control nzErrorTip="חובה למלא את תוכן הסיכום">
+    <nz-form-control nzErrorTip="חובה למלא את תוכן התמצית">
       <quill-editor
         formControlName="content"
         [placeholder]="editorPlaceholder"
@@ -243,11 +243,25 @@
       </nz-form-control>
     </nz-form-item>
 
+    <!-- 8b. Hierarchy folder (create only; a sumaroon lives only inside its running summary) -->
+    @if (!isEdit() && kind() !== K.Sumaroon) {
+      <nz-form-item>
+        <nz-form-label nzFor="folder">תיקייה</nz-form-label>
+        <nz-form-control nzExtra="אופציונלי — מיקום בהיררכיה">
+          <nz-select nzId="folder" formControlName="folder" nzShowSearch nzAllowClear nzPlaceHolder="חיפוש תיקייה">
+            @for (f of folderOptions(); track f._id) {
+              <nz-option [nzValue]="f._id" [nzLabel]="f.path" />
+            }
+          </nz-select>
+        </nz-form-control>
+      </nz-form-item>
+    }
+
     <!-- 9. Collections (a sumaroon lives only inside its running summary) -->
     <nz-form-item [hidden]="kind() === K.Sumaroon">
-      <nz-form-label [nzRequired]="contentType()?.name === 'generic'">אוספים</nz-form-label>
-      <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור אוסף">
-        <nz-select formControlName="collections" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="הוספה לאוספים" (nzOnSearch)="onCollectionSearch($event)">
+      <nz-form-label [nzRequired]="contentType()?.name === 'generic'">לקטים</nz-form-label>
+      <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור לקט">
+        <nz-select formControlName="collections" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="הוספה ללקטים" (nzOnSearch)="onCollectionSearch($event)">
           @for (col of sortedCollections(); track col._id) {
             <nz-option nzCustomContent [nzValue]="col._id" [nzLabel]="col.name">
               <span class="opt">
@@ -290,8 +304,8 @@
   </nz-form-item>
 
   <!-- 12. Extra fields -->
-  <section class="block">
-    <h2>שדה נוסף</h2>
+  <div class="block">
+    <div class="block-title" role="heading" aria-level="2">שדה נוסף</div>
     <div class="extra-add">
       <nz-select nzShowSearch nzPlaceHolder="בחירת שדה" [ngModel]="newExtraField()" (ngModelChange)="newExtraField.set($event)" [ngModelOptions]="{ standalone: true }" nzAllowClear aria-label="בחירת שדה נוסף">
         @for (f of availableExtraFields(); track f._id) {
@@ -322,11 +336,11 @@
         </div>
       }
     </div>
-  </section>
+  </div>
 
   <!-- 4. Files -->
-  <section class="block">
-    <h2>קבצים מצורפים</h2>
+  <div class="block">
+    <div class="block-title" role="heading" aria-level="2">קבצים מצורפים</div>
     @if (existingFiles().length) {
       <ul class="existing">
         @for (f of existingFiles(); track f) {
@@ -341,12 +355,12 @@
       <p class="ant-upload-drag-icon"><span nz-icon nzType="inbox"></span></p>
       <p class="ant-upload-text">להעלאת קובץ בחרו או גררו לכאן</p>
     </nz-upload>
-  </section>
+  </div>
 
-  <footer class="actions">
+  <div class="actions">
     <button nz-button type="button" [nzLoading]="saving()" (click)="submit(true)">שמירה כטיוטה</button>
     <button nz-button nzType="primary" type="submit" [nzLoading]="saving()">{{ isEdit() ? 'עדכון' : 'פרסום' }}</button>
-  </footer>
+  </div>
 </form>
 
 <ng-template #loadingTpl><div class="loading-more"><span nz-icon nzType="loading"></span></div></ng-template>

@@ -31,12 +31,12 @@
 
   @if (open()) {
     <div class="overlay" (click)="close()" aria-hidden="true"></div>
-    <section class="panel" aria-label="חיפוש מתקדם">
+    <div class="panel" role="region" aria-label="חיפוש מתקדם">
       <button type="button" class="close" (click)="close()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
 
       @if (pinned().length) {
         <div class="group">
-          <h4><span nz-icon nzType="pushpin"></span> חיפושים נעוצים</h4>
+          <div class="group-title" role="heading" aria-level="4"><span nz-icon nzType="pushpin"></span> חיפושים נעוצים</div>
           <div class="chips">
             @for (p of pinned(); track $index) {
               <nz-tag class="chip" nzMode="closeable" (click)="apply(p)" (nzOnClose)="unpin(p, $event)">{{ describe(p) }}</nz-tag>
@@ -47,7 +47,7 @@
 
       @if (recent().length) {
         <div class="group">
-          <h4><span nz-icon nzType="history"></span> חיפושים אחרונים</h4>
+          <div class="group-title" role="heading" aria-level="4"><span nz-icon nzType="history"></span> חיפושים אחרונים</div>
           <div class="chips">
             @for (r of recent(); track $index) {
               <nz-tag class="chip" (click)="apply(r)">{{ describe(r) }}</nz-tag>
@@ -57,7 +57,7 @@
       }
 
       <div class="group">
-        <h4>חיפוש על</h4>
+        <div class="group-title" role="heading" aria-level="4">חיפוש על</div>
         @let st = allState(form.controls.searchTypes.value, searchTypeOptions);
         <label nz-checkbox [nzChecked]="st === 'all'" [nzIndeterminate]="st === 'some'" (nzCheckedChange)="setAll('searchTypes', searchTypeOptions, $event)">הכל</label>
         <nz-checkbox-group formControlName="searchTypes" [nzOptions]="searchTypeOptions" />
@@ -77,7 +77,7 @@
       </div>
 
       <div class="group">
-        <h4>סוג תוכן</h4>
+        <div class="group-title" role="heading" aria-level="4">סוג תוכן</div>
         @let ct = allState(form.controls.contentTypes.value, contentTypeOptions());
         <label nz-checkbox [nzChecked]="ct === 'all'" [nzIndeterminate]="ct === 'some'" (nzCheckedChange)="setAll('contentTypes', contentTypeOptions(), $event)">הכל</label>
         <nz-checkbox-group formControlName="contentTypes" [nzOptions]="contentTypeOptions()" />
@@ -85,7 +85,7 @@
 
       <div class="grid">
         <div class="group">
-          <h4><nz-switch formControlName="allUsers" nzSize="small" /> סיכומים של כולם</h4>
+          <div class="group-title" role="heading" aria-level="4"><nz-switch formControlName="allUsers" nzSize="small" /> תמציות של כולם</div>
           @if (!allUsers()) {
             <nz-select
               formControlName="users"
@@ -104,14 +104,14 @@
         </div>
 
         <div class="group">
-          <h4><nz-switch formControlName="allCollections" nzSize="small" /> כל האוספים</h4>
+          <div class="group-title" role="heading" aria-level="4"><nz-switch formControlName="allCollections" nzSize="small" /> כל הלקטים</div>
           @if (!allCollections()) {
             <nz-select
               formControlName="collections"
               nzMode="multiple"
               nzShowSearch
               nzServerSearch
-              nzPlaceHolder="חיפוש אוספים"
+              nzPlaceHolder="חיפוש לקטים"
               (nzOnSearch)="searchCollections($event)"
             >
               @for (c of collectionOptions(); track c._id) {
@@ -122,12 +122,12 @@
         </div>
 
         <div class="group">
-          <h4>תאריך האירוע</h4>
+          <div class="group-title" role="heading" aria-level="4">תאריך האירוע</div>
           <nz-range-picker formControlName="dates" nzFormat="dd/MM/yyyy" />
         </div>
 
         <div class="group">
-          <h4>תאריך יצירה</h4>
+          <div class="group-title" role="heading" aria-level="4">תאריך יצירה</div>
           <nz-range-picker formControlName="createdDates" nzFormat="dd/MM/yyyy" />
         </div>
       </div>
@@ -136,7 +136,7 @@
         <button nz-button type="button" (click)="form.reset()">איפוס</button>
         <button nz-button nzType="primary" type="submit"><span nz-icon nzType="search"></span> חיפוש</button>
       </div>
-    </section>
+    </div>
   }
 </form>
 

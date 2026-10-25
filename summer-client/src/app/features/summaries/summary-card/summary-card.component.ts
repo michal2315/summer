@@ -6,13 +6,14 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { UserService } from '../../../core/auth/user.service';
-import { AvatarComponent } from '../../../shared/components/avatar.component';
-import { ColorPickerComponent } from '../../../shared/components/color-picker.component';
-import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon.component';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
+import { ColorPickerComponent } from '../../../shared/components/color-picker/color-picker.component';
+import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { ISummary, ISummarySearch, SearchType, SummaryKind } from '../../../shared/models';
 import { colorGlow } from '../../../shared/models/colors';
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { SummaryActionsService } from '../summary-actions.service';
+import { SummaryListStore } from '../summary-list.store';
 
 const VISIBLE_LABELS = 4;
 
@@ -46,6 +47,7 @@ export class SummaryCardComponent {
   private readonly users = inject(UserService);
   private readonly router = inject(Router);
   readonly actions = inject(SummaryActionsService);
+  private readonly store = inject(SummaryListStore, { optional: true });
 
   readonly summary = input.required<ISummary>();
   readonly search = input<ISummarySearch | null>(null);
@@ -58,6 +60,11 @@ export class SummaryCardComponent {
 
   readonly T = SearchType;
   readonly K = SummaryKind;
+  /** Hidden when the list is this sumaroon's own running summary (the page header already says so). */
+  readonly showParent = computed(() => {
+    const s = this.summary();
+    return !!s.parent && this.store?.currentQuery()?.search.parentId !== s.parentId;
+  });
   readonly glow = colorGlow;
   readonly isMine = computed(() => this.summary().user?._id === this.users.userId());
   readonly seen = computed(() => this.summary().seenBy?.includes(this.users.userId() ?? ''));

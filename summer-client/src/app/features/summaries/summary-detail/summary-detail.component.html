@@ -1,5 +1,5 @@
 @if (summary(); as s) {
-  <article class="detail" [class.page]="mode() === 'page'">
+  <div class="detail" role="article" [class.page]="mode() === 'page'">
     <div class="toolbar">
       @if (mode() === 'panel') {
         <button nz-button nzType="text" nzShape="circle" (click)="closed.emit()" nz-tooltip="סגירה" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
@@ -10,13 +10,12 @@
         <span nz-icon nzType="loading" class="muted"></span>
       }
       @if (isMine()) {
-        <a nz-button nzType="text" nzShape="circle" [routerLink]="['/summaries', s._id, 'edit']" nz-tooltip="עריכת סיכום" aria-label="עריכת סיכום"><span nz-icon nzType="edit"></span></a>
-        <button nz-button nzType="text" nzShape="circle" nzDanger (click)="actions.confirmDelete(s)" nz-tooltip="מחיקת סיכום" aria-label="מחיקת סיכום"><span nz-icon nzType="delete"></span></button>
+        <a nz-button nzType="text" nzShape="circle" [routerLink]="['/summaries', s._id, 'edit']" nz-tooltip="עריכת תמצית" aria-label="עריכת תמצית"><span nz-icon nzType="edit"></span></a>
+        <button nz-button nzType="text" nzShape="circle" nzDanger (click)="actions.confirmDelete(s)" nz-tooltip="מחיקת תמצית" aria-label="מחיקת תמצית"><span nz-icon nzType="delete"></span></button>
       }
       <button nz-button nzType="text" nzShape="circle" (click)="actions.toggleFavorite(s)" [nz-tooltip]="s.isFavorite ? 'הסרה ממועדפים' : 'הוספה למועדפים'">
         <span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'" [class.fav]="s.isFavorite"></span>
       </button>
-      <button nz-button nzType="text" nzShape="circle" (click)="actions.openTimeline(s)" nz-tooltip="ציר זמן" aria-label="ציר זמן"><span nz-icon nzType="field-time"></span></button>
       @if (fullScreen(); as link) {
         <button nz-button nzType="text" nzShape="circle" (click)="openFullScreen(link)" nz-tooltip="מסך מלא" aria-label="מסך מלא"><span nz-icon nzType="fullscreen"></span></button>
       }
@@ -25,10 +24,10 @@
       }
     </div>
 
-    <nz-alert nzType="warning" nzShowIcon nzMessage="שימו לב! אין לצטט סיכום ללא תיאום עם המחבר.ת שלו." class="tip" />
+    <nz-alert nzType="warning" nzShowIcon nzMessage="שימו לב! אין לצטט תמצית ללא תיאום עם המחבר.ת שלה." class="tip" />
 
     @if (s.parent; as p) {
-      <section class="running-header" aria-label="תמצית הרצף">
+      <div class="running-header" role="region" aria-label="תמצית הרצף">
         <div class="part-of">
           <span nz-icon nzType="unordered-list"></span>
           <span class="muted">תמציתונית מתוך</span>
@@ -40,13 +39,13 @@
             <nz-tag class="label-chip" (click)="searchLabel(l.name)">#{{ l.name }}</nz-tag>
           }
           @for (perm of p.permissions; track perm._id) {
-            <span class="perm"><i [style.background]="perm.color"></i>{{ perm.name }}</span>
+            <span class="perm"><span class="dot" [style.background]="perm.color"></span>{{ perm.name }}</span>
           }
         </div>
-      </section>
+      </div>
     }
 
-    <header class="author">
+    <div class="author">
       <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="36" />
       <div>
         <a [routerLink]="['/profile', s.user._id]" class="name">{{ s.user.fullName }}</a>
@@ -58,12 +57,12 @@
           }
         </div>
       </div>
-    </header>
+    </div>
 
     <nz-collapse [nzBordered]="false" class="sections">
       <nz-collapse-panel [nzHeader]="docHeader" [nzActive]="true">
         @if (s.isDraft && !s.summaryFields?.length) {
-          <p class="muted">חסרים פרטים על טיוטא זו</p>
+          <div class="muted draft-note">חסרים פרטים על טיוטא זו</div>
         }
         <dl class="fields">
           @for (f of s.summaryFields ?? []; track f.field._id) {
@@ -101,7 +100,7 @@
       }
 
       @if (s.collectionIds.length) {
-        <nz-collapse-panel [nzHeader]="'אוספים (' + s.collectionIds.length + ')'">
+        <nz-collapse-panel [nzHeader]="'לקטים (' + s.collectionIds.length + ')'">
           <ul class="files">
             @for (c of s.collectionIds; track c._id) {
               <li>
@@ -113,7 +112,7 @@
       }
     </nz-collapse>
 
-    <h1 class="title" [innerHTML]="s.title | highlight: search() : T.Title"></h1>
+    <div class="title" role="heading" aria-level="1" [innerHTML]="s.title | highlight: search() : T.Title"></div>
     @if (s.link) {
       <a class="source-link" [href]="s.link" target="_blank" rel="noopener noreferrer" dir="ltr"><span nz-icon nzType="link"></span> {{ s.link }}</a>
     }
@@ -123,12 +122,12 @@
     </div>
 
     @if (s.notes) {
-      <section class="notes">
-        <h4>הערות</h4>
+      <div class="notes">
+        <div class="notes-title" role="heading" aria-level="4">הערות</div>
         <div class="ql-container ql-snow read-only">
           <div class="ql-editor" [innerHTML]="s.notes | richHtml: search() : T.Notes"></div>
         </div>
-      </section>
+      </div>
     }
 
     @if (s.labels.length) {
@@ -157,7 +156,7 @@
           <span class="muted">הרשאות נוספות:</span>
         }
         @for (p of s.permissions; track p._id) {
-          <span class="perm"><i [style.background]="p.color"></i>{{ p.name }}</span>
+          <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
         }
       </div>
     }
@@ -167,9 +166,9 @@
     }
 
     <app-comments [summary]="s" [search]="search()" (summaryChange)="onCommentsChange($event)" />
-  </article>
+  </div>
 } @else if (notFound()) {
-  <nz-empty class="state" nzNotFoundImage="simple" nzNotFoundContent="הסיכום לא נמצא או שאין לך הרשאה לצפות בו" />
+  <nz-empty class="state" nzNotFoundImage="simple" nzNotFoundContent="התמצית לא נמצאה או שאין לך הרשאה לצפות בה" />
 } @else {
   <div class="detail"><nz-skeleton [nzActive]="true" [nzAvatar]="true" [nzParagraph]="{ rows: 8 }" /></div>
 }

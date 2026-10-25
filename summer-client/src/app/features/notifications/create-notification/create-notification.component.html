@@ -1,0 +1,44 @@
+<form class="page" nz-form nzLayout="vertical" [formGroup]="form" (ngSubmit)="save()">
+  <div class="header">
+    <a routerLink="/notifications" class="back"><span nz-icon nzType="arrow-right"></span> ניהול התראות</a>
+    <div class="page-title" role="heading" aria-level="1">{{ id() ? 'עריכת כלל התראה' : 'התראה חדשה' }}</div>
+  </div>
+
+  <nz-form-item>
+    <nz-form-label nzRequired nzFor="rule-name">שם הכלל</nz-form-label>
+    <nz-form-control nzErrorTip="חובה למלא שם">
+      <input nz-input id="rule-name" formControlName="name" placeholder="לדוגמה: הרצאות חדשות במבני נתונים" />
+    </nz-form-control>
+  </nz-form-item>
+
+  <div class="channels" role="group" aria-label="ערוצי התראה">
+    <label nz-checkbox formControlName="isNotify"><span nz-icon nzType="bell"></span> התראה במערכת</label>
+    <label nz-checkbox formControlName="isMail"><span nz-icon nzType="mail"></span> שליחת מייל</label>
+    @if (submitted() && form.hasError('noChannel')) {
+      <span class="error">יש לבחור לפחות ערוץ אחד</span>
+    }
+  </div>
+
+  <div class="section-title" role="heading" aria-level="2">תנאים <span class="muted">(כולם צריכים להתקיים)</span></div>
+  <div class="conditions" formArrayName="conditions">
+    @for (c of form.controls.conditions.controls; track c; let i = $index) {
+      <div class="condition" [class.invalid]="submitted() && c.invalid">
+        <span class="and">{{ i === 0 ? 'כאשר' : 'וגם' }}</span>
+        <app-create-notification-condition [formControlName]="i" />
+        <button nz-button nzType="text" type="button" (click)="removeCondition(i)" [disabled]="form.controls.conditions.length === 1" aria-label="הסרת תנאי">
+          <span nz-icon nzType="minus-circle"></span>
+        </button>
+      </div>
+    }
+  </div>
+  <button nz-button nzType="dashed" type="button" (click)="addCondition()" class="add"><span nz-icon nzType="plus"></span> הוספת תנאי</button>
+
+  @if (preview(); as p) {
+    <div class="preview"><span nz-icon nzType="info-circle"></span> {{ p }}</div>
+  }
+
+  <div class="actions">
+    <a nz-button routerLink="/notifications">ביטול</a>
+    <button nz-button nzType="primary" type="submit" [nzLoading]="saving()">שמירה</button>
+  </div>
+</form>

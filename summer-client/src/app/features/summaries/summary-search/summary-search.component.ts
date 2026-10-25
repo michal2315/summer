@@ -13,7 +13,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subject, debounceTime, distinctUntilChanged, filter, map, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
-import { NotificationBellComponent } from '../../../shared/components/notification-bell.component';
+import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { ICollectionRef, ISummarySearch, SearchType, UserRef } from '../../../shared/models';
 import { SUMMARY_COLORS } from '../../../shared/models/colors';
 import { CollectionService } from '../../../shared/services/collection.service';
@@ -23,7 +23,7 @@ import { activeFilterCount } from '../search-query';
 
 const SEARCH_TYPE_OPTIONS: NzCheckboxOption[] = [
   { label: 'כותרת', value: SearchType.Title },
-  { label: 'תוכן הסיכום', value: SearchType.Content },
+  { label: 'תוכן התמצית', value: SearchType.Content },
   { label: 'תגיות', value: SearchType.Label },
   { label: 'הערות', value: SearchType.Notes },
   { label: 'תגובות', value: SearchType.Comments },
@@ -71,7 +71,7 @@ export class SummarySearchComponent {
   /** Currently applied search (from the URL). */
   readonly search = input<ISummarySearch>({});
   readonly showBell = input(true);
-  readonly placeholder = input('חיפוש סיכומים');
+  readonly placeholder = input('חיפוש תמציות');
   readonly searchChange = output<ISummarySearch>();
 
   private readonly input = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
@@ -118,7 +118,7 @@ export class SummarySearchComponent {
     this.userQuery$
       .pipe(
         map((t) => t.trim()),
-        filter((t) => t.length > 1),
+        filter((t) => t.length > 0),
         debounceTime(250),
         distinctUntilChanged(),
         switchMap((t) => this.users.byName(t)),

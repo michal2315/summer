@@ -1,0 +1,8 @@
+<nz-result [nzStatus]="copy.status" [nzTitle]="copy.title" [nzSubTitle]="copy.sub">
+  <div nz-result-extra class="extra">
+    <a nz-button nzType="primary" routerLink="/">{{ copy.button }}</a>
+    @if (kind === 'server-error' || kind === 'unauthorized') {
+      <a nz-button nzType="link" [href]="mailto">ספרו לנו על הבעיה</a>
+    }
+  </div>
+</nz-result>

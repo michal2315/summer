@@ -9,7 +9,7 @@ import { he_IL, provideNzI18n } from 'ng-zorro-antd/i18n';
 import { provideNzIcons } from 'ng-zorro-antd/icon';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { provideQuillConfig } from 'ngx-quill/config';
-import { routes } from './app.routes';
+import { routes } from './routes/app.routes';
 import { authInterceptor, errorInterceptor } from './core/http/interceptors';
 import { ICONS } from './icons';
 

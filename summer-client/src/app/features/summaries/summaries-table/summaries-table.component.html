@@ -1,0 +1,54 @@
+<nz-table
+  #table
+  [nzData]="store.summaries()"
+  [nzFrontPagination]="false"
+  [nzTotal]="store.total()"
+  [nzPageSize]="store.limit"
+  [nzPageIndex]="store.pageIndex()"
+  (nzPageIndexChange)="store.goToPage($event)"
+  [nzLoading]="store.loading()"
+  nzSize="middle"
+  [nzScroll]="{ x: '720px' }"
+  [nzNoResult]="noResult"
+>
+  <thead>
+    <tr>
+      @if (store.selectMode()) {
+        <th nzWidth="44px" [nzChecked]="allChecked()" [nzIndeterminate]="someChecked()" (nzCheckedChange)="store.toggleSelectAllLoaded()" aria-label="בחירת הכל"></th>
+      }
+      <th nzWidth="48px"></th>
+      @for (col of columns; track col.name) {
+        <th [nzWidth]="col.width">{{ col.displayName }}</th>
+      }
+      <th nzWidth="56px"></th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (s of table.data; track s._id) {
+      <tr [class.active]="s._id === openId()" [attr.data-summary-id]="s._id" (click)="toggle.emit(s)">
+        @if (store.selectMode()) {
+          <td [nzChecked]="store.selected().has(s._id)" (nzCheckedChange)="store.toggleSelected(s._id)" (click)="$event.stopPropagation()"></td>
+        }
+        <td (click)="$event.stopPropagation()"><app-color-picker [color]="s.color" (colorChange)="actions.setColor(s, $event)" /></td>
+        @for (col of columns; track col.name) {
+          <td>
+            @if (col.type === 'date') {
+              {{ field(s, col.name) | dateFormat: 'dd/MM/yyyy' }}
+            } @else {
+              <span class="clamp" [innerHTML]="field(s, col.name) | plainText: 220 | highlight: search() : typeFor(col.name)"></span>
+              @if (col.name === 'content' && s.files.length) {
+                <div class="files"><span nz-icon nzType="paper-clip"></span> {{ s.files.join(', ') }}</div>
+              }
+            }
+          </td>
+        }
+        <td>
+          <button nz-button nzType="text" nzShape="circle" (click)="$event.stopPropagation(); toggle.emit(s)" [attr.aria-label]="s._id === openId() ? 'סגירה' : 'פתיחה'">
+            <span nz-icon [nzType]="s._id === openId() ? 'eye-invisible' : 'eye'"></span>
+          </button>
+        </td>
+      </tr>
+    }
+  </tbody>
+</nz-table>
+<ng-template #noResult>לא נמצאו תוצאות</ng-template>

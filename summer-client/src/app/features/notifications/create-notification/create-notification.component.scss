@@ -1,0 +1,14 @@
+:host { display: block; padding: 14px 18px; background: #fff; min-height: 100%; }
+.page { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.back { font-size: 13px; color: #666; }
+.section-title { font-size: 14px; font-weight: 800; margin: 8px 0 0; }
+.channels { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.error { color: #e74d3d; font-size: 13px; }
+.conditions { display: flex; flex-direction: column; gap: 8px; }
+.condition { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #fafafa; }
+.condition.invalid { outline: 1px solid #e74d3d; }
+.and { width: 44px; font-weight: 700; font-size: 13px; color: #666; }
+.add { align-self: flex-start; }
+.preview { background: #f0f5ff; border-radius: 8px; padding: 8px 12px; margin: 4px 0 0; font-size: 13px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #f0f0f0; padding-top: 12px; margin-top: 8px; }

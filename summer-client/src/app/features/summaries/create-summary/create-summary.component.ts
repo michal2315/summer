@@ -21,8 +21,8 @@ import type Quill from 'quill';
 import { Subject, debounceTime, distinctUntilChanged, forkJoin, startWith, switchMap, take } from 'rxjs';
 import { HasPendingChanges } from '../../../core/auth/guards';
 import { UserService } from '../../../core/auth/user.service';
-import { AvatarComponent } from '../../../shared/components/avatar.component';
-import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon.component';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
+import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import {
   FieldsType,
   ICollectionRef,
@@ -42,6 +42,7 @@ import { ContentTypeService } from '../../../shared/services/content-type.servic
 import { LabelService } from '../../../shared/services/label.service';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { SummaryService } from '../../../shared/services/summary.service';
+import { FolderService, managedFolderPaths } from '../../../shared/services/folder.service';
 
 type FieldValue = string | number | Date | null;
 
@@ -55,7 +56,7 @@ const DAY = 'yyyy-MM-dd';
 
 /** [published, updated] toast per kind. */
 const SAVED_TEXT: Record<SummaryKind, [string, string]> = {
-  [SummaryKind.Summary]: ['הסיכום פורסם', 'הסיכום עודכן'],
+  [SummaryKind.Summary]: ['התמצית פורסמה', 'התמצית עודכנה'],
   [SummaryKind.Running]: ['תמצית הרצף פורסמה', 'תמצית הרצף עודכנה'],
   [SummaryKind.Sumaroon]: ['התמציתונית פורסמה', 'התמציתונית עודכנה'],
 };
@@ -130,6 +131,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   readonly form = this.fb.group({
     kind: [SummaryKind.Summary],
+    /** create only: hierarchy folder to place the published summary in */
+    folder: [null as string | null],
     /** sumaroon: its running summary */
     parent: [null as string | null],
     /** running: [from, to] */
@@ -181,6 +184,10 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly newExtraField = signal<string | null>(null);
   private pendingTypeValues: Record<string, FieldValue> = {};
   readonly duplicates = signal<DuplicateHit[]>([]);
+
+  // ---- hierarchy folder (create only; sumaroons live inside their running summary) ----
+  private readonly folderService = inject(FolderService);
+  readonly folderOptions = signal<{ _id: string; path: string }[]>([]);
 
   // ---- kind (summary / running / sumaroon) ----
   readonly kind = toSignal(this.form.controls.kind.valueChanges.pipe(startWith(this.form.controls.kind.value)), { requireSync: true });
@@ -295,6 +302,13 @@ export class CreateSummaryComponent implements HasPendingChanges {
         this.parentOptions.set(mergeById(current ? [{ _id: current._id, title: current.title }] : [], list));
       });
     this.parentSearch$.next('');
+
+    // Folders the user may place a summary in.
+    if (!this.summary())
+      this.folderService
+        .tree()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((list) => this.folderOptions.set(managedFolderPaths(list, this.users.userId() ?? '')));
 
     // Populate from the resolved summary (edit mode) once the content types and fields needed to split type/extra fields are in.
     effect(() => {
@@ -493,7 +507,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   }
 
   onUserSearch(text: string) {
-    if (text.trim().length > 1) this.userSearch$.next(text.trim());
+    if (text.trim()) this.userSearch$.next(text.trim());
   }
 
   isPinned(kind: 'pinnedLabels' | 'pinnedPermissions' | 'pinnedCollections', id: string) {
@@ -594,10 +608,13 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
     this.saving.set(true);
     const req = this.isEdit() ? this.summaries.update(payload, files) : this.summaries.create(payload, files);
+    const folder = !this.isEdit() && kind !== SummaryKind.Sumaroon ? v.folder : null;
     req.subscribe({
       next: (s) => {
         this.saved = true;
         this.saving.set(false);
+        if (folder && isDraft) this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
+        else if (folder) this.folderService.addItems(folder, [{ type: 'summary', _id: s._id }]).subscribe();
         this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
         if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });
         // Running summaries have their own page; a sumaroon opens in its running summary's panel.

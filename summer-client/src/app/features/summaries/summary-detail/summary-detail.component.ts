@@ -12,15 +12,15 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subscription } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
-import { AvatarComponent } from '../../../shared/components/avatar.component';
-import { ColorPickerComponent } from '../../../shared/components/color-picker.component';
-import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon.component';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
+import { ColorPickerComponent } from '../../../shared/components/color-picker/color-picker.component';
+import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { FieldsType, ISummary, ISummaryField, ISummarySearch, SUMMARY_KIND_LABEL, SearchType, SummaryKind } from '../../../shared/models';
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { SummaryActionsService } from '../summary-actions.service';
-import { SumaroonListComponent } from '../running/sumaroon-list.component';
-import { CommentsComponent } from './comments.component';
+import { SumaroonListComponent } from '../running/sumaroon-list/sumaroon-list.component';
+import { CommentsComponent } from './comments/comments.component';
 
 const SNAPSHOT_KEY = 'currSummary';
 

@@ -1,0 +1,32 @@
+<div class="nav" role="navigation" aria-label="ניווט ראשי">
+  <a routerLink="/summaries" class="logo" (click)="navigate.emit()">
+    <img src="logos/summer-full-logo.svg" alt="Summer" />
+  </a>
+
+  @if (user(); as u) {
+    <a class="user" [routerLink]="['/profile', u._id]" (click)="navigate.emit()">
+      <app-avatar [user]="u" [size]="32" />
+      <span class="who">
+        <span class="name">{{ u.fullName }}</span>
+        <span class="dept">{{ u.department }}</span>
+      </span>
+    </a>
+  }
+
+  <ul class="links">
+    @for (item of items(); track item.label) {
+      <li>
+        <a [routerLink]="item.link" routerLinkActive="active" (click)="navigate.emit()">
+          <span nz-icon [nzType]="item.icon"></span>
+          {{ item.label }}
+        </a>
+      </li>
+    }
+  </ul>
+
+  <div class="footer">
+    <button type="button" (click)="whatsNew.open()"><span nz-icon nzType="gift"></span> מה חדש</button>
+    <a [href]="contactHref"><span nz-icon nzType="mail"></span> צרו קשר במייל</a>
+    <span class="credit">פותח ב-💗 על ידי מיכל גולן</span>
+  </div>
+</div>

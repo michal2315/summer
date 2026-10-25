@@ -1,0 +1,22 @@
+<button
+  type="button"
+  class="dot"
+  [class.empty]="!color()"
+  [style.background]="color() || null"
+  [style.box-shadow]="glow(color())"
+  nz-popover
+  nzPopoverTrigger="click"
+  [nzPopoverContent]="palette"
+  [(nzPopoverVisible)]="open"
+  [nz-tooltip]="color() ? null : 'לא נבחר צבע'"
+  (click)="$event.stopPropagation()"
+  aria-label="בחירת צבע"
+></button>
+<ng-template #palette>
+  <div class="palette" role="listbox" aria-label="צבעים">
+    @for (c of colors; track c) {
+      <button type="button" class="swatch" [style.background]="c" [class.selected]="c === color()" (click)="pick(c)" [attr.aria-label]="c"></button>
+    }
+    <button type="button" class="swatch none" [class.selected]="!color()" (click)="pick('')" aria-label="ללא צבע">✕</button>
+  </div>
+</ng-template>

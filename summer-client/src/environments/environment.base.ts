@@ -10,7 +10,7 @@ export const baseEnvironment: AppEnvironment = {
   summariesTableFields: [
     { name: 'eventDate', displayName: 'תאריך האירוע', width: '20%', type: 'date' },
     { name: 'title', displayName: 'כותרת', width: '20%', type: 'string' },
-    { name: 'content', displayName: 'סיכום', width: '50%', type: 'string' },
+    { name: 'content', displayName: 'תמצית', width: '50%', type: 'string' },
   ],
   summariesLimit: 20,
   avatarUrl: 'https://avatars.example-university.edu/{username}?default=true',

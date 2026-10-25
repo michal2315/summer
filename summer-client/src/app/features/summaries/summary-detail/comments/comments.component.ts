@@ -1,0 +1,111 @@
+import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
+import { MentionOnSearchTypes, NzMentionModule } from 'ng-zorro-antd/mention';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
+import { Subject, debounceTime, map, of, switchMap } from 'rxjs';
+import { UserService } from '../../../../core/auth/user.service';
+import { AvatarComponent } from '../../../../shared/components/avatar/avatar.component';
+import { IMention, ISummary, ISummarySearch, SearchType, UserRef } from '../../../../shared/models';
+import { HighlightPipe, RelativeTimePipe } from '../../../../shared/pipes/pipes';
+import { LabelService } from '../../../../shared/services/label.service';
+import { CommentService } from '../../../../shared/services/comment.service';
+
+interface Suggestion {
+  /** text inserted after the prefix (no spaces, so the mention survives as one token) */
+  value: string;
+  label: string;
+  mention: IMention;
+}
+
+/** Comment list + composer. "@" mentions users (they get notified), "#" mentions labels. Replaces angular-mentions with nz-mention. */
+@Component({
+  selector: 'app-comments',
+  imports: [FormsModule, RouterLink, NzButtonModule, NzIconModule, NzInputModule, NzMentionModule, NzPopconfirmModule, AvatarComponent, HighlightPipe, RelativeTimePipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './comments.component.html',
+  styleUrl: './comments.component.scss',
+})
+export class CommentsComponent {
+  readonly users = inject(UserService);
+  private readonly labels = inject(LabelService);
+  private readonly comments = inject(CommentService);
+
+  readonly summary = input.required<ISummary>();
+  readonly search = input<ISummarySearch | null>(null);
+  readonly summaryChange = output<ISummary>();
+
+  readonly T = SearchType;
+  readonly text = signal('');
+  readonly suggestions = signal<Suggestion[]>([]);
+  readonly searching = signal(false);
+  readonly sending = signal(false);
+  private selected: Suggestion[] = [];
+  private readonly query$ = new Subject<MentionOnSearchTypes>();
+
+  readonly valueWith = (s: Suggestion) => s.value;
+
+  constructor() {
+    this.query$
+      .pipe(
+        debounceTime(200),
+        switchMap(({ value, prefix }) => {
+          this.searching.set(true);
+          if (prefix === '#') return this.labels.search(value).pipe(map((list) => list.map(labelSuggestion)));
+          return value ? this.users.query(value).pipe(map((list) => list.map(userSuggestion))) : of([]);
+        }),
+      )
+      .subscribe((list) => {
+        this.suggestions.set(list);
+        this.searching.set(false);
+      });
+  }
+
+  onSearch(e: MentionOnSearchTypes) {
+    this.query$.next(e);
+  }
+
+  onSelect(s: Suggestion) {
+    this.selected.push(s);
+  }
+
+  submit() {
+    const content = this.text().trim();
+    if (!content || this.sending()) return;
+    // Only keep mentions still present in the final text.
+    const mentions = dedupe(this.selected.filter((s) => content.includes((s.mention.type === 'user' ? '@' : '#') + s.value)).map((s) => s.mention));
+    const s = this.summary();
+    this.sending.set(true);
+    this.comments.add(s._id, content, mentions).subscribe({
+      next: (comment) => {
+        this.summaryChange.emit({ ...s, comments: [...s.comments, comment] });
+        this.text.set('');
+        this.selected = [];
+        this.sending.set(false);
+      },
+      error: () => this.sending.set(false),
+    });
+  }
+
+  remove(commentId: string) {
+    const s = this.summary();
+    this.comments.delete(commentId, s._id).subscribe(() => this.summaryChange.emit({ ...s, comments: s.comments.filter((c) => c._id !== commentId) }));
+  }
+}
+
+const userSuggestion = (u: UserRef): Suggestion => ({
+  value: u.username,
+  label: `${u.fullName}${u.department ? ' - ' + u.department : ''}`,
+  mention: { _id: u._id, type: 'user', value: u.username, icon: '' },
+});
+
+const labelSuggestion = (label: string): Suggestion => ({
+  value: label.replace(/\s+/g, '_'),
+  label: `#${label}`,
+  mention: { _id: label, type: 'label', value: label, icon: '' },
+});
+
+const dedupe = (list: IMention[]) => list.filter((m, i) => list.findIndex((x) => x._id === m._id && x.type === m.type) === i);

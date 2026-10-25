@@ -1,0 +1,9 @@
+:host { display: block; height: 100%; }
+.header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.back { font-size: 13px; color: #666; }
+.page-title { display: inline-flex; gap: 6px; align-items: center; }
+.perms { display: flex; gap: 6px; flex-wrap: wrap; }
+.perm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: #efefef; padding: 1px 10px; border-radius: 12px; }
+.perm .dot { width: 8px; height: 8px; border-radius: 50%; }
+.spacer { flex: 1; }
+.loading { padding: 24px; }

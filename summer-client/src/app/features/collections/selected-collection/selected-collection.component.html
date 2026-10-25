@@ -1,0 +1,42 @@
+@if (collection(); as c) {
+  <div class="pane">
+    <div class="toolbar">
+      <button nz-button nzType="text" nzShape="circle" type="button" (click)="closed.emit()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+      <span class="spacer"></span>
+      @if (isManager()) {
+        <button nz-button nzType="text" nzShape="circle" type="button" (click)="edit(c)" nz-tooltip="עריכת לקט" aria-label="עריכת לקט"><span nz-icon nzType="edit"></span></button>
+        <button nz-button nzType="text" nzShape="circle" nzDanger type="button" (click)="remove(c)" nz-tooltip="מחיקת לקט" aria-label="מחיקת לקט"><span nz-icon nzType="delete"></span></button>
+      }
+    </div>
+
+    <div class="name" role="heading" aria-level="2"><span nz-icon nzType="folder"></span> {{ c.name }}</div>
+    <a nz-button nzType="primary" nzBlock [routerLink]="['/collections', c._id]">פתיחת הלקט ({{ c.summaries.length }} תמציות)</a>
+
+    <dl>
+      <dt>נוצר על ידי</dt>
+      <dd>{{ c.createdBy.fullName }}</dd>
+      <dt>נוצר</dt>
+      <dd>{{ c.createdAt | dateFormat: 'dd/MM/yyyy' }}</dd>
+      <dt>עודכן</dt>
+      <dd>{{ c.updatedAt | dateFormat: 'dd/MM/yyyy' }}</dd>
+    </dl>
+
+    <div class="section-title" role="heading" aria-level="4">הרשאות</div>
+    <div class="chips">
+      @for (p of c.permissions; track p._id) {
+        <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
+      } @empty {
+        <span class="muted">פתוח לכולם</span>
+      }
+    </div>
+
+    <div class="section-title" role="heading" aria-level="4">מנהלים</div>
+    <ul class="managers">
+      @for (m of managers(); track m._id) {
+        <li><app-avatar [user]="m" [size]="24" /> <a [routerLink]="['/profile', m._id]">{{ m.fullName }}</a></li>
+      }
+    </ul>
+  </div>
+} @else {
+  <div class="pane"><nz-skeleton [nzActive]="true" /></div>
+}

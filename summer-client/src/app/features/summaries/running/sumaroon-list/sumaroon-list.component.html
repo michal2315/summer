@@ -1,0 +1,47 @@
+@let r = running();
+<div class="sumaroons" role="region" aria-label="תמציתוניות">
+  <div class="list-head">
+    <div class="list-title" role="heading" aria-level="3">תמציתוניות ({{ total() }})</div>
+    <span class="range">{{ r.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ r.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
+    <a class="page-link" [routerLink]="['/running', r._id]">לעמוד תמצית הרצף</a>
+    <span class="spacer"></span>
+    <nz-radio-group [ngModel]="sort()" (ngModelChange)="sort.set($event)" nzSize="small" nzButtonStyle="solid" aria-label="מיון">
+      <label nz-radio-button nzValue="eventDate">לפי תאריך</label>
+      <label nz-radio-button nzValue="creationDate">לפי מועד כתיבה</label>
+    </nz-radio-group>
+    <a nz-button nzType="primary" nzSize="small" routerLink="/summaries/new" [queryParams]="{ parentId: r._id }">
+      <span nz-icon nzType="plus"></span> תמציתונית
+    </a>
+  </div>
+
+  @if (loading() && !items().length) {
+    <div class="loader"><nz-spin nzSimple nzSize="small" /></div>
+  } @else {
+    <ol class="list">
+      @for (s of items(); track s._id; let i = $index) {
+        <li>
+          <button type="button" class="row" (click)="open(s)">
+            <span class="index">{{ i + 1 }}</span>
+            <span class="main">
+              <span class="title">{{ s.title }}</span>
+              <span class="meta">
+                {{ s.eventDate | dateFormat: 'dd/MM/yyyy' }} · {{ s.user.fullName }}
+              </span>
+            </span>
+            @for (l of ownLabels(s); track l) {
+              <span class="chip">#{{ l }}</span>
+            }
+            @if (s.permissions.length) {
+              <span class="lock" nz-icon nzType="lock" [nz-tooltip]="'הרשאות נוספות: ' + permissionNames(s)"></span>
+            }
+          </button>
+          @if (s.link) {
+            <a class="link" [href]="s.link" target="_blank" rel="noopener noreferrer" nz-tooltip="קישור" aria-label="קישור"><span nz-icon nzType="link"></span></a>
+          }
+        </li>
+      } @empty {
+        <li class="empty muted">עדיין אין תמציתוניות בתמצית הרצף הזו</li>
+      }
+    </ol>
+  }
+</div>

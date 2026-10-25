@@ -111,7 +111,7 @@ export enum SummaryKind {
 }
 
 export const SUMMARY_KIND_LABEL: Record<SummaryKind, string> = {
-  [SummaryKind.Summary]: 'סיכום',
+  [SummaryKind.Summary]: 'תמצית',
   [SummaryKind.Running]: 'תמצית רצף',
   [SummaryKind.Sumaroon]: 'תמציתונית',
 };
@@ -161,6 +161,8 @@ export interface ISummary {
   rangeEnd?: string;
   /** running only: published sumaroons the viewer can see */
   sumaroonCount?: number;
+  /** running only: the first few of those sumaroons by event date (card preview) */
+  sumaroonPreview?: { _id: string; title: string }[];
 }
 
 export interface ISummariesLength {

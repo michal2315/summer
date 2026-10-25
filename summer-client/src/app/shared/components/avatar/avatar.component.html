@@ -1,0 +1,7 @@
+@if (isDraft()) {
+  <nz-avatar [nzSize]="size()" nzIcon="copy" class="draft" />
+} @else if (user()?.isSystem) {
+  <nz-avatar [nzSize]="size()" nzSrc="logos/summer-small-logo.svg" />
+} @else {
+  <nz-avatar [nzSize]="size()" [nzSrc]="src()" [nzText]="initials()" [style.background]="bg()" />
+}

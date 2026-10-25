@@ -10,21 +10,31 @@
   }
 }
 
+// Search, header and toolbar stay put; only .feed-scroller scrolls.
 .main {
   height: 100%;
-  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 2px 6px 0;
 }
 
+.feed {
+  position: relative; // anchors the scroll rail
+  flex: 1;
+  min-height: 0;
+}
+
+.feed-scroller {
+  height: 100%;
+  overflow: auto;
+  // Room on the inline-end (left in RTL) for the scroll rail.
+  padding-inline-end: 18px;
+}
+
 .search-row {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: $app-background;
-  padding-bottom: 4px;
+  position: relative;
+  z-index: 20; // the advanced-search panel overlays the feed
 }
 
 .tabs {
@@ -49,5 +59,19 @@
   }
   .spacer {
     flex: 1;
+  }
+}
+
+// The search row and the projected header scroll away together, or stay pinned together (stickyHeader).
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  &.sticky {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: $app-background;
+    padding-bottom: 8px;
   }
 }

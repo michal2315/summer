@@ -1,0 +1,16 @@
+<div class="main">
+  <ng-content select="[main]" />
+</div>
+<div
+  class="handle"
+  role="separator"
+  aria-orientation="vertical"
+  aria-label="שינוי רוחב"
+  tabindex="0"
+  (pointerdown)="startDrag($event)"
+  (keydown.arrowleft)="nudge(-24)"
+  (keydown.arrowright)="nudge(24)"
+></div>
+<div class="aside" [class.open]="asideOpen()" [style.width.px]="width()" (keydown.escape)="closeAside.emit()">
+  <ng-content select="[aside]" />
+</div>

@@ -1,0 +1,5 @@
+<div #thumb class="thumb" (pointerdown)="onThumbDown($event)">
+  @if (dragging() && label(); as text) {
+    <span class="label">{{ text }}</span>
+  }
+</div>

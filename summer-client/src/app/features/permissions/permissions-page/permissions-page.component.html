@@ -1,0 +1,55 @@
+<div class="page">
+  <div class="header">
+    <div class="page-title" role="heading" aria-level="1"><span nz-icon nzType="lock"></span> הרשאות</div>
+    <span class="spacer"></span>
+    @if (isPermitted()) {
+      <button nz-button nzType="primary" type="button" (click)="startNew()" [disabled]="editingId() === NEW_ID"><span nz-icon nzType="plus"></span> הרשאה חדשה</button>
+    }
+    <app-notification-bell />
+  </div>
+
+  <div class="muted intro">קבוצות הרשאה קובעות מי רואה תמציות ולקטים (למשל לפי פקולטה או קורס). הצבע של כל קבוצה מופיע בכל מקום שהיא מוצגת.</div>
+
+  <ul class="list" aria-label="קבוצות הרשאה">
+    @for (p of rows(); track p._id) {
+      @let editing = editingId() === p._id;
+      <li class="item" [class.editing]="editing">
+        @if (editing) {
+          <nz-color-picker [nzValue]="draft().color" (nzOnChange)="patch({ color: $event.color.toHexString() })" nzSize="small" aria-label="צבע" />
+          <input nz-input class="name" [ngModel]="draft().name" (ngModelChange)="patch({ name: $event })" placeholder="הכנס שם הרשאה" aria-label="שם הרשאה" (keydown.enter)="save()" (keydown.escape)="cancel()" />
+          <input nz-input class="group" [ngModel]="draft().groupName" (ngModelChange)="patch({ groupName: $event })" placeholder="הכנס שם תפוצה" aria-label="שם תפוצה" (keydown.enter)="save()" (keydown.escape)="cancel()" />
+          <span class="row-actions">
+            <button nz-button nzType="text" nzShape="circle" type="button" [nzLoading]="saving()" (click)="save()" aria-label="שמירה"><span nz-icon nzType="check"></span></button>
+            <button nz-button nzType="text" nzShape="circle" type="button" (click)="cancel()" aria-label="ביטול"><span nz-icon nzType="close"></span></button>
+          </span>
+        } @else {
+          <span class="chip" [style.background]="p.color" aria-hidden="true"></span>
+          <span class="name">{{ p.name }}</span>
+          <span class="group muted">{{ p.groupName }}</span>
+          <span class="row-actions">
+            @if (isPermitted()) {
+              <button nz-button nzType="text" nzShape="circle" type="button" (click)="edit(p)" [disabled]="!!editingId()" nz-tooltip="עריכה" aria-label="עריכה"><span nz-icon nzType="edit"></span></button>
+              <button
+                nz-button
+                nzType="text"
+                nzShape="circle"
+                nzDanger
+                type="button"
+                nz-popconfirm
+                nzPopconfirmTitle="למחוק את ההרשאה? תמציות ולקטים שמשויכים אליה יאבדו את השיוך."
+                nzOkText="מחיקה"
+                nzCancelText="ביטול"
+                (nzOnConfirm)="remove(p)"
+                aria-label="מחיקה"
+              >
+                <span nz-icon nzType="delete"></span>
+              </button>
+            }
+          </span>
+        }
+      </li>
+    } @empty {
+      <nz-empty nzNotFoundImage="simple" nzNotFoundContent="אין קבוצות הרשאה" />
+    }
+  </ul>
+</div>

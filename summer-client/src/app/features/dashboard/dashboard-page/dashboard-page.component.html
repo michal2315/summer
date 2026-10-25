@@ -1,0 +1,31 @@
+<div class="page">
+  <div class="header">
+    <div class="page-title" role="heading" aria-level="1"><span nz-icon nzType="dashboard"></span> דשבורד</div>
+    <span class="spacer"></span>
+    <app-notification-bell />
+  </div>
+
+  @if (groups(); as groups) {
+    @for (g of groups; track g.key) {
+      <div class="group">
+        <div class="group-title" role="heading" aria-level="2">
+          <a [routerLink]="['/summaries']" [queryParams]="{ q: g.key, in: labelType }">{{ g.key }}</a>
+          <span class="muted">({{ g.summaries.length }})</span>
+        </div>
+        <div class="grid-container">
+          @for (s of g.summaries; track s._id) {
+            <app-summary-cube [summary]="s" />
+          }
+        </div>
+      </div>
+    } @empty {
+      <nz-empty nzNotFoundImage="simple" nzNotFoundContent="אין תמציות להצגה" />
+    }
+  } @else {
+    <nz-skeleton [nzActive]="true" [nzParagraph]="{ rows: 8 }" />
+  }
+</div>
+
+<a nz-button nzType="primary" nzShape="circle" nzSize="large" class="fab" routerLink="/summaries/new" nz-tooltip="יצירת תמצית" nzTooltipPlacement="right" aria-label="יצירת תמצית">
+  <span nz-icon nzType="plus"></span>
+</a>

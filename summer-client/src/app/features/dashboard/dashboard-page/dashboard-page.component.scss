@@ -1,0 +1,9 @@
+:host { display: block; padding: 14px 18px 72px; }
+.page { display: flex; flex-direction: column; gap: 14px; }
+.header { display: flex; align-items: center; gap: 10px; }
+.page-title { display: inline-flex; gap: 6px; align-items: center; }
+.spacer { flex: 1; }
+.group-title { font-size: 15px; font-weight: 800; margin: 0 0 8px; display: flex; gap: 6px; align-items: baseline; }
+.group-title a { color: #05043d; }
+.grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.fab { position: fixed; bottom: 24px; left: 24px; width: 52px; height: 52px; box-shadow: 0 4px 16px rgba(255, 64, 86, .4); }

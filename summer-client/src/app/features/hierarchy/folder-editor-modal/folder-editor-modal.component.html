@@ -1,0 +1,44 @@
+<form nz-form nzLayout="vertical" [formGroup]="form" (ngSubmit)="save()">
+  <nz-form-item>
+    <nz-form-label nzRequired nzFor="f-name">שם התיקייה</nz-form-label>
+    <nz-form-control nzErrorTip="חובה למלא שם">
+      <input nz-input id="f-name" formControlName="name" placeholder="לדוגמה: שנה א׳" />
+    </nz-form-control>
+  </nz-form-item>
+  @if (!f) {
+    <nz-form-item>
+      <nz-form-label nzFor="f-parent">תיקיית אב</nz-form-label>
+      <nz-form-control nzExtra="השאירו ריק כדי ליצור תיקייה ראשית">
+        <nz-select nzId="f-parent" formControlName="parentId" nzShowSearch nzAllowClear nzPlaceHolder="ללא — תיקייה ראשית">
+          @for (o of parentOptions; track o._id) {
+            <nz-option [nzValue]="o._id" [nzLabel]="o.path" />
+          }
+        </nz-select>
+      </nz-form-control>
+    </nz-form-item>
+  }
+  <nz-form-item>
+    <nz-form-label nzRequired>הרשאות</nz-form-label>
+    <nz-form-control nzErrorTip="חובה לבחור לפחות הרשאה אחת" nzExtra="רק מי שיש לו את כל ההרשאות שנבחרו (וגם את ההרשאות של תיקיות האב) יראה את התיקייה">
+      <nz-select formControlName="permissions" nzMode="multiple" nzPlaceHolder="מי יכול לראות את התיקייה" nzShowSearch>
+        @for (p of permissionGroups.assignable(); track p._id) {
+          <nz-option nzCustomContent [nzValue]="p._id" [nzLabel]="p.name"><span class="dot" [style.background]="p.color"></span> {{ p.name }}</nz-option>
+        }
+      </nz-select>
+    </nz-form-control>
+  </nz-form-item>
+  <nz-form-item>
+    <nz-form-label>מנהלים</nz-form-label>
+    <nz-form-control>
+      <nz-select formControlName="managers" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="חיפוש לפי שם" (nzOnSearch)="userQuery$.next($event)">
+        @for (u of userOptions(); track u._id) {
+          <nz-option nzCustomContent [nzValue]="u._id" [nzLabel]="u.fullName"><app-avatar [user]="u" [size]="20" /> {{ u.fullName }}</nz-option>
+        }
+      </nz-select>
+    </nz-form-control>
+  </nz-form-item>
+  <div class="footer">
+    <button nz-button type="button" (click)="modal.close()">ביטול</button>
+    <button nz-button nzType="primary" type="submit" [nzLoading]="busy()">{{ f ? 'שמירה' : 'יצירה' }}</button>
+  </div>
+</form>

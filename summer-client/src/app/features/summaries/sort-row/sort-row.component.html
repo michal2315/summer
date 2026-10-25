@@ -1,0 +1,9 @@
+<span class="muted">מיון:</span>
+<nz-select nzSize="small" [ngModel]="field()" (ngModelChange)="emit($event, desc())" [nzBorderless]="true" aria-label="שדה מיון">
+  @for (f of fields; track f.value) {
+    <nz-option [nzValue]="f.value" [nzLabel]="f.label" />
+  }
+</nz-select>
+<button nz-button nzType="text" nzSize="small" (click)="emit(field(), !desc())" [nz-tooltip]="desc() ? 'סדר יורד' : 'סדר עולה'" aria-label="כיוון מיון">
+  <span nz-icon [nzType]="desc() ? 'sort-descending' : 'sort-ascending'"></span>
+</button>

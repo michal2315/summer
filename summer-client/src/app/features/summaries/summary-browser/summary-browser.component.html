@@ -6,7 +6,7 @@
       @if (openId(); as id) {
         <app-summary-detail [summaryId]="id" [search]="search()" [fullScreen]="fullScreenLink(id)" (closed)="close()" />
       } @else {
-        <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו סיכום מהרשימה כדי לצפות בו כאן" />
+        <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו תמצית מהרשימה כדי לצפות בה כאן" />
       }
     </div>
   </app-resizable-page>
@@ -15,11 +15,13 @@
 }
 
 <ng-template #mainContent>
-  <div class="search-row">
-    <app-summary-search [search]="search()" [showBell]="showBell()" [placeholder]="searchPlaceholder()" (searchChange)="onSearch($event)" />
-  </div>
+  <div class="top" [class.sticky]="stickyHeader()">
+    <div class="search-row">
+      <app-summary-search [search]="search()" [showBell]="showBell()" [placeholder]="searchPlaceholder()" (searchChange)="onSearch($event)" />
+    </div>
 
-  <ng-content select="[browser-header]" />
+    <ng-content select="[browser-header]" />
+  </div>
 
   @if (showTabs()) {
     <nz-tabset [nzSelectedIndex]="tabIndex()" (nzSelectedIndexChange)="setTab($event)" nzSize="small" class="tabs">
@@ -35,14 +37,25 @@
     <span class="spacer"></span>
     <app-sort-row [sort]="sort()" (sortChange)="onSort($event)" />
     <nz-radio-group [ngModel]="view()" (ngModelChange)="setView($event)" nzSize="small" nzButtonStyle="solid" aria-label="תצוגה">
+      @if (runningId()) {
+        <label nz-radio-button nzValue="timeline" aria-label="תצוגת ציר"><span nz-icon nzType="field-time"></span></label>
+      }
       <label nz-radio-button nzValue="list" aria-label="תצוגת כרטיסים"><span nz-icon nzType="unordered-list"></span></label>
       <label nz-radio-button nzValue="table" aria-label="תצוגת טבלה"><span nz-icon nzType="table"></span></label>
     </nz-radio-group>
   </div>
 
-  @if (view() === 'list') {
-    <app-summary-list [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
-  } @else {
-    <app-summaries-table [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
-  }
+  <!-- Only the list scrolls, so the always-visible rail spans exactly the feed (native scrollbars are hidden app-wide). -->
+  <div class="feed">
+    <div class="feed-scroller" #scroller>
+      @if (view() === 'timeline') {
+        <app-sumaroon-timeline [search]="sortedSearch()" [openId]="openId()" (toggle)="toggle($event)" />
+      } @else if (view() === 'list') {
+        <app-summary-list [search]="search()" [openId]="openId()" [groupSumaroons]="groupActive()" (toggle)="toggle($event)" />
+      } @else {
+        <app-summaries-table [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
+      }
+    </div>
+    <app-scroll-rail [scroller]="scroller" [labelAt]="dateLabelAt" />
+  </div>
 </ng-template>

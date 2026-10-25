@@ -4,7 +4,7 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
 import { UserService } from '../../core/auth/user.service';
-import { AvatarComponent } from '../../shared/components/avatar.component';
+import { AvatarComponent } from '../../shared/components/avatar/avatar.component';
 import { UserRef } from '../../shared/models';
 import { SummaryBrowserComponent } from '../summaries/summary-browser/summary-browser.component';
 
@@ -12,36 +12,8 @@ import { SummaryBrowserComponent } from '../summaries/summary-browser/summary-br
   selector: 'app-profile',
   imports: [RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, AvatarComponent, SummaryBrowserComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (profile(); as p) {
-      <app-summary-browser [ownerId]="p._id" [isProfile]="true" [showTabs]="isOwn()" [searchPlaceholder]="'חיפוש בסיכומים של ' + p.fullName">
-        <header browser-header class="header">
-          <app-avatar [user]="p" [size]="70" />
-          <div class="who">
-            <h1 class="page-title">{{ p.fullName }}</h1>
-            <span class="muted">{{ p.department }}</span>
-          </div>
-          <span class="spacer"></span>
-          @if (isOwn()) {
-            <a nz-button nzType="primary" routerLink="/summaries/new"><span nz-icon nzType="plus"></span> סיכום חדש</a>
-          } @else {
-            <button nz-button [nzType]="isFollowing() ? 'default' : 'primary'" [nzLoading]="busy()" (click)="toggleFollow(p._id)">
-              {{ isFollowing() ? 'הסר עוקב' : 'עקוב' }}
-            </button>
-          }
-        </header>
-      </app-summary-browser>
-    } @else {
-      <div class="loading"><nz-skeleton [nzActive]="true" [nzAvatar]="{ size: 70 }" /></div>
-    }
-  `,
-  styles: `
-    :host { display: block; height: 100%; }
-    .header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .who { display: flex; flex-direction: column; }
-    .spacer { flex: 1; }
-    .loading { padding: 32px; }
-  `,
+  templateUrl: './profile.component.html',
+  styleUrl: './profile.component.scss',
 })
 export class ProfileComponent {
   private readonly users = inject(UserService);

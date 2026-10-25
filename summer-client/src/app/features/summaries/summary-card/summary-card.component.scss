@@ -29,7 +29,8 @@
   border-radius: $border-radius $border-radius 0 0;
   background: $app-background;
   border-bottom: 1px solid $input-color;
-  strong {
+  .parent-title {
+    font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -77,5 +78,47 @@ $stack:
   border-radius: 6px 6px 0 0;
   .range {
     color: $dark-gray;
+  }
+}
+
+.running-banner .banner-title { font-weight: 700; }
+
+// Running summary: its first sumaroons as a numbered list, so it reads as a series without relying on colour.
+.sumaroon-preview {
+  list-style: none;
+  margin: 2px 0 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: $app-background;
+  border-radius: 6px;
+  font-size: 12px;
+  li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .n {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    background: $white;
+    border: 1px solid $gray;
+  }
+  .t {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .more {
+    color: $dark-gray;
+    padding-inline-start: 24px;
   }
 }

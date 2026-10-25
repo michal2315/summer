@@ -1,0 +1,47 @@
+@for (group of groups(); track group.key) {
+  @if (group.label) {
+    <nz-divider [nzText]="group.label" nzOrientation="right" />
+  }
+  @for (item of group.items; track item.key) {
+    @if (item.type === 'bundle') {
+      <button type="button" class="bundle" (click)="openRunning(item.parent._id)" [attr.data-summary-id]="item.sumaroons[0]._id">
+        <span class="bundle-head">
+          <span nz-icon nzType="unordered-list"></span>
+          <span>{{ item.sumaroons.length }} תמציתוניות חדשות ב</span>
+          <span class="bundle-title">{{ item.parent.title }}</span>
+        </span>
+        <span class="bundle-list">
+          @for (s of item.sumaroons.slice(0, bundlePreview); track s._id) {
+            <span class="bundle-item">{{ s.title }}</span>
+          }
+          @if (item.sumaroons.length > bundlePreview) {
+            <span class="bundle-more">ועוד {{ item.sumaroons.length - bundlePreview }}</span>
+          }
+        </span>
+      </button>
+    } @else {
+    <app-summary-card
+      [summary]="item.summary"
+      [search]="search()"
+      [active]="item.summary._id === openId()"
+      [focused]="item.index === focusedIndex()"
+      [selectable]="store.selectMode()"
+      [selected]="store.selected().has(item.summary._id)"
+      (selectToggle)="store.toggleSelected($event)"
+      [attr.data-index]="item.index"
+      [attr.data-summary-id]="item.summary._id"
+      (toggleOpen)="toggle.emit($event)"
+    />
+    }
+  }
+}
+
+@if (store.loading()) {
+  <div class="loader"><nz-spin nzSimple /></div>
+} @else if (store.loaded() && !store.summaries().length) {
+  <nz-empty class="empty" nzNotFoundImage="simple" nzNotFoundContent="לא נמצאו תוצאות" />
+}
+
+@if (store.hasMore()) {
+  <div class="sentinel" (appInView)="store.loadMore()"></div>
+}

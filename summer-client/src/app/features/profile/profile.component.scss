@@ -1,0 +1,5 @@
+:host { display: block; height: 100%; }
+.header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.who { display: flex; flex-direction: column; }
+.spacer { flex: 1; }
+.loading { padding: 32px; }

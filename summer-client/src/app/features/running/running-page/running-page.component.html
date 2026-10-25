@@ -1,0 +1,67 @@
+@if (running(); as r) {
+  <app-summary-browser
+    [ownerId]="userId()!"
+    [runningId]="r._id"
+    [fullScreenBase]="embedded() ? null : ['/running', r._id, 's']"
+    [detailAside]="!embedded()"
+    [stickyHeader]="true"
+    [searchPlaceholder]="'חיפוש בתוך ' + r.title"
+  >
+    <!-- Compact: one title row and one meta row; content, fields, labels and permissions behind "פרטים". -->
+    <div browser-header class="running">
+      <div class="row">
+        @if (!embedded()) {
+          <button nz-button nzType="text" nzShape="circle" type="button" (click)="back(r)" nz-tooltip="חזרה" aria-label="חזרה">
+            <span nz-icon nzType="arrow-right"></span>
+          </button>
+        }
+        <span class="kind" nz-tooltip="תמצית רצף"><span nz-icon nzType="unordered-list"></span></span>
+        <div class="title" role="heading" aria-level="1" [title]="r.title">{{ r.title }}</div>
+        <span class="spacer"></span>
+        <button nz-button nzType="text" nzSize="small" type="button" (click)="detailsOpen.set(!detailsOpen())" [attr.aria-expanded]="detailsOpen()">
+          פרטים <span nz-icon [nzType]="detailsOpen() ? 'up' : 'down'"></span>
+        </button>
+        <button nz-button nzType="text" nzShape="circle" type="button" (click)="actions.toggleFavorite(r)" [nz-tooltip]="r.isFavorite ? 'הסרה ממועדפים' : 'הוספה למועדפים'">
+          <span nz-icon nzType="star" [nzTheme]="r.isFavorite ? 'fill' : 'outline'"></span>
+        </button>
+        @if (isMine()) {
+          <a nz-button nzType="text" nzShape="circle" [routerLink]="['/summaries', r._id, 'edit']" nz-tooltip="עריכה" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
+          <button nz-button nzType="text" nzShape="circle" nzDanger type="button" (click)="remove(r)" nz-tooltip="מחיקה" aria-label="מחיקה"><span nz-icon nzType="delete"></span></button>
+        }
+        <a nz-button nzType="primary" nzSize="small" routerLink="/summaries/new" [queryParams]="{ parentId: r._id }"><span nz-icon nzType="plus"></span> תמציתונית</a>
+      </div>
+
+      <div class="meta">
+        <span>{{ r.sumaroonCount ?? 0 }} תמציתוניות</span>
+        <span><span nz-icon nzType="calendar"></span> {{ r.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ r.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
+        <span><app-content-type-icon [type]="r.contentType" /> {{ r.contentType.displayName }}</span>
+        <span class="who"><app-avatar [user]="r.user" [size]="18" /> <a [routerLink]="['/profile', r.user._id]">{{ r.user.fullName }}</a></span>
+      </div>
+
+      @if (detailsOpen()) {
+        <div class="details">
+          @if (r.summaryFields?.length) {
+            <div class="meta">
+              @for (f of r.summaryFields ?? []; track f.field._id) {
+                <span>{{ f.field.name }}: {{ f.value }}</span>
+              }
+            </div>
+          }
+          @if (hasContent()) {
+            <div class="content ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.content | richHtml: null : T.Content"></div></div>
+          }
+          <div class="chips">
+            @for (l of r.labels; track l.name) {
+              <nz-tag class="label-chip">#{{ l.name }}</nz-tag>
+            }
+            @for (p of r.permissions; track p._id) {
+              <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </app-summary-browser>
+} @else {
+  <div class="loading"><nz-skeleton [nzActive]="true" /></div>
+}

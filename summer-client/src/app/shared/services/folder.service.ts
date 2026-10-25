@@ -47,3 +47,17 @@ export class FolderService {
 }
 
 export const itemLink = (type: FolderItemType, id: string) => (type === 'collection' ? ['/collections', id] : ['/summaries', id]);
+
+/** Folders `userId` manages (only managers may add to a folder), each labelled with its full path, sorted by path. */
+export function managedFolderPaths(folders: IFolder[], userId: string): { _id: string; path: string }[] {
+  const byId = new Map(folders.map((f) => [f._id, f]));
+  const path = (f: IFolder): string => {
+    const names: string[] = [];
+    for (let cur: IFolder | undefined = f; cur; cur = cur.parentId ? byId.get(cur.parentId) : undefined) names.unshift(cur.name);
+    return names.join(' › ');
+  };
+  return folders
+    .filter((f) => f.managers.includes(userId))
+    .map((f) => ({ _id: f._id, path: path(f) }))
+    .sort((a, b) => a.path.localeCompare(b.path, 'he'));
+}

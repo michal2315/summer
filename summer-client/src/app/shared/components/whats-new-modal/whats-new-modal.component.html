@@ -1,0 +1,12 @@
+@if (releases(); as list) {
+  <nz-collapse [nzBordered]="false">
+    @for (r of list; track r.version; let first = $first) {
+      <nz-collapse-panel [nzHeader]="'גרסה ' + r.version + (r.isAcknowledged ? '' : ' · חדש')" [nzActive]="first">
+        <div class="ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.html | richHtml"></div></div>
+      </nz-collapse-panel>
+    }
+  </nz-collapse>
+} @else {
+  <nz-skeleton [nzActive]="true" />
+}
+<div class="footer"><button nz-button nzType="primary" type="button" (click)="close()">הבנתי</button></div>

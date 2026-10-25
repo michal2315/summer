@@ -1,0 +1,20 @@
+@let s = summary();
+<a class="cube" [routerLink]="['/summaries']" [queryParams]="{ summaryId: s._id }" [style.border-top-color]="s.color || 'transparent'">
+  <div class="head">
+    <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="28" />
+    <span class="who">
+      <span class="name">{{ s.user.fullName }}</span>
+      <span class="meta">{{ s.department || s.user.department }} · {{ s.eventDate || s.creationDate | dateFormat: 'dd/MM/yyyy' }}</span>
+    </span>
+  </div>
+  <div class="title" role="heading" aria-level="3">{{ s.title }}</div>
+  <div class="preview">{{ s.content | plainText: 140 }}</div>
+  <div class="foot">
+    <span class="perms">
+      @for (p of s.permissions; track p._id) {
+        <span class="dot" [style.background]="p.color" [nz-tooltip]="p.name"></span>
+      }
+    </span>
+    <span class="comments"><span nz-icon nzType="message"></span> {{ s.comments.length }}</span>
+  </div>
+</a>

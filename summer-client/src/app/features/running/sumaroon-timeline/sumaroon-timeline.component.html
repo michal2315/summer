@@ -1,0 +1,34 @@
+<ol class="timeline" aria-label="ציר התמציתוניות">
+  @for (month of months(); track month.key) {
+    <li class="month">
+      <div class="month-label" role="heading" aria-level="3">{{ month.label }}</div>
+    </li>
+    @for (step of month.steps; track step.summary._id) {
+      <li class="step" [attr.data-summary-id]="step.summary._id" [class.open]="step.summary._id === openId()">
+        <div class="rail" aria-hidden="true"><span class="number">{{ step.number }}</span></div>
+        <div class="body">
+          <div class="date">{{ step.date | dateFormat: 'dd/MM/yyyy' }}</div>
+          <app-summary-card
+            [summary]="step.summary"
+            [search]="search()"
+            [active]="step.summary._id === openId()"
+            [selectable]="store.selectMode()"
+            [selected]="store.selected().has(step.summary._id)"
+            (selectToggle)="store.toggleSelected($event)"
+            (toggleOpen)="toggle.emit($event)"
+          />
+        </div>
+      </li>
+    }
+  }
+</ol>
+
+@if (store.loading()) {
+  <div class="loader"><nz-spin nzSimple /></div>
+} @else if (store.loaded() && !store.summaries().length) {
+  <nz-empty class="empty" nzNotFoundImage="simple" nzNotFoundContent="עדיין אין תמציתוניות — הוסיפו את הראשונה בכפתור ״תמציתונית״ למעלה" />
+}
+
+@if (store.hasMore()) {
+  <div class="sentinel" (appInView)="store.loadMore()"></div>
+}

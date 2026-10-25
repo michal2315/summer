@@ -1,0 +1,29 @@
+:host { display: flex; flex-direction: column; gap: 6px; outline: none; padding-bottom: 24px; }
+// ant sets 16px on .ant-divider-with-text, which beats a plain element selector.
+:host ::ng-deep .ant-divider-with-text { margin: 4px 0 -2px; font-size: 12px; font-weight: 700; }
+.loader { display: grid; place-items: center; padding: 24px; }
+.empty { padding: 48px 0; }
+.sentinel { height: 1px; }
+
+// Feed: a running summary's new sumaroons bundled into one row (looks like a small stack, not a full card).
+.bundle {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #fff;
+  border-radius: 10px;
+  border-inline-start: 4px solid #9b9bb1;
+  box-shadow: -4px 4px 0 -1px #fff, -4px 4px 0 0 #d6d6dc, 0 1px 6px rgba(0, 0, 0, 0.07);
+  margin: 0 0 4px 4px;
+  font-size: 13px;
+  &:hover { box-shadow: -4px 4px 0 -1px #fff, -4px 4px 0 0 #d6d6dc, 0 2px 12px rgba(0, 0, 0, 0.14); }
+  &:focus-visible { outline: 2px solid #01004f; }
+}
+.bundle-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bundle-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bundle-list { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; }
+.bundle-item { background: #efefef; border-radius: 10px; padding: 0 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bundle-more { color: #666666; }

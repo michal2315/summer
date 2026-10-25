@@ -1,0 +1,57 @@
+<div class="page">
+  <div class="header">
+    <div class="page-title" role="heading" aria-level="1"><span nz-icon nzType="notification"></span> ניהול התראות</div>
+    <span class="spacer"></span>
+    <a nz-button nzType="primary" routerLink="create"><span nz-icon nzType="plus"></span> התראה חדשה</a>
+    <app-notification-bell />
+  </div>
+  <div class="muted intro">כללים שמגדירים מתי תקבלו התראה על תמצית חדשה — לפי ערכי השדות שלה. כל התנאים בכלל צריכים להתקיים.</div>
+
+  <nz-input-group [nzPrefix]="searchIcon" class="filter">
+    <input nz-input placeholder="סינון כללים" [ngModel]="service.filter()" (ngModelChange)="service.filter.set($event)" aria-label="סינון כללים" />
+  </nz-input-group>
+  <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+
+  @if (service.rules() === null) {
+    <nz-skeleton [nzActive]="true" />
+  } @else {
+    <ul class="list">
+      @for (r of filtered(); track r._id) {
+        <li class="item">
+          <div class="text">
+            <span class="rule-name">{{ r.name }}</span>
+            <span class="desc">{{ r | notificationName }}</span>
+          </div>
+          <span class="channels">
+            @if (r.isNotify) {
+              <nz-tag><span nz-icon nzType="bell"></span> במערכת</nz-tag>
+            }
+            @if (r.isMail) {
+              <nz-tag><span nz-icon nzType="mail"></span> במייל</nz-tag>
+            }
+          </span>
+          <span class="row-actions">
+            <a nz-button nzType="text" nzShape="circle" [routerLink]="[r._id, 'edit']" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
+            <button
+              nz-button
+              nzType="text"
+              nzShape="circle"
+              nzDanger
+              type="button"
+              nz-popconfirm
+              nzPopconfirmTitle="למחוק את הכלל?"
+              nzOkText="מחיקה"
+              nzCancelText="ביטול"
+              (nzOnConfirm)="remove(r)"
+              aria-label="מחיקה"
+            >
+              <span nz-icon nzType="delete"></span>
+            </button>
+          </span>
+        </li>
+      } @empty {
+        <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="service.filter() ? 'אין כללים תואמים' : 'עדיין אין כללי התראה'" />
+      }
+    </ul>
+  }
+</div>

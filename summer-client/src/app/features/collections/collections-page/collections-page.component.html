@@ -1,0 +1,50 @@
+<app-resizable-page storageKey="collectionsWidth" [asideOpen]="!!selectedId()" (closeAside)="close()">
+  <div main class="main">
+    <div class="search-row">
+      <nz-input-group [nzPrefix]="searchIcon" class="search">
+        <input nz-input placeholder="חיפוש לקטים" [ngModel]="text()" (ngModelChange)="onText($event)" aria-label="חיפוש לקטים" />
+      </nz-input-group>
+      <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+      <app-notification-bell />
+    </div>
+
+    <div class="header">
+      <div class="page-title" role="heading" aria-level="1">לקטים</div>
+      <label class="mine"><nz-switch nzSize="small" [ngModel]="!all()" (ngModelChange)="all.set(!$event)" /> רק לקטים שאני מנהל/ת</label>
+      <span class="spacer"></span>
+      <button nz-button nzType="primary" type="button" (click)="create()"><span nz-icon nzType="plus"></span> לקט חדש</button>
+    </div>
+
+    <div class="list" role="list" aria-label="לקטים">
+      @for (c of items(); track c._id) {
+        <app-collection-card
+          role="listitem"
+          [collection]="c"
+          [active]="c._id === selectedId()"
+          [pinned]="pinned().has(c._id)"
+          [favorite]="favorites().has(c._id)"
+          (selected)="select($event)"
+          (opened)="open($event)"
+          (pinToggle)="togglePin($event)"
+          (favoriteToggle)="toggleFavorite($event)"
+        />
+      }
+      @if (loading()) {
+        <div class="loader"><nz-spin nzSimple /></div>
+      } @else if (!items().length) {
+        <nz-empty nzNotFoundImage="simple" nzNotFoundContent="לא נמצאו לקטים" />
+      }
+      @if (!done()) {
+        <div class="sentinel" (appInView)="loadMore()"></div>
+      }
+    </div>
+  </div>
+
+  <div aside>
+    @if (selectedId(); as id) {
+      <app-selected-collection [collectionId]="id" (closed)="close()" />
+    } @else {
+      <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו לקט מהרשימה כדי לראות את פרטיו" />
+    }
+  </div>
+</app-resizable-page>

@@ -1,0 +1,27 @@
+@if (!store.selectMode()) {
+  <button nz-button nzSize="small" type="button" (click)="store.setSelectMode(true)"><span nz-icon nzType="check-square"></span> בחירה</button>
+  @if (excelActions()) {
+    <button nz-button nzSize="small" type="button" nz-dropdown [nzDropdownMenu]="templates" nzTrigger="click">
+      <span nz-icon nzType="download"></span> תבנית Excel <span nz-icon nzType="down"></span>
+    </button>
+    <nz-dropdown-menu #templates="nzDropdownMenu">
+      <ul nz-menu>
+        @for (t of contentTypes.list(); track t._id) {
+          <li nz-menu-item (click)="downloadTemplate(t)">{{ t.displayName }}</li>
+        }
+      </ul>
+    </nz-dropdown-menu>
+    <button nz-button nzSize="small" type="button" (click)="openUpload()"><span nz-icon nzType="upload"></span> העלאת Excel</button>
+  }
+} @else {
+  <span class="count" [class.capped]="store.selectedCount() >= store.maxSelection">נבחרו: {{ store.selectedCount() }}</span>
+  <button nz-button nzSize="small" nzType="link" type="button" (click)="store.toggleSelectAllLoaded()">בחירת כל המוצגים</button>
+  <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" (click)="timeline()"><span nz-icon nzType="field-time"></span> ציר זמן</button>
+  <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" (click)="addToCollection()"><span nz-icon nzType="folder-add"></span> הוספה ללקט</button>
+  <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" [nzLoading]="exporting()" (click)="export(false)"><span nz-icon nzType="file-excel"></span> ייצוא הנבחרים</button>
+  <button nz-button nzSize="small" type="button" [nzLoading]="exporting()" (click)="export(true)" nz-tooltip="כל תוצאות החיפוש הנוכחי">ייצוא הכל</button>
+  @if (collection(); as c) {
+    <button nz-button nzSize="small" nzDanger type="button" [disabled]="!store.selectedCount()" (click)="removeFromCollection(c)"><span nz-icon nzType="minus-circle"></span> הסרה מהלקט</button>
+  }
+  <button nz-button nzSize="small" nzType="text" type="button" (click)="store.setSelectMode(false)">ביטול</button>
+}

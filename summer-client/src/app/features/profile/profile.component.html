@@ -1,0 +1,21 @@
+@if (profile(); as p) {
+  <app-summary-browser [ownerId]="p._id" [isProfile]="true" [showTabs]="isOwn()" [searchPlaceholder]="'חיפוש בתמציות של ' + p.fullName">
+    <div browser-header class="header">
+      <app-avatar [user]="p" [size]="70" />
+      <div class="who">
+        <div class="page-title" role="heading" aria-level="1">{{ p.fullName }}</div>
+        <span class="muted">{{ p.department }}</span>
+      </div>
+      <span class="spacer"></span>
+      @if (isOwn()) {
+        <a nz-button nzType="primary" routerLink="/summaries/new"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
+      } @else {
+        <button nz-button [nzType]="isFollowing() ? 'default' : 'primary'" [nzLoading]="busy()" (click)="toggleFollow(p._id)">
+          {{ isFollowing() ? 'הסר עוקב' : 'עקוב' }}
+        </button>
+      }
+    </div>
+  </app-summary-browser>
+} @else {
+  <div class="loading"><nz-skeleton [nzActive]="true" [nzAvatar]="{ size: 70 }" /></div>
+}

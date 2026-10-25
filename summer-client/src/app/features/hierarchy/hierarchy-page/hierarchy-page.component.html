@@ -1,0 +1,128 @@
+<div class="page" [style.--tree-width.px]="treeWidth()">
+  <div class="tree" role="complementary" aria-label="עץ התיקיות">
+    <div class="tree-head">
+      <div class="title" role="heading" aria-level="1"><span nz-icon nzType="apartment"></span> היררכיה</div>
+      <button nz-button nzType="text" nzShape="circle" type="button" (click)="create(null)" nz-tooltip="תיקייה חדשה" aria-label="תיקייה חדשה">
+        <span nz-icon nzType="folder-add"></span>
+      </button>
+    </div>
+
+    @if (!treeLoaded()) {
+      <div class="loader"><nz-spin nzSimple nzSize="small" /></div>
+    } @else if (!children().get(null)?.length) {
+      <nz-empty nzNotFoundImage="simple" nzNotFoundContent="עדיין אין תיקיות" />
+    } @else {
+      <ng-container *ngTemplateOutlet="branch; context: { $implicit: null }" />
+    }
+  </div>
+
+  <div
+    class="handle"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="שינוי רוחב העץ"
+    tabindex="0"
+    (pointerdown)="startDrag($event)"
+    (keydown.arrowleft)="nudge(24)"
+    (keydown.arrowright)="nudge(-24)"
+  ></div>
+
+  <div class="viewer">
+    @if (summaryId(); as id) {
+      @if (backLabel(); as label) {
+        <button nz-button nzType="link" type="button" class="back" (click)="backToContainer()">
+          <span nz-icon nzType="arrow-right"></span> {{ label }}
+        </button>
+      }
+      <app-summary-detail [summaryId]="id" mode="page" />
+    } @else if (collectionId()) {
+      <app-collection-summaries-page [id]="collectionId()!" [embedded]="true" />
+    } @else if (runningId()) {
+      <app-running-page [id]="runningId()!" [embedded]="true" />
+    } @else {
+      <nz-empty class="placeholder" nzNotFoundImage="simple" nzNotFoundContent="בחרו פריט מהעץ כדי לצפות בתוכן" />
+    }
+  </div>
+</div>
+
+<ng-template #branch let-parent>
+  <ul class="branch" [attr.role]="parent ? 'group' : 'tree'">
+    @for (f of children().get(parent) ?? []; track f._id) {
+      @let open = expanded().has(f._id);
+      @let expandable = canExpand(f);
+      @let manager = isManager(f);
+      <li role="treeitem" [attr.aria-expanded]="expandable ? open : null" [attr.aria-selected]="f._id === folderId() && !itemOpen()">
+        <div class="node" [class.active]="f._id === folderId() && !itemOpen()">
+          @if (expandable) {
+            <button type="button" class="twisty" (click)="toggle(f._id)" [attr.aria-label]="open ? 'כיווץ' : 'הרחבה'">
+              <span nz-icon [nzType]="open ? 'down' : 'left'"></span>
+            </button>
+          } @else {
+            <span class="twisty"></span>
+          }
+          <a class="link" routerLink="/hierarchy" [queryParams]="{ folderId: f._id }" (click)="expand(f._id)">
+            <span class="icon folder" nz-icon [nzType]="open ? 'folder-open' : 'folder'"></span>
+            <span class="label">{{ f.name }}</span>
+            @if (!manager) {
+              <span class="lock" nz-icon nzType="lock" nz-tooltip="צפייה בלבד"></span>
+            }
+          </a>
+          @if (manager) {
+            <button
+              type="button"
+              class="more"
+              nz-dropdown
+              nzTrigger="click"
+              [nzDropdownMenu]="menu"
+              nzPlacement="bottomLeft"
+              [attr.aria-label]="'פעולות על ' + f.name"
+            >
+              <span nz-icon nzType="more"></span>
+            </button>
+            <nz-dropdown-menu #menu="nzDropdownMenu">
+              <ul nz-menu>
+                <li nz-menu-item (click)="addItems(f)"><span nz-icon nzType="plus"></span> הוספת לקטים ותמציות</li>
+                <li nz-menu-item (click)="create(f)"><span nz-icon nzType="folder-add"></span> תיקיית משנה</li>
+                <li nz-menu-item (click)="edit(f)"><span nz-icon nzType="edit"></span> עריכה והרשאות</li>
+                <li nz-menu-divider></li>
+                <li nz-menu-item nzDanger (click)="remove(f)"><span nz-icon nzType="delete"></span> מחיקה</li>
+              </ul>
+            </nz-dropdown-menu>
+          }
+        </div>
+
+        @if (open && expandable) {
+          <ng-container *ngTemplateOutlet="branch; context: { $implicit: f._id }" />
+          <ul class="branch" role="group">
+            @if (items().get(f._id); as list) {
+              @for (item of list; track item.type + item._id) {
+                <li role="treeitem" [attr.aria-selected]="isOpen(item)">
+                  <div class="node" [class.active]="isOpen(item)">
+                    <span class="twisty"></span>
+                    <a class="link" routerLink="/hierarchy" [queryParams]="itemParams(f._id, item)">
+                      <span class="icon" [class]="item.kind === 'running' ? 'running' : item.type" nz-icon [nzType]="itemIcon(item)" [nz-tooltip]="item.kind === 'running' ? 'תמצית רצף' : null"></span>
+                      <span class="label">{{ item.name }}</span>
+                    </a>
+                    @if (manager) {
+                      <button
+                        type="button"
+                        class="more"
+                        (click)="removeItem(f, item)"
+                        nz-tooltip="הוצאה מהתיקייה"
+                        [attr.aria-label]="'הוצאת ' + item.name + ' מהתיקייה'"
+                      >
+                        <span nz-icon nzType="close"></span>
+                      </button>
+                    }
+                  </div>
+                </li>
+              }
+            } @else if (f.itemCount) {
+              <li class="loading"><nz-spin nzSimple nzSize="small" /></li>
+            }
+          </ul>
+        }
+      </li>
+    }
+  </ul>
+</ng-template>

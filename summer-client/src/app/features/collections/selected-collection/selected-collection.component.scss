@@ -1,0 +1,13 @@
+.pane { padding: 10px 14px 20px; display: flex; flex-direction: column; gap: 10px; }
+.toolbar { display: flex; align-items: center; gap: 2px; }
+.spacer { flex: 1; }
+.name { font-size: 18px; font-weight: 800; margin: 0; display: flex; gap: 6px; align-items: center; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; font-size: 13px; }
+dt { color: #9b9bb1; }
+dd { margin: 0; }
+.section-title { margin: 4px 0 0; font-size: 13px; font-weight: 800; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.perm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: #efefef; padding: 1px 10px; border-radius: 12px; }
+.perm .dot { width: 8px; height: 8px; border-radius: 50%; }
+.managers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.managers li { display: flex; align-items: center; gap: 6px; }
