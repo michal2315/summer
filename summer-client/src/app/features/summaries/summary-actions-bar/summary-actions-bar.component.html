@@ -1,5 +1,5 @@
 @if (!store.selectMode()) {
-  <button nz-button nzSize="small" type="button" (click)="store.setSelectMode(true)"><span nz-icon nzType="check-square"></span> בחירה</button>
+  <button nz-button nzSize="small" type="button" appAltKey="selectMode" (click)="store.setSelectMode(true)"><span nz-icon nzType="check-square"></span> בחירה</button>
   @if (excelActions()) {
     <button nz-button nzSize="small" type="button" nz-dropdown [nzDropdownMenu]="templates" nzTrigger="click">
       <span nz-icon nzType="download"></span> תבנית Excel <span nz-icon nzType="down"></span>
@@ -20,6 +20,7 @@
   <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" (click)="addToCollection()"><span nz-icon nzType="folder-add"></span> הוספה ללקט</button>
   <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" [nzLoading]="exporting()" (click)="export(false)"><span nz-icon nzType="file-excel"></span> ייצוא הנבחרים</button>
   <button nz-button nzSize="small" type="button" [nzLoading]="exporting()" (click)="export(true)" nz-tooltip="כל תוצאות החיפוש הנוכחי">ייצוא הכל</button>
+  <button nz-button nzSize="small" type="button" (click)="exportWord()" nz-tooltip="טבלת התמציות עם טקסט משלכם"><span nz-icon nzType="file-word"></span> ייצוא ל-Word</button>
   @if (collection(); as c) {
     <button nz-button nzSize="small" nzDanger type="button" [disabled]="!store.selectedCount()" (click)="removeFromCollection(c)"><span nz-icon nzType="minus-circle"></span> הסרה מהלקט</button>
   }

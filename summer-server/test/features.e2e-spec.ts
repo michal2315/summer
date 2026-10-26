@@ -70,6 +70,65 @@ describe('summaries, collections, comments, personal state', () => {
     expect((await search('mgolan', 'text=jkst&searchTypes=CONTENT')).lengths.summary).toBe(0); // restricted to content
   });
 
+  it('searches with and / or / not, @user and :content-type in the text', async () => {
+    const courseField = (await h.sql<{ id: string }>(`select id from fields where name = 'שם הקורס'`))[0].id;
+    await createSummary(h, 'mgolan', summaryPayload(l, { title: 'זברה ג׳ירפה' }));
+    await createSummary(
+      h,
+      'dlevi',
+      summaryPayload(l, { title: 'זברה פיל', contentType: l.type('lecture'), summaryFields: [{ field: courseField, value: 'קורס' }] }),
+    );
+    const count = async (text: string) => (await search('mgolan', `text=${encodeURIComponent(text)}`)).lengths.summary;
+    expect(await count('ג׳ירפה או פיל')).toBe(2);
+    expect(await count('ג׳ירפה and פיל')).toBe(0);
+    expect(await count('זברה not פיל')).toBe(1);
+    expect(await count('זברה @DLevi')).toBe(1);
+    expect(await count('זברה @nobody')).toBe(0);
+    expect(await count('זברה :lecture')).toBe(1);
+    expect(await count('זברה :כללי')).toBe(1);
+  });
+
+  it('advanced search: nested and / or groups over fields, values and dates, plus a live count', async () => {
+    const courseField = (await h.sql<{ id: string }>(`select id from fields where name = 'שם הקורס'`))[0].id;
+    const { body: a } = await createSummary(h, 'mgolan', summaryPayload(l, { title: 'קנגורו א', contentHtml: '<p>שפן</p>', eventDate: '2026-02-10' }));
+    await createSummary(
+      h,
+      'dlevi',
+      summaryPayload(l, { title: 'קנגורו ב', contentType: l.type('lecture'), summaryFields: [{ field: courseField, value: 'קורס' }], eventDate: '2026-05-10' }),
+    );
+    const col = (await h.as('mgolan').post('/collection/create').send({ name: 'אוסף קנגורו', permissions: [l.perm('cs-faculty')], managers: [] })).body;
+    await h.as('mgolan').post('/collection/add').send({ collectionIds: [col._id], summaryIds: [a._id] }).expect(201);
+    const dlevi = await myId('dlevi');
+
+    const cond = (field: string, op: string, more: object) => ({ type: 'cond', field, op, ...more });
+    const group = (op: 'AND' | 'OR', ...children: object[]) => ({ type: 'group', op, children });
+    const run = async (query: object, text = 'קנגורו') =>
+      (await h.as('mgolan').get('/summary/count').query({ text, query: JSON.stringify(query) }).expect(200)).body.count;
+
+    expect(await run(group('AND'))).toBe(2); // empty tree = no filter
+    expect(await run(group('AND', cond('content', 'all', { words: ['שפן'] })))).toBe(1);
+    expect(await run(group('AND', cond('title', 'none', { words: ['א'] })))).toBe(1);
+    expect(await run(group('AND', cond('author', 'isNot', { values: [dlevi] })))).toBe(1);
+    expect(await run(group('AND', cond('contentType', 'isOneOf', { values: ['lecture'] })))).toBe(1);
+    expect(await run(group('AND', cond('collection', 'isOneOf', { values: [col._id] })))).toBe(1);
+    expect(await run(group('AND', cond('collection', 'isNot', { values: [col._id] })))).toBe(1);
+    expect(await run(group('AND', cond('eventDate', 'after', { from: '2026-04-01T00:00:00.000Z' })))).toBe(1);
+    // (content has שפן OR author is dlevi) AND event date before March → only a
+    expect(
+      await run(
+        group(
+          'AND',
+          group('OR', cond('content', 'any', { words: ['שפן'] }), cond('author', 'isOneOf', { values: [dlevi] })),
+          cond('eventDate', 'before', { to: '2026-03-01T00:00:00.000Z' }),
+        ),
+      ),
+    ).toBe(1);
+
+    await h.as('mgolan').get('/summary/count').query({ query: '{not json' }).expect(400);
+    await h.as('mgolan').get('/summary/count').query({ query: JSON.stringify(group('AND', cond('author', 'after', { values: [] }))) }).expect(400);
+    await h.as('mgolan').get('/summary/count').query({ query: JSON.stringify(group('AND', cond('author', 'isOneOf', { values: ['x'] }))) }).expect(400);
+  });
+
   it('collections: needs permissions; adding needs summary edit rights; removal and deletion keep the summary', async () => {
     await h.as('mgolan').post('/collection/create').send({ name: 'ריק', permissions: [], managers: [] }).expect(400);
     const col = (await h.as('mgolan').post('/collection/create').send({ name: 'אוסף בדיקה', permissions: [l.perm('cs-faculty')], managers: [] }).expect(201)).body;
@@ -208,6 +267,18 @@ describe('summaries, collections, comments, personal state', () => {
     const rows = XLSX.utils.sheet_to_json<string[]>(XLSX.read(exp.body).Sheets.Summer, { header: 1 });
     expect(rows[0][0]).toBe('כותרת');
     expect(rows.slice(1).every((r) => String(r[0]).includes('גרפים'))).toBe(true);
+
+    const word = await h
+      .as('mgolan')
+      .post('/summary/download/word')
+      .send({ summariesId: [], all: true, search: { text: 'גרפים' }, title: 'דוח גרפים', intro: 'פתיח\nשורה שנייה', outro: 'סיכום' })
+      .responseType('blob')
+      .expect(201);
+    expect(word.headers['content-type']).toContain('wordprocessingml');
+    const docXml = Buffer.from(XLSX.CFB.find(XLSX.CFB.read(word.body, { type: 'buffer' }), '/word/document.xml')!.content).toString('utf8');
+    for (const text of ['דוח גרפים', 'פתיח', 'שורה שנייה', 'סיכום', 'תאריך האירוע', String(rows[1][0])]) expect(docXml).toContain(text);
+    expect(docXml.indexOf('פתיח')).toBeLessThan(docXml.indexOf('<w:tbl>'));
+    expect(docXml.indexOf('סיכום')).toBeGreaterThan(docXml.indexOf('</w:tbl>'));
 
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['כותרת', 'תוכן', 'תגיות'], ['מיובא 1', '<b>a</b>', 'יבוא, חשוב'], ['מיובא 2', 'b', '']]), 'S');

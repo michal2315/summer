@@ -16,7 +16,7 @@
   <ul class="links">
     @for (item of items(); track item.label) {
       <li>
-        <a [routerLink]="item.link" routerLinkActive="active" (click)="navigate.emit()">
+        <a [routerLink]="item.link" routerLinkActive="active" [appAltKey]="item.altKey" (click)="navigate.emit()">
           <span nz-icon [nzType]="item.icon"></span>
           {{ item.label }}
         </a>

@@ -1,3 +1,4 @@
+import { AltKeyDirective } from '../../keyboard/alt-key.directive';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
@@ -11,7 +12,7 @@ import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-notification-bell',
-  imports: [NzBadgeModule, NzButtonModule, NzIconModule, NzPopoverModule, NzEmptyModule, RelativeTimePipe],
+  imports: [AltKeyDirective, NzBadgeModule, NzButtonModule, NzIconModule, NzPopoverModule, NzEmptyModule, RelativeTimePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './notification-bell.component.html',
   styleUrl: './notification-bell.component.scss',

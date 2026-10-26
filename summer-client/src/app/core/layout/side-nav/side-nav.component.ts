@@ -8,16 +8,19 @@ import { WhatsNewService } from '../../../shared/components/whats-new';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { UserService } from '../../auth/user.service';
 import { APP_CONFIG } from '../../config/app-config';
+import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
+import { AltKeyId } from '../../../shared/keyboard/alt-keys';
 
 interface NavItem {
   label: string;
   icon: string;
   link: string[];
+  altKey: AltKeyId;
 }
 
 @Component({
   selector: 'app-side-nav',
-  imports: [RouterLink, RouterLinkActive, NzIconModule, AvatarComponent],
+  imports: [RouterLink, RouterLinkActive, NzIconModule, AvatarComponent, AltKeyDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './side-nav.component.html',
   styleUrl: './side-nav.component.scss',
@@ -36,15 +39,15 @@ export class SideNavComponent {
 
   readonly items = computed<NavItem[]>(() => {
     const items: NavItem[] = [
-      { label: 'דף הבית', icon: 'home', link: ['/summaries'] },
-      { label: 'פרופיל', icon: 'user', link: ['/profile', this.users.userId() ?? ''] },
-      { label: 'לקטים', icon: 'folder', link: ['/collections'] },
-      { label: 'היררכיה', icon: 'apartment', link: ['/hierarchy'] },
-      { label: 'התראות', icon: 'notification', link: ['/notifications'] },
-      { label: 'הרשאות', icon: 'lock', link: ['/permissions'] },
-      { label: 'תוסף', icon: 'appstore-add', link: ['/extension'] },
+      { label: 'דף הבית', icon: 'home', link: ['/summaries'], altKey: 'home' },
+      { label: 'פרופיל', icon: 'user', link: ['/profile', this.users.userId() ?? ''], altKey: 'profile' },
+      { label: 'לקטים', icon: 'folder', link: ['/collections'], altKey: 'collections' },
+      { label: 'היררכיה', icon: 'apartment', link: ['/hierarchy'], altKey: 'hierarchy' },
+      { label: 'התראות', icon: 'notification', link: ['/notifications'], altKey: 'notifications' },
+      { label: 'הרשאות', icon: 'lock', link: ['/permissions'], altKey: 'permissions' },
+      { label: 'תוסף', icon: 'appstore-add', link: ['/extension'], altKey: 'extension' },
     ];
-    if (this.dashboardPermitted()) items.push({ label: 'דשבורד', icon: 'dashboard', link: ['/dashboard'] });
+    if (this.dashboardPermitted()) items.push({ label: 'דשבורד', icon: 'dashboard', link: ['/dashboard'], altKey: 'dashboard' });
     return items;
   });
 }

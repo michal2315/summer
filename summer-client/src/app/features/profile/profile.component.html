@@ -8,7 +8,7 @@
       </div>
       <span class="spacer"></span>
       @if (isOwn()) {
-        <a nz-button nzType="primary" routerLink="/summaries/new"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
+        <a nz-button nzType="primary" routerLink="/summaries/new" appAltKey="newSummary"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
       } @else {
         <button nz-button [nzType]="isFollowing() ? 'default' : 'primary'" [nzLoading]="busy()" (click)="toggleFollow(p._id)">
           {{ isFollowing() ? 'הסר עוקב' : 'עקוב' }}

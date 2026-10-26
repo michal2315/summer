@@ -1,32 +1,51 @@
-import { ISummarySearch, SearchType } from '../models';
+import { IQueryGroup, ISummarySearch, QueryTextField, SearchType } from '../models';
+import { QueryTerm, parseQuery } from '../utils/search-syntax';
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /**
- * Search text → match regex. Words are space-split and matched anywhere; "quoted text" is a whole-word exact match.
+ * Search text → match regex over the terms that must appear (not negated ones, operators, @users or :types).
+ * Words are matched anywhere; "quoted text" is a whole-word exact match.
  * Uses Unicode letter classes because \b does not understand Hebrew.
  */
-export function searchRegex(text: string | undefined): RegExp | null {
-  if (!text?.trim()) return null;
-  const parts: string[] = [];
-  const rest = text.replace(/"([^"]+)"/g, (_, phrase: string) => {
-    parts.push(`(?<![\\p{L}\\p{N}])${escapeRegex(phrase.trim())}(?![\\p{L}\\p{N}])`);
-    return ' ';
-  });
-  for (const word of rest.split(/\s+/)) if (word) parts.push(escapeRegex(word.replace(/^#/, '')));
+export function searchRegex(text: string | undefined, extra: QueryTerm[] = []): RegExp | null {
+  const terms = [...(text?.trim() ? parseQuery(text).groups.flat() : []), ...extra];
+  const parts = terms
+    .filter((t) => !t.neg)
+    .map((t) => (t.exact ? `(?<![\\p{L}\\p{N}])${escapeRegex(t.term)}(?![\\p{L}\\p{N}])` : escapeRegex(t.term)));
   if (!parts.length) return null;
   // Longest first so overlapping terms prefer the longer match.
   parts.sort((a, b) => b.length - a.length);
   return new RegExp(parts.join('|'), 'giu');
 }
 
-/** Highlight only fields whose search type is checked (no types selected ⇒ all). */
+const TYPE_FIELD: Partial<Record<SearchType, QueryTextField>> = {
+  [SearchType.Title]: 'title',
+  [SearchType.Content]: 'content',
+  [SearchType.Label]: 'labels',
+  [SearchType.Notes]: 'notes',
+  [SearchType.Comments]: 'comments',
+};
+
+/** Words the advanced search requires in this field ("anywhere" conditions count for every field). */
+function queryWords(q: IQueryGroup | undefined, field: QueryTextField | undefined): QueryTerm[] {
+  if (!q) return [];
+  return q.children.flatMap((c) =>
+    c.type === 'group'
+      ? queryWords(c, field)
+      : c.op !== 'none' && (c.field === 'text' || c.field === field)
+        ? (c.words ?? []).map((term) => ({ term, neg: false, exact: false }))
+        : [],
+  );
+}
+
+/** Highlight only fields whose search type is checked (no types selected ⇒ all), plus the advanced search's words for the field. */
 export function regexFor(search: ISummarySearch | null | undefined, type: SearchType): RegExp | null {
-  if (!search?.text) return null;
-  if (search.searchTypes?.length && !search.searchTypes.includes(type)) return null;
-  return searchRegex(search.text);
+  if (!search) return null;
+  const textApplies = !search.searchTypes?.length || search.searchTypes.includes(type);
+  return searchRegex(textApplies ? search.text : undefined, queryWords(search.query, TYPE_FIELD[type]));
 }
 
 /** Plain text → escaped HTML with <span class="highlight"> around hits. */

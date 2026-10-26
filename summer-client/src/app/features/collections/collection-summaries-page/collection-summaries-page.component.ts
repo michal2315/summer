@@ -1,3 +1,4 @@
+import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -13,7 +14,7 @@ import { CollectionEditorData, CollectionEditorModalComponent } from '../collect
 /** /collections/:id — the collection's summaries with the full search/filter set, detail in the aside. */
 @Component({
   selector: 'app-collection-summaries-page',
-  imports: [RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, SummaryBrowserComponent],
+  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, SummaryBrowserComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './collection-summaries-page.component.html',
   styleUrl: './collection-summaries-page.component.scss',

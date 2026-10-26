@@ -1,0 +1,50 @@
+@if (keys.hints(); as hints) {
+  <div class="hints" aria-hidden="true">
+    @for (h of hints; track h.key) {
+      <span class="hint" [style.top.px]="h.top" [style.left.px]="h.left">{{ h.key }}</span>
+    }
+    <div class="legend">
+      <span class="kbd">Alt</span> + האות שעל הכפתור להפעלה
+      <span class="sep"></span>
+      <span class="kbd">Alt</span><span class="plus">+</span><span class="kbd">/</span> כל הקיצורים
+    </div>
+  </div>
+}
+
+@if (keys.helpOpen()) {
+  <div class="backdrop" (click)="keys.toggleHelp(false)"></div>
+  <div class="help" role="dialog" aria-modal="true" aria-label="קיצורי מקלדת">
+    <div class="help-head">
+      <div class="help-title"><span nz-icon nzType="info-circle"></span> קיצורי מקלדת</div>
+      <span class="help-sub">עובדים גם במקלדת עברית · החזקת Alt מציגה את המקש על כל כפתור</span>
+      <button type="button" class="close" (click)="keys.toggleHelp(false)" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+    </div>
+    <div class="help-body">
+      @for (g of groups; track g.name) {
+        <div class="group">
+          <div class="group-title">{{ g.name }}</div>
+          @for (s of g.items; track s.key) {
+            <div class="row">
+              <span class="row-label">{{ s.label }}</span>
+              <span class="row-keys" dir="ltr">
+                @for (p of parts(s.key); track $index) {
+                  @if ($index) {
+                    <span class="plus">+</span>
+                  }
+                  <span class="kbd">{{ p }}</span>
+                }
+              </span>
+            </div>
+          }
+        </div>
+      }
+      <div class="group">
+        <div class="group-title">בתיבת החיפוש</div>
+        <div class="row"><span class="row-label">מעבר לתיבת החיפוש</span><span class="row-keys"><span class="kbd">/</span></span></div>
+        <div class="row"><span class="row-label">תמציות של משתמש</span><span class="row-keys"><span class="kbd">&#64;</span></span></div>
+        <div class="row"><span class="row-label">סוג תוכן</span><span class="row-keys"><span class="kbd">:</span></span></div>
+        <div class="row"><span class="row-label">וגם · או · לא</span><span class="row-keys" dir="ltr"><span class="kbd">and</span> <span class="kbd">or</span> <span class="kbd">not</span></span></div>
+      </div>
+    </div>
+  </div>
+}

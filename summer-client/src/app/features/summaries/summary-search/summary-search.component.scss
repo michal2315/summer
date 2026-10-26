@@ -1,5 +1,14 @@
 @use 'tokens' as *;
 
+// Token colors, shared by the box, the popup titles and the cheat-sheet.
+$tok-user: #1d39c4;
+$tok-user-bg: #e8edff;
+$tok-type: #08793a;
+$tok-type-bg: #e3f6ea;
+$tok-and: $accent;
+$tok-or: #c25400;
+$tok-not: #c41d3a;
+
 :host {
   display: block;
   position: relative;
@@ -15,20 +24,115 @@
 .form {
   flex: 1;
   min-width: 0;
+  position: relative;
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding-inline: 14px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 24px;
+  background: $white;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+
+  &:hover {
+    border-color: $gray;
+  }
+  &.focused {
+    border-color: $dark-blue;
+    box-shadow: 0 0 0 3px rgba(5, 4, 61, 0.08);
+  }
+}
+
+.search-icon {
+  color: $gray;
+}
+
+// The mirror and the input must lay out text identically: same font, no padding, no per-token spacing.
+.field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.mirror,
+.input {
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: normal;
+  white-space: pre;
+}
+
+.mirror {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  color: $dark-blue;
 }
 
 .input {
-  border-radius: 24px;
-  background: $white;
   position: relative;
-  z-index: 11;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: $dark-blue;
+
+  &::placeholder {
+    color: $gray;
+  }
+  &::selection {
+    background: rgba(29, 57, 196, 0.2);
+  }
+}
+
+// Background via box-shadow so a token keeps the exact width of its text.
+.tok {
+  border-radius: 4px;
+}
+.tok-user {
+  color: $tok-user;
+  background: $tok-user-bg;
+  box-shadow: 0 0 0 2px $tok-user-bg;
+}
+.tok-type {
+  color: $tok-type;
+  background: $tok-type-bg;
+  box-shadow: 0 0 0 2px $tok-type-bg;
+}
+.tok-and {
+  color: $tok-and;
+  text-decoration: underline 2px;
+  text-underline-offset: 3px;
+}
+.tok-or {
+  color: $tok-or;
+  text-decoration: underline 2px;
+  text-underline-offset: 3px;
+}
+.tok-not {
+  color: $tok-not;
+  text-decoration: underline 2px;
+  text-underline-offset: 3px;
 }
 
 .icon-btn {
   all: unset;
   cursor: pointer;
   color: $gray;
-  padding: 0 4px;
+  padding: 0 2px;
   display: inline-flex;
   &:hover,
   &:focus-visible {
@@ -42,63 +146,113 @@
   padding: 0 6px;
   font-size: 12px;
   color: $gray;
-  margin-inline-start: 6px;
+  margin-inline-start: 4px;
+}
+
+.divider {
+  width: 1px;
+  height: 18px;
+  background: #e4e4ec;
+  margin-inline: 2px;
+}
+
+.advanced-btn {
+  width: 26px;
+  height: 26px;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  &.on {
+    color: $white;
+    background: $accent;
+    &:hover,
+    &:focus-visible {
+      color: $white;
+    }
+  }
 }
 
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 4, 61, 0.25);
   z-index: 10;
-  animation: fade 0.15s ease-out;
 }
 
-.panel {
+.advanced {
   position: absolute;
   top: calc(100% + 8px);
   inset-inline: 0;
   z-index: 12;
-  background: $white;
-  border-radius: 15px;
-  box-shadow: $shadow;
-  padding: 14px 16px 10px;
-  max-height: min(75vh, 720px);
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  animation: slideDown 0.18s ease-out;
 }
 
-.close {
-  all: unset;
-  cursor: pointer;
+// Spans the whole search box.
+.popup {
   position: absolute;
-  top: 12px;
-  inset-inline-end: 14px;
+  top: calc(100% + 6px);
+  inset-inline: 0;
+  z-index: 12;
+  background: $white;
+  border-radius: 12px;
+  box-shadow: $shadow;
+  padding: 8px;
+  max-height: min(60vh, 420px);
+  overflow: auto;
+  animation: slideDown 0.12s ease-out;
+}
+
+.popup-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $dark-gray;
+}
+
+.sigil {
+  min-width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+
+  &.active {
+    background: $input-color;
+  }
+}
+
+.option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-token {
+  font-size: 12px;
   color: $gray;
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-
-  .group-title {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+.empty {
+  padding: 8px;
+  color: $gray;
+  font-size: 13px;
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 2px 8px 6px;
   .chip {
     cursor: pointer;
     margin: 0;
@@ -108,51 +262,41 @@
   }
 }
 
-.colors {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  &.selected {
-    border-color: $dark-blue;
-    box-shadow: 0 0 0 2px $white inset;
-  }
-}
-
-.grid {
+.cheats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  nz-select,
-  nz-range-picker {
-    width: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 2px 8px;
+  padding: 0 0 4px;
+}
+
+.cheat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+
+  &.clickable {
+    cursor: pointer;
+    &:hover {
+      background: $input-color;
+    }
   }
 }
 
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid #f0f0f0;
-  padding-top: 12px;
+.cheat-example {
+  font-size: 13px;
+  white-space: pre;
+}
+
+.cheat-hint {
+  font-size: 12px;
+  color: $gray;
 }
 
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(-6px);
-  }
-}
-@keyframes fade {
-  from {
-    opacity: 0;
+    transform: translateY(-4px);
   }
 }

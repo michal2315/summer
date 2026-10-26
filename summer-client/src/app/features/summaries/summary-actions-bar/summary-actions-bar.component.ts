@@ -1,3 +1,4 @@
+import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
@@ -13,15 +14,16 @@ import { AddToCollectionData, AddToCollectionModalComponent } from '../../collec
 import { targetsFor } from '../excel/excel-fields';
 import { UploadExcelData, UploadExcelWizardComponent } from '../excel/upload-excel-wizard/upload-excel-wizard.component';
 import { SummaryActionsService } from '../summary-actions.service';
+import { ExportWordData, ExportWordModalComponent } from '../word/export-word-modal/export-word-modal.component';
 import { SummaryListStore } from '../summary-list.store';
 
 /**
  * Toolbar over a summaries list (spec "export-buttons-row"): enter selection mode, then act on the selection —
- * add to collection, Excel export, remove from the current collection. Feed also gets Excel template/upload.
+ * add to collection, Excel/Word export, remove from the current collection. Feed also gets Excel template/upload.
  */
 @Component({
   selector: 'app-summary-actions-bar',
-  imports: [NzButtonModule, NzDropDownModule, NzIconModule, NzToolTipModule],
+  imports: [AltKeyDirective, NzButtonModule, NzDropDownModule, NzIconModule, NzToolTipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-actions-bar.component.html',
   styleUrl: './summary-actions-bar.component.scss',
@@ -93,6 +95,16 @@ export class SummaryActionsBarComponent {
     this.summaries.exportExcel({ summariesId: all ? [] : [...this.store.selected()], all, search: all ? query?.search : undefined }).subscribe({
       complete: () => this.exporting.set(false),
       error: () => this.exporting.set(false),
+    });
+  }
+
+  exportWord() {
+    this.modal.create<ExportWordModalComponent, ExportWordData, boolean>({
+      nzTitle: 'ייצוא ל-Word',
+      nzContent: ExportWordModalComponent,
+      nzData: { selectedIds: [...this.store.selected()], search: this.store.currentQuery()?.search },
+      nzFooter: null,
+      nzWidth: 560,
     });
   }
 

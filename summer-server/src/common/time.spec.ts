@@ -1,5 +1,5 @@
 import { dayRange, parseEventDate } from './time';
-import { searchTerms } from '../summaries/summary-search';
+import { parseQuery } from '../summaries/summary-search';
 
 describe('time zone helpers', () => {
   const TZ = 'Asia/Jerusalem';
@@ -19,8 +19,29 @@ describe('time zone helpers', () => {
   });
 });
 
-describe('search terms', () => {
-  it('keeps quoted phrases, splits words, drops hashtags marks and duplicates', () => {
-    expect(searchTerms('"שאלה ממבחן" #חשוב  graph graph')).toEqual(['שאלה ממבחן', 'חשוב', 'graph']);
+describe('search query', () => {
+  const terms = (text: string) => parseQuery(text).groups.map((g) => g.map((t) => (t.neg ? '-' : '') + t.term));
+
+  it('keeps quoted phrases, splits words, drops hashtag marks', () => {
+    expect(terms('"שאלה ממבחן" #חשוב  graph')).toEqual([['שאלה ממבחן', 'חשוב', 'graph']]);
+  });
+
+  it('reads and / or / not in English and Hebrew, AND binding tighter than OR', () => {
+    expect(terms('a b OR c and not d')).toEqual([['a', 'b'], ['c', '-d']]);
+    expect(terms('ביולוגיה או כימיה ולא מבחן')).toEqual([['ביולוגיה'], ['כימיה', '-מבחן']]);
+    expect(terms('גרף לא מכוון')).toEqual([['גרף', '-מכוון']]);
+  });
+
+  it('drops operators that are not between terms, and searches quoted ones as words', () => {
+    expect(terms('or a and')).toEqual([['a']]);
+    expect(terms('a not')).toEqual([['a']]);
+    expect(terms('"לא" ברור')).toEqual([['לא', 'ברור']]);
+  });
+
+  it('pulls out @user and :type filters wherever they appear', () => {
+    const q = parseQuery('biology exam @Michal :lecture :שעת_קבלה or chemistry');
+    expect(q.users).toEqual(['michal']);
+    expect(q.contentTypes).toEqual(['lecture', 'שעת קבלה']);
+    expect(terms('biology exam @Michal :lecture or chemistry')).toEqual([['biology', 'exam'], ['chemistry']]);
   });
 });

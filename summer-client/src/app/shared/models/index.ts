@@ -222,6 +222,31 @@ export interface ISummarySearch {
   kinds?: SummaryKind[];
   /** the sumaroons of this running summary */
   parentId?: string;
+  /** advanced search tree (query builder), ANDed with everything else */
+  query?: IQueryGroup;
+}
+
+export type QueryTextField = 'text' | 'title' | 'content' | 'notes' | 'comments' | 'labels';
+export type QueryField = QueryTextField | 'author' | 'contentType' | 'collection' | 'color' | 'eventDate' | 'createdDate';
+export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between';
+
+export interface IQueryCondition {
+  type: 'cond';
+  field: QueryField;
+  op: QueryOp;
+  /** text fields */
+  words?: string[];
+  /** author / collection ids, content type names, color hexes */
+  values?: string[];
+  /** date fields: ISO instants of local midnight */
+  from?: string;
+  to?: string;
+}
+
+export interface IQueryGroup {
+  type: 'group';
+  op: 'AND' | 'OR';
+  children: (IQueryGroup | IQueryCondition)[];
 }
 
 export interface CollectionPayload {

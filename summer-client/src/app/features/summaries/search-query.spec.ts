@@ -15,6 +15,7 @@ describe('search query params', () => {
       dates: ['2026-10-01T00:00:00.000Z', '2026-10-20T00:00:00.000Z'],
       createdDates: undefined,
       sort: 'title',
+      query: undefined,
     };
     const params = Object.fromEntries(Object.entries(searchToParams(search)).filter(([, v]) => v !== null));
     expect(searchFromParams(params)).toEqual(search);

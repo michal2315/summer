@@ -1,3 +1,4 @@
+import { AltKeyDirective } from '../../shared/keyboard/alt-key.directive';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -10,7 +11,7 @@ import { SummaryBrowserComponent } from '../summaries/summary-browser/summary-br
 
 @Component({
   selector: 'app-profile',
-  imports: [RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, AvatarComponent, SummaryBrowserComponent],
+  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, AvatarComponent, SummaryBrowserComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss',

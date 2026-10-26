@@ -153,6 +153,17 @@ export class SummariesService {
     return { summaries: await this.hydrate(me, ids), lengths: { summary: total, draft: 0, tagged: 0, favorite: 0 } };
   }
 
+  /** Visible published summaries matching `f`. */
+  count(me: CurrentUser, f: SummarySearch): Promise<number> {
+    return this.repo.count(
+      and(
+        this.repo.visible(me),
+        this.repo.bucketCondition('SUMMARY', { ownerId: me.id, isProfile: false }),
+        ...this.repo.filterConditions(f, this.config.timezone),
+      )!,
+    );
+  }
+
   /** Every visible published id matching `f` (Excel export), capped. */
   async searchAllIds(me: CurrentUser, f: SummarySearch, cap: number): Promise<string[]> {
     const where = and(

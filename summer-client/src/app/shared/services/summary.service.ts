@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, map, tap } from 'rxjs';
 import { ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
-import { XLSX_MIME, saveFile } from '../utils/save-file';
+import { DOCX_MIME, XLSX_MIME, saveFile } from '../utils/save-file';
 import { toHttpParams } from './http-params';
 
 const BASE = '/api/summary';
@@ -24,6 +24,11 @@ export class SummaryService {
   /** Summaries (visible to the user) whose custom field `fieldId` equals `value`. */
   byField(fieldId: string, value: string): Observable<Pick<ISummary, '_id' | 'title'>[]> {
     return this.http.get<Pick<ISummary, '_id' | 'title'>[]>('/api/field/summaries', { params: { fieldId, value } });
+  }
+
+  /** How many published summaries `search` would find. */
+  count(search: ISummarySearch): Observable<number> {
+    return this.http.get<{ count: number }>(`${BASE}/count`, { params: toHttpParams(search) }).pipe(map((res) => res.count));
   }
 
   search(userId: string, search: ISummarySearch): Observable<ISummariesResponse> {
@@ -86,6 +91,13 @@ export class SummaryService {
     return this.http
       .post(`${BASE}/download/excel`, body, { responseType: 'arraybuffer' })
       .pipe(map((buf) => saveFile(buf, `summer-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME)));
+  }
+
+  /** Same selection as exportExcel, as a Word table between the user's title/intro/outro (plain text). */
+  exportWord(body: { summariesId: string[]; all: boolean; search?: ISummarySearch; title: string; intro: string; outro: string }): Observable<void> {
+    return this.http
+      .post(`${BASE}/download/word`, body, { responseType: 'arraybuffer' })
+      .pipe(map((buf) => saveFile(buf, `summer-${new Date().toISOString().slice(0, 10)}.docx`, DOCX_MIME)));
   }
 
   /** Bulk import. headersMap: Excel column header → summary field key (title/content/labels/… or a field id). */

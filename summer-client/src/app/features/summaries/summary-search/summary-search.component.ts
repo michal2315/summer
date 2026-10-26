@@ -1,33 +1,19 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
-import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzCheckboxModule, NzCheckboxOption } from 'ng-zorro-antd/checkbox';
-import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzInputModule } from 'ng-zorro-antd/input';
-import { NzSelectModule } from 'ng-zorro-antd/select';
-import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
-import { Subject, debounceTime, distinctUntilChanged, filter, map, switchMap } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
-import { ICollectionRef, ISummarySearch, SearchType, UserRef } from '../../../shared/models';
-import { SUMMARY_COLORS } from '../../../shared/models/colors';
-import { CollectionService } from '../../../shared/services/collection.service';
+import { IContentType, IQueryGroup, ISummarySearch, UserRef } from '../../../shared/models';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { SearchHistoryService, stripPaging } from '../../../shared/services/search-history.service';
+import { querySegments, replaceShortcut, shortcutAt } from '../../../shared/utils/search-syntax';
+import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
+import { AdvancedSearchComponent } from '../advanced-search/advanced-search.component';
+import { countConditions } from '../advanced-search/query-tree';
 import { activeFilterCount } from '../search-query';
-
-const SEARCH_TYPE_OPTIONS: NzCheckboxOption[] = [
-  { label: 'כותרת', value: SearchType.Title },
-  { label: 'תוכן התמצית', value: SearchType.Content },
-  { label: 'תגיות', value: SearchType.Label },
-  { label: 'הערות', value: SearchType.Notes },
-  { label: 'תגובות', value: SearchType.Comments },
-];
 
 const sameSearch = (a: ISummarySearch, b: ISummarySearch) => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
 const normalize = (s: ISummarySearch) =>
@@ -37,35 +23,32 @@ const normalize = (s: ISummarySearch) =>
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 
+/** Cheat-sheet shown when the empty box is focused. */
+const SHORTCUTS: { example: string; hint: string; insert?: string }[] = [
+  { example: 'גרף וגם עץ', hint: 'שתי המילים (and)' },
+  { example: 'גרף או עץ', hint: 'אחת מהמילים (or)' },
+  { example: 'גרף לא מכוון', hint: 'בלי המילה (not)' },
+  { example: '@משתמש', hint: 'תמציות של משתמש', insert: '@' },
+  { example: ':שיעור', hint: 'סוג תוכן', insert: ':' },
+  { example: '"ביטוי מדויק"', hint: 'ביטוי שלם' },
+];
+
+type Suggestion = { kind: 'user'; user: UserRef } | { kind: 'type'; type: IContentType };
+
 @Component({
   selector: 'app-summary-search',
-  imports: [
-    ReactiveFormsModule,
-    NzBadgeModule,
-    NzButtonModule,
-    NzCheckboxModule,
-    NzDatePickerModule,
-    NzIconModule,
-    NzInputModule,
-    NzSelectModule,
-    NzSwitchModule,
-    NzTagModule,
-    NzToolTipModule,
-    NotificationBellComponent,
-  ],
+  imports: [NzBadgeModule, NzIconModule, NzTagModule, NzToolTipModule, NotificationBellComponent, AdvancedSearchComponent, AltKeyDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-search.component.html',
   styleUrl: './summary-search.component.scss',
   host: {
     '(document:keydown)': 'onGlobalKey($event)',
-    '(keydown.escape)': 'close()',
+    '(keydown.escape)': 'advancedOpen.set(false)',
   },
 })
 export class SummarySearchComponent {
-  private readonly fb = inject(FormBuilder).nonNullable;
   private readonly users = inject(UserService);
   private readonly contentTypes = inject(ContentTypeService);
-  private readonly collectionService = inject(CollectionService);
   private readonly history = inject(SearchHistoryService);
 
   /** Currently applied search (from the URL). */
@@ -75,116 +58,139 @@ export class SummarySearchComponent {
   readonly searchChange = output<ISummarySearch>();
 
   private readonly input = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
+  private readonly mirror = viewChild.required<ElementRef<HTMLElement>>('mirror');
 
-  readonly open = signal(false);
-  readonly searchTypeOptions = SEARCH_TYPE_OPTIONS;
-  readonly colors = SUMMARY_COLORS;
-  readonly contentTypeOptions = computed<NzCheckboxOption[]>(() =>
-    this.contentTypes.list().map((t) => ({ label: t.displayName, value: t.name })),
-  );
+  readonly shortcuts = SHORTCUTS;
+  readonly segmentsOf = querySegments;
+  readonly text = signal('');
+  private readonly caret = signal(0);
+  readonly focused = signal(false);
+  /** Escape hides the popup until the next keystroke. */
+  private readonly dismissed = signal(false);
+  readonly active = signal(0);
+  readonly advancedOpen = signal(false);
+  readonly queryCount = computed(() => {
+    const q = this.search().query;
+    return q ? countConditions(q) : 0;
+  });
+
+  readonly segments = computed(() => querySegments(this.text()));
+  readonly context = computed(() => shortcutAt(this.text(), this.caret()));
   readonly pinned = computed(() => this.users.user()?.pinnedSearches ?? []);
   readonly recent = computed(() => this.history.recent().slice(0, 5));
   readonly filterCount = computed(() => activeFilterCount(this.search()));
   readonly isPinned = computed(() => this.pinned().some((p) => sameSearch(p, this.search())));
 
-  readonly form = this.fb.group({
-    text: '',
-    searchTypes: [[] as string[]],
-    colors: [[] as string[]],
-    contentTypes: [[] as string[]],
-    allUsers: true,
-    users: [[] as string[]],
-    allCollections: true,
-    collections: [[] as string[]],
-    dates: this.fb.control<Date[] | null>(null),
-    createdDates: this.fb.control<Date[] | null>(null),
+  private readonly userResults = signal<UserRef[]>([]);
+  private readonly userQuery$ = new Subject<string>();
+
+  readonly suggestions = computed<Suggestion[]>(() => {
+    const ctx = this.context();
+    if (ctx?.kind === 'user') return this.userResults().map((user) => ({ kind: 'user', user }));
+    if (ctx?.kind === 'type') {
+      const q = ctx.query.replace(/_/g, ' ').toLowerCase();
+      return this.contentTypes
+        .list()
+        .filter((t) => !q || t.name.toLowerCase().startsWith(q) || t.displayName.toLowerCase().includes(q))
+        .map((type) => ({ kind: 'type', type }));
+    }
+    return [];
   });
 
-  // Server-driven option lists (debounced search), seeded with names for ids already in the URL.
-  readonly userOptions = signal<UserRef[]>([]);
-  readonly collectionOptions = signal<ICollectionRef[]>([]);
-  private readonly userQuery$ = new Subject<string>();
-  private readonly collectionQuery$ = new Subject<string>();
-
-  readonly allUsers = toSignal(this.form.controls.allUsers.valueChanges, { initialValue: true });
-  readonly allCollections = toSignal(this.form.controls.allCollections.valueChanges, { initialValue: true });
+  /** What the popup under the box shows, if anything. */
+  readonly popup = computed<'user' | 'type' | 'home' | null>(() => {
+    if (!this.focused() || this.dismissed() || this.advancedOpen()) return null;
+    const ctx = this.context();
+    if (ctx) return ctx.kind;
+    return this.text().trim() ? null : 'home';
+  });
 
   constructor() {
     effect(() => {
-      const s = this.search();
-      untracked(() => this.reset(s));
+      const t = this.search().text ?? '';
+      untracked(() => this.text.set(t));
     });
 
     this.userQuery$
       .pipe(
-        map((t) => t.trim()),
-        filter((t) => t.length > 0),
-        debounceTime(250),
+        debounceTime(200),
         distinctUntilChanged(),
-        switchMap((t) => this.users.byName(t)),
+        switchMap((q) => (q ? this.users.byName(q) : of([]))),
       )
-      .subscribe((list) => this.userOptions.set(this.mergeById(this.selectedUsers(), list)));
+      .subscribe((list) => {
+        this.userResults.set(list.filter((u) => !u.isSystem).slice(0, 8));
+        this.active.set(0);
+      });
 
-    this.collectionQuery$
-      .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap((t) => this.collectionService.byName(t)),
-      )
-      .subscribe((list) => this.collectionOptions.set(this.mergeById(this.selectedCollections(), list)));
-  }
-
-  /** Load form from the applied search. */
-  private reset(s: ISummarySearch) {
-    this.form.reset({
-      text: s.text ?? '',
-      searchTypes: s.searchTypes ?? [],
-      colors: s.colors ?? [],
-      contentTypes: s.contentTypes ?? [],
-      allUsers: !s.users?.length,
-      users: s.users ?? [],
-      allCollections: !s.collections?.length,
-      collections: s.collections ?? [],
-      dates: s.dates?.length === 2 ? s.dates.map((d) => new Date(d)) : null,
-      createdDates: s.createdDates?.length === 2 ? s.createdDates.map((d) => new Date(d)) : null,
+    effect(() => {
+      const ctx = this.context();
+      if (ctx?.kind === 'user') this.userQuery$.next(ctx.query.replace(/_/g, ' '));
     });
-    if (s.users?.length && !s.users.every((id) => this.userOptions().some((u) => u._id === id))) {
-      this.users.byIds(s.users).subscribe((list) => this.userOptions.set(this.mergeById(list, this.userOptions())));
-    }
-    if (s.collections?.length) {
-      this.collectionService.byIds(s.collections).subscribe((list) => this.collectionOptions.set(this.mergeById(list, this.collectionOptions())));
+  }
+
+  onInput() {
+    const el = this.input().nativeElement;
+    this.text.set(el.value);
+    this.dismissed.set(false);
+    this.active.set(0);
+    this.syncCaret();
+  }
+
+  /** Caret moves (clicks, arrows) change which shortcut word we're in; the mirror follows the input's scroll. */
+  syncCaret() {
+    const el = this.input().nativeElement;
+    this.caret.set(el.selectionStart ?? el.value.length);
+    this.mirror().nativeElement.scrollLeft = el.scrollLeft;
+  }
+
+  onKey(e: KeyboardEvent) {
+    const list = this.suggestions();
+    const open = this.popup() === 'user' || this.popup() === 'type';
+    if (e.key === 'Escape') {
+      if (this.popup()) this.dismissed.set(true);
+      else this.input().nativeElement.blur();
+    } else if (open && list.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      this.active.update((i) => (i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length);
+    } else if (open && list.length && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault();
+      this.pick(list[Math.min(this.active(), list.length - 1)]);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      this.submit();
     }
   }
 
-  private fromForm(): ISummarySearch {
-    const v = this.form.getRawValue();
-    const range = (r: Date[] | null) => (r?.length === 2 ? r.map((d) => d.toISOString()) : undefined);
-    return {
-      text: v.text.trim() || undefined,
-      searchTypes: v.searchTypes.length ? (v.searchTypes as SearchType[]) : undefined,
-      colors: v.colors.length ? v.colors : undefined,
-      contentTypes: v.contentTypes.length ? v.contentTypes : undefined,
-      users: !v.allUsers && v.users.length ? v.users : undefined,
-      collections: !v.allCollections && v.collections.length ? v.collections : undefined,
-      dates: range(v.dates),
-      createdDates: range(v.createdDates),
-      sort: this.search().sort,
-    };
+  pick(s: Suggestion) {
+    const ctx = this.context();
+    if (!ctx) return;
+    const token = s.kind === 'user' ? `@${s.user.username}` : `:${s.type.name}`;
+    const next = replaceShortcut(this.text(), ctx, token);
+    const el = this.input().nativeElement;
+    el.value = next.text;
+    el.focus();
+    el.setSelectionRange(next.caret, next.caret);
+    this.onInput();
   }
 
   submit() {
-    this.apply(this.fromForm());
+    this.apply({ ...this.search(), text: this.text().trim() || undefined });
+    this.input().nativeElement.blur();
+  }
+
+  runAdvanced(query: IQueryGroup | undefined) {
+    this.advancedOpen.set(false);
+    this.apply({ ...this.search(), text: this.text().trim() || undefined, query });
   }
 
   apply(s: ISummarySearch) {
     this.history.add(s);
     this.searchChange.emit({ ...s, sort: this.search().sort });
-    this.close();
   }
 
   clear() {
+    this.text.set('');
     this.searchChange.emit({ sort: this.search().sort });
-    this.close();
   }
 
   togglePin() {
@@ -198,40 +204,24 @@ export class SummarySearchComponent {
     this.users.pinSearch(s, false).subscribe();
   }
 
-  toggleColor(c: string) {
-    const cur = this.form.controls.colors.value;
-    this.form.controls.colors.setValue(cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]);
-  }
-
-  setAll(control: 'searchTypes' | 'contentTypes', options: NzCheckboxOption[], checked: boolean) {
-    this.form.controls[control].setValue(checked ? options.map((o) => String(o.value)) : []);
-  }
-
-  allState(values: string[], options: NzCheckboxOption[]): 'all' | 'some' | 'none' {
-    if (!values.length) return 'none';
-    return values.length >= options.length ? 'all' : 'some';
+  /** Start a @ / : shortcut from the cheat-sheet, opening its suggestions. */
+  startShortcut(sigil: string) {
+    const el = this.input().nativeElement;
+    el.value = sigil;
+    el.focus();
+    el.setSelectionRange(1, 1);
+    this.onInput();
   }
 
   describe(s: ISummarySearch): string {
-    const parts = [s.text, s.contentTypes?.length ? `${s.contentTypes.length} סוגי תוכן` : '', s.colors?.length ? 'צבעים' : ''].filter(Boolean);
+    const conditions = s.query ? countConditions(s.query) : 0;
+    const parts = [
+      s.text,
+      conditions ? `${conditions} תנאים מתקדמים` : '',
+      s.contentTypes?.length ? `${s.contentTypes.length} סוגי תוכן` : '',
+      s.colors?.length ? 'צבעים' : '',
+    ].filter(Boolean);
     return parts.join(' · ') || 'חיפוש ללא טקסט';
-  }
-
-  searchUsers(text: string) {
-    this.userQuery$.next(text);
-  }
-
-  searchCollections(text: string) {
-    this.collectionQuery$.next(text);
-  }
-
-  openPanel() {
-    this.open.set(true);
-    if (!this.collectionOptions().length) this.collectionQuery$.next('');
-  }
-
-  close() {
-    this.open.set(false);
   }
 
   /** "/" anywhere focuses the search input. */
@@ -241,20 +231,5 @@ export class SummarySearchComponent {
     if (t.closest('input, textarea, [contenteditable="true"], .ql-editor')) return;
     e.preventDefault();
     this.input().nativeElement.focus();
-  }
-
-  private selectedUsers() {
-    const ids = this.form.controls.users.value;
-    return this.userOptions().filter((u) => ids.includes(u._id));
-  }
-
-  private selectedCollections() {
-    const ids = this.form.controls.collections.value;
-    return this.collectionOptions().filter((c) => ids.includes(c._id));
-  }
-
-  private mergeById<T extends { _id: string }>(a: T[], b: T[]): T[] {
-    const seen = new Set<string>();
-    return [...a, ...b].filter((x) => !seen.has(x._id) && seen.add(x._id));
   }
 }

@@ -1,3 +1,4 @@
+import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { NgTemplateOutlet } from '@angular/common';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -40,7 +41,7 @@ const jsonEqual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringi
  */
 @Component({
   selector: 'app-summary-browser',
-  imports: [
+  imports: [AltKeyDirective, 
     NgTemplateOutlet,
     FormsModule,
     NzButtonModule,

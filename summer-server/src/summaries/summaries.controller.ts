@@ -22,8 +22,10 @@ import { IdPipe, parse, zId } from '../common/validation';
 import { ExcelService } from './excel.service';
 import { UploadedFile as Upload } from './files.service';
 import { SummariesService } from './summaries.service';
+import { WordService } from './word.service';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const idBody = z.object({ id: zId.optional(), summaryId: zId.optional() }).passthrough();
 const downloadQuery = z.object({ summaryId: zId, fileName: z.string().min(1).max(255) });
 
@@ -53,6 +55,7 @@ export class SummariesController {
   constructor(
     private readonly summaries: SummariesService,
     private readonly excel: ExcelService,
+    private readonly word: WordService,
   ) {}
 
   @Get('download')
@@ -71,6 +74,12 @@ export class SummariesController {
   @Get('user/:userId')
   search(@Me() me: CurrentUser, @Param('userId', IdPipe) userId: string, @Query() query: unknown): Promise<{ summaries: ApiSummary[]; lengths: SummaryLengths }> {
     return this.summaries.search(me, userId, this.summaries.parseSearch(query));
+  }
+
+  /** How many published summaries a search would find (the advanced search's live result count). */
+  @Get('count')
+  async count(@Me() me: CurrentUser, @Query() query: unknown): Promise<{ count: number }> {
+    return { count: await this.summaries.count(me, this.summaries.parseSearch(query)) };
   }
 
   /** `isMine` is a legacy path segment; access is decided server-side. */
@@ -123,6 +132,12 @@ export class SummariesController {
   @Post('download/excel')
   async exportExcel(@Me() me: CurrentUser, @Body() body: unknown): Promise<StreamableFile> {
     return new StreamableFile(await this.excel.export(me, body), { type: XLSX_MIME, disposition: contentDisposition('summer.xlsx') });
+  }
+
+  /** Same selection as the Excel export, as a Word table between the user's own title/intro/outro text. */
+  @Post('download/word')
+  async exportWord(@Me() me: CurrentUser, @Body() body: unknown): Promise<StreamableFile> {
+    return new StreamableFile(await this.word.export(me, body), { type: DOCX_MIME, disposition: contentDisposition('summer.docx') });
   }
 
   @Post('upload/excel')

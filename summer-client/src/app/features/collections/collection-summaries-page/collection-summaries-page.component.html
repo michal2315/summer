@@ -14,7 +14,7 @@
       @if (isManager()) {
         <button nz-button type="button" (click)="edit(c)"><span nz-icon nzType="edit"></span> עריכה</button>
       }
-      <a nz-button nzType="primary" routerLink="/summaries/new"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
+      <a nz-button nzType="primary" routerLink="/summaries/new" appAltKey="newSummary"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
     </div>
   </app-summary-browser>
 } @else {

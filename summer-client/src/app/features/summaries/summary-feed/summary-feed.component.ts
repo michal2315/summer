@@ -1,3 +1,4 @@
+import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -7,7 +8,7 @@ import { SummaryBrowserComponent } from '../summary-browser/summary-browser.comp
 
 @Component({
   selector: 'app-summary-feed',
-  imports: [RouterLink, NzButtonModule, NzIconModule, SummaryBrowserComponent],
+  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, SummaryBrowserComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-feed.component.html',
   styleUrl: './summary-feed.component.scss',

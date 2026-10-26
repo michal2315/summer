@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { SQL, and, asc, eq, exists, gte, ilike, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
+import { SQL, and, asc, eq, exists, gte, ilike, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { collectionVisible } from '../collections/collection.access';
 import { idsWhere, likePattern } from '../common/sql';
@@ -21,9 +21,14 @@ import {
   summarySeen,
   summaryTaggedUsers,
   userFavSummaries,
+  users,
 } from '../database/schema';
 import { summaryEditable, summaryVisible } from './summary.access';
-import { Bucket, SummarySearch, searchTerms } from './summary-search';
+import { Bucket, QueryCondition, QueryGroup, SummarySearch, TEXT_FIELDS, TextField, parseQuery } from './summary-search';
+
+const ALL_TEXT_FIELDS: TextField[] = TEXT_FIELDS.filter((f) => f !== 'text');
+/** The basic search's "search in" checkboxes. */
+const SEARCH_TYPE_FIELDS: Partial<Record<SummarySearch['searchTypes'][number], TextField>> = { TITLE: 'title', CONTENT: 'content', NOTES: 'notes', LABEL: 'labels', COMMENTS: 'comments' };
 
 export type SummaryRow = typeof summaries.$inferSelect;
 export type SummaryValues = Omit<typeof summaries.$inferInsert, 'id' | 'createdAt' | 'updatedAt' | 'version'>;
@@ -95,36 +100,38 @@ export class SummariesRepository {
   /** Search filters shared by the feed, collection pages and Excel export. */
   filterConditions(f: SummarySearch, timeZone: string): SQL[] {
     const conds: SQL[] = [];
-    const types = f.searchTypes.filter((t) => t !== 'COLOR');
-    const has = (t: string) => !types.length || types.includes(t as never);
+    const checked = f.searchTypes.flatMap((t) => SEARCH_TYPE_FIELDS[t] ?? []);
+    const textFields: TextField[] = checked.length ? checked : ALL_TEXT_FIELDS;
 
-    for (const term of searchTerms(f.text)) {
-      const p = likePattern(term);
-      const anyOf: SQL[] = [];
-      if (has('TITLE')) anyOf.push(ilike(summaries.title, p));
-      if (has('CONTENT')) anyOf.push(ilike(summaries.contentText, p));
-      if (has('NOTES')) anyOf.push(ilike(summaries.notesText, p));
-      if (has('LABEL'))
-        anyOf.push(
-          exists(
-            this.db
-              .select({ x: sql`1` })
-              .from(summaryLabels)
-              .innerJoin(labels, eq(labels.id, summaryLabels.labelId))
-              .where(and(this.ownOrParent(summaryLabels.summaryId), ilike(labels.name, p))),
-          ),
-        );
-      if (has('COMMENTS'))
-        anyOf.push(
-          exists(
-            this.db
-              .select({ x: sql`1` })
-              .from(comments)
-              .where(and(eq(comments.summaryId, summaries.id), ilike(comments.content, p))),
-          ),
-        );
-      if (anyOf.length) conds.push(or(...anyOf)!);
-    }
+    const query = parseQuery(f.text);
+    const anyGroup = query.groups.map((g) =>
+      and(
+        ...g.map((t) => {
+          const match = this.textMatch(t.term, textFields);
+          return match && t.neg ? not(match) : match;
+        }),
+      ),
+    );
+    if (anyGroup.length) conds.push(or(...anyGroup)!);
+    if (query.users.length)
+      conds.push(inArray(summaries.createdBy, this.db.select({ id: users.id }).from(users).where(inArray(sql`lower(${users.username})`, query.users))));
+    if (query.contentTypes.length)
+      conds.push(
+        inArray(
+          summaries.contentTypeId,
+          this.db
+            .select({ id: contentTypes.id })
+            .from(contentTypes)
+            .where(
+              or(
+                inArray(sql`lower(${contentTypes.name})`, query.contentTypes.map((t) => t.toLowerCase())),
+                inArray(contentTypes.displayName, query.contentTypes),
+              ),
+            ),
+        ),
+      );
+    const advanced = f.query && this.queryGroup(f.query, timeZone);
+    if (advanced) conds.push(advanced);
 
     if (f.contentTypes.length)
       conds.push(inArray(summaries.contentTypeId, this.db.select({ id: contentTypes.id }).from(contentTypes).where(inArray(contentTypes.name, f.contentTypes))));
@@ -157,6 +164,91 @@ export class SummariesRepository {
     const createdRange = f.createdDates.length === 2 ? dayRange(f.createdDates[0], f.createdDates[1], timeZone) : null;
     if (createdRange) conds.push(and(gte(summaries.createdAt, createdRange[0]), lte(summaries.createdAt, createdRange[1]))!);
     return conds;
+  }
+
+  /** `term` appears (case-insensitive substring) in any of `fields`; undefined when no field applies. */
+  private textMatch(term: string, fields: readonly TextField[]): SQL | undefined {
+    const p = likePattern(term);
+    const anyOf: SQL[] = [];
+    const has = (f: TextField) => fields.includes('text') || fields.includes(f);
+    if (has('title')) anyOf.push(ilike(summaries.title, p));
+    if (has('content')) anyOf.push(ilike(summaries.contentText, p));
+    if (has('notes')) anyOf.push(ilike(summaries.notesText, p));
+    if (has('labels'))
+      anyOf.push(
+        exists(
+          this.db
+            .select({ x: sql`1` })
+            .from(summaryLabels)
+            .innerJoin(labels, eq(labels.id, summaryLabels.labelId))
+            .where(and(this.ownOrParent(summaryLabels.summaryId), ilike(labels.name, p))),
+        ),
+      );
+    if (has('comments'))
+      anyOf.push(
+        exists(
+          this.db
+            .select({ x: sql`1` })
+            .from(comments)
+            .where(and(eq(comments.summaryId, summaries.id), ilike(comments.content, p))),
+        ),
+      );
+    return anyOf.length ? or(...anyOf) : undefined;
+  }
+
+  /** Advanced search tree → SQL. Empty conditions (no words, values or dates) and empty groups are ignored. */
+  private queryGroup(g: QueryGroup, timeZone: string): SQL | undefined {
+    const parts = g.children.map((c) => (c.type === 'group' ? this.queryGroup(c, timeZone) : this.queryCondition(c, timeZone))).filter((c) => !!c);
+    if (!parts.length) return undefined;
+    return g.op === 'AND' ? and(...parts) : or(...parts);
+  }
+
+  private queryCondition(c: QueryCondition, timeZone: string): SQL | undefined {
+    // NULL-safe negation: a summary with no match must count as "not matching", never as unknown.
+    const negate = (cond: SQL) => sql`not coalesce(${cond}, false)`;
+    const pick = (cond: SQL) => (c.op === 'isNot' ? negate(cond) : cond);
+
+    switch (c.field) {
+      case 'text':
+      case 'title':
+      case 'content':
+      case 'notes':
+      case 'comments':
+      case 'labels': {
+        const matches = c.words.filter(Boolean).map((w) => this.textMatch(w, [c.field as TextField])!);
+        if (!matches.length) return undefined;
+        if (c.op === 'any') return or(...matches);
+        if (c.op === 'none') return negate(or(...matches)!);
+        return and(...matches);
+      }
+      case 'author':
+        return c.values.length ? pick(inArray(summaries.createdBy, c.values)) : undefined;
+      case 'contentType':
+        return c.values.length
+          ? pick(inArray(summaries.contentTypeId, this.db.select({ id: contentTypes.id }).from(contentTypes).where(inArray(contentTypes.name, c.values))))
+          : undefined;
+      case 'collection':
+        return c.values.length
+          ? pick(
+              exists(
+                this.db
+                  .select({ x: sql`1` })
+                  .from(summaryCollections)
+                  .where(and(eq(summaryCollections.summaryId, summaries.id), inArray(summaryCollections.collectionId, c.values))),
+              ),
+            )
+          : undefined;
+      case 'color':
+        return c.values.length ? pick(inArray(summaries.color, c.values)) : undefined;
+      case 'eventDate':
+      case 'createdDate': {
+        const column = c.field === 'eventDate' ? summaries.eventDate : summaries.createdAt;
+        const from = c.op !== 'before' && c.from ? dayRange(c.from, c.from, timeZone)?.[0] : undefined;
+        const to = c.op !== 'after' && c.to ? dayRange(c.to, c.to, timeZone)?.[1] : undefined;
+        const bounds = [from && gte(column, from), to && lte(column, to)].filter((b) => !!b);
+        return bounds.length ? and(...bounds) : undefined;
+      }
+    }
   }
 
   /** A sumaroon also carries its running summary's labels. */
