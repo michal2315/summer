@@ -1,5 +1,6 @@
 import { RuleCondition } from '../database/schema';
-import { matchCondition, matchRule } from './rule-matcher';
+import { capsuleLookup } from '../capsules/capsule';
+import { matchCondition, matchRule, ruleCapsuleIds } from './rule-matcher';
 
 const c = (funcName: string, content: (string | number | null)[], type = 'string'): RuleCondition => ({ field: { _id: 'f', name: 'f', type }, funcName, content });
 
@@ -23,6 +24,15 @@ describe('notification rule matching', () => {
     expect(matchCondition(c('dateBetween', [null, '2026-01-01']), '2025-06-01')).toBe(true);
     expect(matchCondition(c('arrayContains', ['b']), 'a, b')).toBe(true);
     expect(matchCondition(c('arrayNotContains', ['b']), '["a"]')).toBe(true);
+  });
+
+  it('capsules: matches / does not match, and a missing capsule never matches', () => {
+    const capsules = capsuleLookup([{ id: 'k', name: 'עצים', description: '', words: [{ word: 'AVL', condition: 'optional' }] }]);
+    expect(matchCondition(c('capsuleMatches', ['k', 'עצים']), 'עצי AVL', capsules)).toBe(true);
+    expect(matchCondition(c('capsuleNotMatches', ['k', 'עצים']), 'עצי AVL', capsules)).toBe(false);
+    expect(matchCondition(c('capsuleNotMatches', ['k', 'עצים']), 'ערימות', capsules)).toBe(true);
+    expect(matchCondition(c('capsuleNotMatches', ['gone']), 'ערימות', capsules)).toBe(false);
+    expect(ruleCapsuleIds([c('capsuleMatches', ['k', 'עצים']), c('stringContains', ['k'])])).toEqual(['k']);
   });
 
   it('a rule needs every condition', () => {

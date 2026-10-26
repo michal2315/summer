@@ -230,11 +230,30 @@ export type QueryTextField = 'text' | 'title' | 'content' | 'notes' | 'comments'
 export type QueryField = QueryTextField | 'author' | 'contentType' | 'collection' | 'color' | 'eventDate' | 'createdDate';
 export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between';
 
+/**
+ * Capsule (כמוסה): a named word list from the external capsules service, usable in searches and notification rules.
+ * must: every one has to appear · mustNot: none may appear ·
+ * optional: with no must words, at least one has to appear; otherwise they only add highlights.
+ */
+export type CapsuleCondition = 'must' | 'mustNot' | 'optional';
+
+export interface ICapsuleWord {
+  word: string;
+  condition: CapsuleCondition;
+}
+
+export interface ICapsule {
+  _id: string;
+  name: string;
+  description: string;
+  words: ICapsuleWord[];
+}
+
 export interface IQueryCondition {
   type: 'cond';
   field: QueryField;
   op: QueryOp;
-  /** text fields */
+  /** text fields; a capsule is the word `#cap:<id>` */
   words?: string[];
   /** author / collection ids, content type names, color hexes */
   values?: string[];
@@ -304,6 +323,9 @@ export enum NotificationsFunctionsOptions {
   DateBetween = 'dateBetween',
   ArrayContains = 'arrayContains',
   ArrayNotContains = 'arrayNotContains',
+  /** content: [capsule id, capsule name] (the name is only for display) */
+  CapsuleMatches = 'capsuleMatches',
+  CapsuleNotMatches = 'capsuleNotMatches',
 }
 
 export interface INotificationSettingsCondition {

@@ -1,5 +1,5 @@
 <nz-select class="field" nzShowSearch nzPlaceHolder="שדה" [ngModel]="field()?._id" (ngModelChange)="setField($event)" [nzDisabled]="disabled()" aria-label="שדה">
-  @for (f of contentTypes.fields(); track f._id) {
+  @for (f of fieldOptions(); track f._id) {
     <nz-option [nzValue]="f._id" [nzLabel]="f.name" />
   }
 </nz-select>
@@ -11,6 +11,26 @@
 </nz-select>
 
 <span class="value">
+  @if (capsuleMode()) {
+    <nz-select
+      nzShowSearch
+      nzServerSearch
+      nzAllowClear
+      nzPlaceHolder="# בחירת כמוסה"
+      [ngModel]="operand(0)"
+      (ngModelChange)="setCapsule($event)"
+      (nzOnSearch)="capsuleQuery$.next($event)"
+      [nzDisabled]="disabled()"
+      aria-label="כמוסה"
+    >
+      @for (c of capsuleOptions(); track c._id) {
+        <nz-option [nzValue]="c._id" [nzLabel]="'#' + c.name" />
+      }
+    </nz-select>
+    @if (operand(0); as id) {
+      <app-capsule-chip class="peek" size="sm" [capsuleId]="$any(id)" />
+    }
+  } @else {
   @switch (field()?.type) {
     @case (FT.Number) {
       <nz-input-number [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" [nzPlaceHolder]="between() ? 'מ- (ריק = ללא הגבלה)' : 'ערך'" [nzDisabled]="disabled()" />
@@ -42,5 +62,6 @@
     @default {
       <input nz-input placeholder="ערך" [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" [disabled]="disabled() || !field()" aria-label="ערך" />
     }
+  }
   }
 </span>

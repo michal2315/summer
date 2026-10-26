@@ -9,12 +9,15 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
+import { CapsuleWordsInputComponent } from '../../../shared/components/capsules/capsule-words-input/capsule-words-input.component';
 import { ICollectionRef, IQueryGroup, ISummarySearch, QueryField, QueryOp, UserRef } from '../../../shared/models';
 import { SUMMARY_COLORS } from '../../../shared/models/colors';
+import { CapsuleService } from '../../../shared/services/capsule.service';
 import { CollectionService } from '../../../shared/services/collection.service';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { stripPaging } from '../../../shared/services/search-history.service';
 import { SummaryService } from '../../../shared/services/summary.service';
+import { capsuleTokenId, isCapsuleToken, treeCapsuleIds } from '../../../shared/utils/capsules';
 import {
   EditCondition,
   EditGroup,
@@ -52,7 +55,7 @@ const COLOR_NAMES: Record<string, string> = {
  */
 @Component({
   selector: 'app-advanced-search',
-  imports: [NgTemplateOutlet, FormsModule, NzButtonModule, NzDatePickerModule, NzIconModule, NzSelectModule, NzToolTipModule],
+  imports: [NgTemplateOutlet, FormsModule, NzButtonModule, NzDatePickerModule, NzIconModule, NzSelectModule, NzToolTipModule, CapsuleWordsInputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './advanced-search.component.html',
   styleUrl: './advanced-search.component.scss',
@@ -62,6 +65,7 @@ export class AdvancedSearchComponent {
   private readonly users = inject(UserService);
   private readonly collections = inject(CollectionService);
   private readonly contentTypes = inject(ContentTypeService);
+  private readonly capsules = inject(CapsuleService);
 
   /** The applied search; its `query` seeds the builder. */
   readonly search = input<ISummarySearch>({});
@@ -232,6 +236,7 @@ export class AdvancedSearchComponent {
   }
 
   private valueName(field: QueryField, value: string): string {
+    if (isCapsuleToken(value)) return this.capsules.byId(capsuleTokenId(value))?.name ?? '…';
     if (field === 'contentType') return this.contentTypes.list().find((t) => t.name === value)?.displayName ?? value;
     if (field === 'color') return COLOR_NAMES[value] ?? value;
     return this.names().get(value) ?? '…';
@@ -248,6 +253,7 @@ export class AdvancedSearchComponent {
     const walk = (g: IQueryGroup) =>
       g.children.forEach((c) => (c.type === 'group' ? walk(c) : (c.field === 'author' || c.field === 'collection') && c.values?.forEach((v) => ids[c.field as 'author'].add(v))));
     if (q) walk(q);
+    this.capsules.ensure({ ids: treeCapsuleIds(q) });
     if (ids.author.size) this.users.byIds([...ids.author]).subscribe((list) => this.remember(list.map((u) => [u._id, u.fullName])));
     if (ids.collection.size) this.collections.byIds([...ids.collection]).subscribe((list) => this.remember(list.map((c) => [c._id, c.name])));
   }

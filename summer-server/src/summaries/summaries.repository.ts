@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { SQL, and, asc, eq, exists, gte, ilike, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
+import { Capsule, CapsuleLookup, NO_CAPSULES, capsuleTokenId, isCapsuleToken, wordsOf } from '../capsules/capsule';
 import { collectionVisible } from '../collections/collection.access';
 import { idsWhere, likePattern } from '../common/sql';
 import { dayRange } from '../common/time';
@@ -32,6 +33,9 @@ const SEARCH_TYPE_FIELDS: Partial<Record<SummarySearch['searchTypes'][number], T
 
 export type SummaryRow = typeof summaries.$inferSelect;
 export type SummaryValues = Omit<typeof summaries.$inferInsert, 'id' | 'createdAt' | 'updatedAt' | 'version'>;
+
+/** NULL-safe negation: a summary with no match must count as "not matching", never as unknown. */
+const notTrue = (cond: SQL) => sql`not coalesce(${cond}, false)`;
 
 const refColumns = { id: true, username: true, fullName: true, department: true, isSystem: true } as const;
 
@@ -97,8 +101,8 @@ export class SummariesRepository {
     return row;
   }
 
-  /** Search filters shared by the feed, collection pages and Excel export. */
-  filterConditions(f: SummarySearch, timeZone: string): SQL[] {
+  /** Search filters shared by the feed, collection pages and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
+  filterConditions(f: SummarySearch, timeZone: string, capsules: CapsuleLookup = NO_CAPSULES): SQL[] {
     const conds: SQL[] = [];
     const checked = f.searchTypes.flatMap((t) => SEARCH_TYPE_FIELDS[t] ?? []);
     const textFields: TextField[] = checked.length ? checked : ALL_TEXT_FIELDS;
@@ -107,6 +111,8 @@ export class SummariesRepository {
     const anyGroup = query.groups.map((g) =>
       and(
         ...g.map((t) => {
+          const capsule = t.capsule ? capsules.byName(t.term) : undefined;
+          if (capsule) return t.neg ? notTrue(this.capsuleMatch(capsule, textFields)) : this.capsuleMatch(capsule, textFields);
           const match = this.textMatch(t.term, textFields);
           return match && t.neg ? not(match) : match;
         }),
@@ -130,7 +136,7 @@ export class SummariesRepository {
             ),
         ),
       );
-    const advanced = f.query && this.queryGroup(f.query, timeZone);
+    const advanced = f.query && this.queryGroup(f.query, timeZone, capsules);
     if (advanced) conds.push(advanced);
 
     if (f.contentTypes.length)
@@ -196,17 +202,29 @@ export class SummariesRepository {
     return anyOf.length ? or(...anyOf) : undefined;
   }
 
+  /**
+   * A capsule over `fields`: every must word, no mustNot word, and — when there are no must words — at least one
+   * optional word (capsule.ts). A capsule with nothing to look for matches nothing.
+   */
+  private capsuleMatch(c: Capsule, fields: readonly TextField[]): SQL {
+    const match = (w: string) => this.textMatch(w, fields) ?? sql`false`;
+    const must = wordsOf(c, 'must').map(match);
+    const optional = wordsOf(c, 'optional').map(match);
+    if (!must.length && !optional.length) return sql`false`;
+    return and(...must, ...wordsOf(c, 'mustNot').map((w) => notTrue(match(w))), must.length ? undefined : or(...optional))!;
+  }
+
   /** Advanced search tree → SQL. Empty conditions (no words, values or dates) and empty groups are ignored. */
-  private queryGroup(g: QueryGroup, timeZone: string): SQL | undefined {
-    const parts = g.children.map((c) => (c.type === 'group' ? this.queryGroup(c, timeZone) : this.queryCondition(c, timeZone))).filter((c) => !!c);
+  private queryGroup(g: QueryGroup, timeZone: string, capsules: CapsuleLookup): SQL | undefined {
+    const parts = g.children
+      .map((c) => (c.type === 'group' ? this.queryGroup(c, timeZone, capsules) : this.queryCondition(c, timeZone, capsules)))
+      .filter((c) => !!c);
     if (!parts.length) return undefined;
     return g.op === 'AND' ? and(...parts) : or(...parts);
   }
 
-  private queryCondition(c: QueryCondition, timeZone: string): SQL | undefined {
-    // NULL-safe negation: a summary with no match must count as "not matching", never as unknown.
-    const negate = (cond: SQL) => sql`not coalesce(${cond}, false)`;
-    const pick = (cond: SQL) => (c.op === 'isNot' ? negate(cond) : cond);
+  private queryCondition(c: QueryCondition, timeZone: string, capsules: CapsuleLookup): SQL | undefined {
+    const pick = (cond: SQL) => (c.op === 'isNot' ? notTrue(cond) : cond);
 
     switch (c.field) {
       case 'text':
@@ -215,10 +233,16 @@ export class SummariesRepository {
       case 'notes':
       case 'comments':
       case 'labels': {
-        const matches = c.words.filter(Boolean).map((w) => this.textMatch(w, [c.field as TextField])!);
+        // A capsule counts as one word; one that no longer exists matches nothing.
+        const fields = [c.field as TextField];
+        const matches = c.words.filter(Boolean).map((w) => {
+          if (!isCapsuleToken(w)) return this.textMatch(w, fields)!;
+          const capsule = capsules.byId(capsuleTokenId(w));
+          return capsule ? this.capsuleMatch(capsule, fields) : sql`false`;
+        });
         if (!matches.length) return undefined;
         if (c.op === 'any') return or(...matches);
-        if (c.op === 'none') return negate(or(...matches)!);
+        if (c.op === 'none') return notTrue(or(...matches)!);
         return and(...matches);
       }
       case 'author':

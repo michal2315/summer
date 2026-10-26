@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zBoolString, zId, zList } from '../common/validation';
+import { capsuleTokenId, isCapsuleToken } from '../capsules/capsule';
 import { SUMMARY_KINDS } from '../database/schema';
 
 export const SEARCH_TYPES = ['TITLE', 'LABEL', 'CONTENT', 'NOTES', 'COMMENTS', 'COLOR'] as const;
@@ -127,6 +128,8 @@ const OPERATORS: Record<string, 'and' | 'or' | 'not'> = {
 export interface QueryTerm {
   term: string;
   neg: boolean;
+  /** Written as `#name`: a capsule when one has that name, otherwise the plain word. */
+  capsule?: boolean;
 }
 
 export interface ParsedQuery {
@@ -136,11 +139,13 @@ export interface ParsedQuery {
   users: string[];
   /** `:lecture` / `:שיעור` → content type name or display name, `_` for spaces (any of) */
   contentTypes: string[];
+  /** names of the `#name` terms, to look up as capsules */
+  capsules: string[];
 }
 
 /**
  * Query text, kept in sync with the client's search-syntax.ts: "quoted phrases" stay whole, other words split on
- * whitespace, a leading # (hashtag) is ignored, adjacent terms are ANDed. Operators that don't sit between terms
+ * whitespace, `#name` names a capsule (`_` for spaces) or else is the plain word, adjacent terms are ANDed. Operators that don't sit between terms
  * (leading `or`, trailing `not`) are dropped. Matching is case-insensitive substring.
  */
 export function parseQuery(text: string): ParsedQuery {
@@ -159,13 +164,26 @@ export function parseQuery(text: string): ParsedQuery {
     else if (op === 'or') pendingOr = groups[groups.length - 1].length > 0;
     else if (op === 'not') neg = true;
     else if (op !== 'and') {
+      const capsule = m[1] === undefined && /^#\S/.test(word);
       const term = (m[1] ?? word.replace(/^#/, '')).trim();
       if (!term || count >= MAX_TERMS) continue;
       if (pendingOr) groups.push([]);
-      groups[groups.length - 1].push({ term, neg });
+      groups[groups.length - 1].push(capsule ? { term, neg, capsule } : { term, neg });
       pendingOr = neg = false;
       count++;
     }
   }
-  return { groups: groups.filter((g) => g.length), users: [...new Set(users)], contentTypes: [...new Set(types)] };
+  const live = groups.filter((g) => g.length);
+  const capsules = live.flat().flatMap((t) => (t.capsule ? [t.term] : []));
+  return { groups: live, users: [...new Set(users)], contentTypes: [...new Set(types)], capsules: [...new Set(capsules)] };
 }
+
+/** Capsules a search refers to: `#name` in the text and `#cap:<id>` words in the advanced tree. */
+export function capsuleRefs(f: Pick<SummarySearch, 'text' | 'query'>): { ids: string[]; names: string[] } {
+  const ids: string[] = [];
+  const walk = (g: QueryGroup) =>
+    g.children.forEach((c) => (c.type === 'group' ? walk(c) : c.words.filter(isCapsuleToken).forEach((w) => ids.push(capsuleTokenId(w)))));
+  if (f.query) walk(f.query);
+  return { ids, names: parseQuery(f.text).capsules };
+}
+

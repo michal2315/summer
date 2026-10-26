@@ -1,0 +1,102 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 1px 4px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $white;
+  cursor: text;
+  transition:
+    border-color $transition,
+    box-shadow $transition;
+
+  &:hover {
+    border-color: $border-strong;
+  }
+  &.focused {
+    border-color: rgba($primary-pink, 0.55);
+    box-shadow: $focus-ring;
+  }
+  &.disabled {
+    background: $input-color;
+    cursor: default;
+  }
+}
+
+.word {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 21px;
+  max-width: 100%;
+  padding-inline: 7px 3px;
+  border-radius: 4px;
+  background: $gray-tag;
+  font-size: 12px;
+  color: $dark-blue;
+
+  bdi {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.remove {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  color: $gray;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: $dark-blue;
+  }
+}
+
+.draft {
+  flex: 1;
+  min-width: 90px;
+  height: 21px;
+  padding: 0 2px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: $dark-blue;
+
+  &.capsule {
+    color: $capsule;
+    font-weight: 700;
+  }
+  &::placeholder {
+    color: $gray;
+  }
+}
+
+// Rendered in the CDK overlay container, outside the host.
+.suggest {
+  display: block;
+  width: min(360px, calc(100vw - 32px));
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px;
+  background: $white;
+  border-radius: $radius-md;
+  box-shadow: $shadow;
+}

@@ -237,6 +237,44 @@ describe('summaries, collections, comments, personal state', () => {
     await h.as('dlevi').get(`/summary/${s._id}/false`).expect(404);
   });
 
+  it('capsules: autocomplete and lookup, #name in the text, #cap:id in the advanced tree', async () => {
+    const names = (await h.as('mgolan').get('/capsules').query({ q: 'עצ' }).expect(200)).body.map((c: { name: string }) => c.name);
+    expect(names[0]).toBe('עצים');
+    expect((await h.as('mgolan').get('/capsules').query({ ids: 'cap-trees,nope', names: 'חשוב_למבחן' })).body.map((c: { _id: string }) => c._id)).toEqual([
+      'cap-trees',
+      'cap-exam-important',
+    ]);
+
+    const count = async (text: string, query?: object) =>
+      (await h.as('mgolan').get('/summary/count').query({ text, ...(query ? { query: JSON.stringify(query) } : {}) }).expect(200)).body.count as number;
+    // A capsule is its words under their conditions: optional → any of, must → all of, mustNot → none of.
+    const trees = await count('#עצים');
+    expect(trees).toBeGreaterThan(0);
+    expect(trees).toBe(await count('עצי or עץ or AVL or "עצי B" or סיבובים or ערימות'));
+    expect(await count('#חשוב_למבחן')).toBe(await count('מבחן'));
+    expect(await count('#מבני_נתונים_בלי_עצים')).toBe(await count('"מבני נתונים" not עצי not AVL not עץ'));
+    expect(await count('not #עצים')).toBe((await count('')) - trees);
+    expect(await count('#אין_כמוסה_כזו')).toBe(await count('אין_כמוסה_כזו')); // not a capsule: the plain word
+
+    const anyOf = (...words: string[]) => ({ type: 'group', op: 'AND', children: [{ type: 'cond', field: 'text', op: 'any', words }] });
+    expect(await count('', anyOf('#cap:cap-trees'))).toBe(trees);
+    expect(await count('', anyOf('#cap:gone'))).toBe(0);
+  });
+
+  it('notification rules on the summary text, with a capsule', async () => {
+    const rule = { field: { _id: 'summary-text' }, funcName: 'capsuleMatches', content: ['cap-trees', 'עצים'] };
+    await h.as('dlevi').post('/notifications').send({ name: 'עצים חדשים', conditions: [{ ...rule, content: [] }], isNotify: true }).expect(400);
+    const saved = (await h.as('dlevi').post('/notifications').send({ name: 'עצים חדשים', conditions: [rule], isNotify: true }).expect(201)).body;
+    expect(saved.conditions[0].field).toEqual({ _id: 'summary-text', name: 'תוכן התמצית', type: 'string' });
+
+    const notified = async () => (await h.as('dlevi').get('/notifications')).body.filter((n: { text: string }) => n.text.includes('עצים חדשים')).length;
+    await createSummary(h, 'mgolan', summaryPayload(l, { title: 'טבלאות גיבוב' }));
+    expect(await notified()).toBe(0);
+    await createSummary(h, 'mgolan', summaryPayload(l, { title: 'סיבובים', contentHtml: '<p>עצי AVL</p>' }));
+    expect(await notified()).toBe(1);
+    await h.as('dlevi').delete(`/notifications/${saved._id}`).expect(200);
+  });
+
   it('notification rules: CRUD per user, and a matching new summary notifies the rule owner', async () => {
     const field = (await h.sql<{ id: string }>(`select id from fields where name = 'שם הקורס'`))[0].id;
     const rule = (

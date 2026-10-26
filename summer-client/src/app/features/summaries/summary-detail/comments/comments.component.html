@@ -35,7 +35,7 @@
     <nz-mention
       [nzSuggestions]="suggestions()"
       [nzValueWith]="valueWith"
-      [nzPrefix]="['@', '#']"
+      nzPrefix="@"
       [nzLoading]="searching()"
       (nzOnSearchChange)="onSearch($event)"
       (nzOnSelect)="onSelect($event)"
@@ -46,7 +46,7 @@
         nzMentionTrigger
         [(ngModel)]="text"
         [nzAutosize]="{ minRows: 2, maxRows: 6 }"
-        placeholder="הוספת תגובה… @ לתיוג משתמש, # לתגית"
+        placeholder="הוספת תגובה… @ לתיוג משתמש"
         aria-label="תגובה חדשה"
         (keydown.control.enter)="submit()"
         (keydown.meta.enter)="submit()"

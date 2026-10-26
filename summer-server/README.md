@@ -5,7 +5,8 @@ Summer's backend: **NestJS 11 + Drizzle ORM + PostgreSQL 17**. It implements the
 relational model from the server handoff document.
 
 Scope: summaries, collections, the folder hierarchy (`/api/folder`), comments, labels, custom fields, content
-types, permissions, favourites/pins/follows, notifications and rules, What's New, attachments and Excel.
+types, permissions, favourites/pins/follows, notifications and rules, What's New, attachments and Excel, and
+capsules (named word lists from an external service, used in search and in notification rules).
 Running-summaries and sumeroons are intentionally **not** included yet.
 
 Policy choices and open questions are in [DECISIONS.md](DECISIONS.md).
@@ -64,6 +65,7 @@ src/
     schema/          Drizzle tables + relations
     seed/            dev identities + deterministic seed
   auth/            IdentityProvider adapter (dev now, SSO later), global AuthGuard, dev SSO popup
+  capsules/        CapsuleProvider adapter (mock now, external API later), /capsules, matching rules
   summaries/       feed/search, CRUD, attachments, Excel, /field/summaries   ┐
   collections/     collections + membership                                  │ controller → service → repository
   folders/         hierarchy: folder tree + item placement                   │
@@ -122,4 +124,6 @@ Production-relevant settings:
 
 - **SSO.** `AUTH_PROVIDER=sso` deliberately fails at startup until the university SSO protocol, token
   validation and group API are specified. Implement `IdentityProvider.verify()` in `src/auth`.
+- **Capsules.** Served by `MockCapsuleProvider` (demo data in `src/capsules/mock-capsule.provider.ts`). Implement
+  `CapsuleProvider` against the external capsules API and bind it in `CapsulesModule`.
 - **Open product decisions.** See DECISIONS.md.

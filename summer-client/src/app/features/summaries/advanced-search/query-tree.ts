@@ -1,4 +1,5 @@
 import { IQueryCondition, IQueryGroup, QueryField, QueryOp } from '../../../shared/models';
+import { isCapsuleToken } from '../../../shared/utils/capsules';
 
 /** Query builder vocabulary and tree helpers. The server (summary-search.ts) validates the same fields and operators. */
 export type FieldKind = 'text' | 'value' | 'date';
@@ -122,7 +123,7 @@ export function addChild(root: EditGroup, groupId: string, child: EditNode): Edi
 
 // ---------------------------------------------------------------- the query as a Hebrew sentence
 
-export type SentenceClass = 'lead' | 'not' | 'term' | 'join-and' | 'join-or' | 'paren' | 'dim';
+export type SentenceClass = 'lead' | 'not' | 'term' | 'capsule' | 'join-and' | 'join-or' | 'paren' | 'dim';
 export interface SentencePart {
   text: string;
   cls: SentenceClass;
@@ -130,7 +131,7 @@ export interface SentencePart {
   color?: string;
 }
 
-/** Display names for ids and names held in conditions. */
+/** Display names for ids and names held in conditions (and for `#cap:<id>` words). */
 export type ValueName = (field: QueryField, value: string) => string;
 
 const LEADS: Partial<Record<QueryOp, [string, SentenceClass]>> = {
@@ -160,7 +161,7 @@ export function conditionSentence(c: IQueryCondition, name: ValueName): Sentence
     const [lead, cls] = LEADS[c.op]!;
     out.push({ text: lead, cls });
     list(
-      c.words!.filter(Boolean).map((w) => ({ text: `"${w}"`, cls: 'term' })),
+      c.words!.filter(Boolean).map((w): SentencePart => (isCapsuleToken(w) ? { text: `#${name(c.field, w)}`, cls: 'capsule' } : { text: `"${w}"`, cls: 'term' })),
       c.op === 'all' ? '+' : '/',
     );
     if (c.field !== 'text') out.push({ text: `ב${FIELDS[c.field].label}`, cls: 'dim' });

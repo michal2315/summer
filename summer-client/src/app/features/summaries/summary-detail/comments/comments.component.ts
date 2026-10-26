@@ -11,7 +11,6 @@ import { UserService } from '../../../../core/auth/user.service';
 import { AvatarComponent } from '../../../../shared/components/avatar/avatar.component';
 import { IMention, ISummary, ISummarySearch, SearchType, UserRef } from '../../../../shared/models';
 import { HighlightPipe, RelativeTimePipe } from '../../../../shared/pipes/pipes';
-import { LabelService } from '../../../../shared/services/label.service';
 import { CommentService } from '../../../../shared/services/comment.service';
 
 interface Suggestion {
@@ -21,7 +20,7 @@ interface Suggestion {
   mention: IMention;
 }
 
-/** Comment list + composer. "@" mentions users (they get notified), "#" mentions labels. Replaces angular-mentions with nz-mention. */
+/** Comment list + composer. "@" mentions users (they get notified). Replaces angular-mentions with nz-mention. */
 @Component({
   selector: 'app-comments',
   imports: [FormsModule, RouterLink, NzButtonModule, NzIconModule, NzInputModule, NzMentionModule, NzPopconfirmModule, AvatarComponent, HighlightPipe, RelativeTimePipe],
@@ -31,7 +30,6 @@ interface Suggestion {
 })
 export class CommentsComponent {
   readonly users = inject(UserService);
-  private readonly labels = inject(LabelService);
   private readonly comments = inject(CommentService);
 
   readonly summary = input.required<ISummary>();
@@ -52,9 +50,8 @@ export class CommentsComponent {
     this.query$
       .pipe(
         debounceTime(200),
-        switchMap(({ value, prefix }) => {
+        switchMap(({ value }) => {
           this.searching.set(true);
-          if (prefix === '#') return this.labels.search(value).pipe(map((list) => list.map(labelSuggestion)));
           return value ? this.users.query(value).pipe(map((list) => list.map(userSuggestion))) : of([]);
         }),
       )
@@ -76,7 +73,7 @@ export class CommentsComponent {
     const content = this.text().trim();
     if (!content || this.sending()) return;
     // Only keep mentions still present in the final text.
-    const mentions = dedupe(this.selected.filter((s) => content.includes((s.mention.type === 'user' ? '@' : '#') + s.value)).map((s) => s.mention));
+    const mentions = dedupe(this.selected.filter((s) => content.includes('@' + s.value)).map((s) => s.mention));
     const s = this.summary();
     this.sending.set(true);
     this.comments.add(s._id, content, mentions).subscribe({
@@ -100,12 +97,6 @@ const userSuggestion = (u: UserRef): Suggestion => ({
   value: u.username,
   label: `${u.fullName}${u.department ? ' - ' + u.department : ''}`,
   mention: { _id: u._id, type: 'user', value: u.username, icon: '' },
-});
-
-const labelSuggestion = (label: string): Suggestion => ({
-  value: label.replace(/\s+/g, '_'),
-  label: `#${label}`,
-  mention: { _id: label, type: 'label', value: label, icon: '' },
 });
 
 const dedupe = (list: IMention[]) => list.filter((m, i) => list.findIndex((x) => x._id === m._id && x.type === m.type) === i);

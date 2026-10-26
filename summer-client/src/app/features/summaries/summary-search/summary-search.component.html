@@ -4,11 +4,17 @@
     <div class="box" [class.focused]="focused()" [class.open]="popup()">
       <span class="search-icon" nz-icon nzType="search"></span>
 
-      <!-- The input's own text is transparent; this mirror draws the same text with operators, @users and :types colored. -->
+      <!-- The input's own text is transparent; this mirror draws the same text with operators, @users, :types and #capsules colored. -->
       <div class="field">
         <div class="mirror" #mirror aria-hidden="true">
           @for (s of segments(); track $index) {
-            <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
+            @if (s.kind === 'capsule') {
+              <!-- Underscores stay (same width as the input) but are invisible, so the name reads with spaces. -->
+              <!-- prettier-ignore -->
+              <span class="tok tok-capsule">@for (part of s.text.split('_'); track $index; let first = $first) {@if (!first) {<span class="us">_</span>}{{ part }}}</span>
+            } @else {
+              <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
+            }
           }
         </div>
         <input
@@ -21,6 +27,7 @@
           (keydown)="onKey($event)"
           (keyup)="syncCaret()"
           (click)="syncCaret()"
+          (select)="syncCaret()"
           (scroll)="syncCaret()"
           (focus)="focused.set(true); syncCaret()"
           (blur)="focused.set(false)"
@@ -94,6 +101,25 @@
             } @empty {
               <div class="empty">אין סוג תוכן כזה</div>
             }
+          }
+          @case ('capsule') {
+            <app-capsule-suggest
+              [query]="context()?.query ?? ''"
+              [items]="capsuleItems()"
+              [loading]="capsulesLoading()"
+              [active]="active()"
+              (activeChange)="active.set($event)"
+              (picked)="pickCapsule($event)"
+            />
+          }
+          @case ('capsules') {
+            <div class="popup-title"><span class="sigil tok-capsule" nz-icon nzType="experiment"></span> כמוסות בחיפוש</div>
+            <div class="chips capsule-chips">
+              @for (c of textCapsules(); track c._id) {
+                <app-capsule-chip [capsule]="c" />
+              }
+            </div>
+            <div class="popup-hint">לחיצה על כמוסה מציגה את המילים שבה · Enter לחיפוש</div>
           }
           @case ('home') {
             @if (pinned().length) {

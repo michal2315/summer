@@ -115,6 +115,13 @@ $border: #ececf2;
   align-items: center;
   gap: 4px;
 }
+.nl-capsule {
+  color: $capsule;
+  background: $capsule-bg;
+  border-radius: 4px;
+  padding: 0 5px;
+  font-weight: 700;
+}
 .nl-join-and,
 .nl-join-or {
   font-size: 12px;

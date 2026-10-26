@@ -1,4 +1,4 @@
-import { parseQuery, querySegments, replaceShortcut, shortcutAt } from './search-syntax';
+import { capsuleRanges, deleteCapsule, guardEdit, parseQuery, querySegments, replaceShortcut, shortcutAt, snapSelection, typeBesideCapsule } from './search-syntax';
 import { searchRegex } from '../pipes/highlight';
 
 describe('search syntax', () => {
@@ -38,5 +38,48 @@ describe('search syntax', () => {
   it('highlights only terms that must appear', () => {
     const re = searchRegex('גרף לא מכוון @dan :lecture')!;
     expect('גרף מכוון @dan lecture'.match(re)).toEqual(['גרף']);
+  });
+
+  describe('capsules', () => {
+    const known = (name: string) => name === 'עצים' || name === 'חשוב_למבחן';
+    const text = 'a #עצים or #חשוב_למבחן';
+    const ranges = capsuleRanges(text, known);
+
+    it('reads #name as a capsule term that joins and / or / not', () => {
+      expect(parseQuery('#עצים או לא #גרפים').groups).toEqual([
+        [{ term: 'עצים', neg: false, exact: false, capsule: true }],
+        [{ term: 'גרפים', neg: true, exact: false, capsule: true }],
+      ]);
+    });
+
+    it('marks only known capsules, and opens the # shortcut', () => {
+      expect(querySegments('#עצים #אחר', known).map((s) => s.kind)).toEqual(['capsule', null]);
+      expect(querySegments('#אחר').map((s) => s.kind)).toEqual(['capsule']);
+      expect(shortcutAt('x #עצ', 5)).toEqual({ kind: 'capsule', query: 'עצ', start: 2, end: 5 });
+    });
+
+    it('keeps the caret off the inside of a capsule', () => {
+      expect(ranges).toEqual([
+        { start: 2, end: 7 },
+        { start: 11, end: 22 },
+      ]);
+      expect(snapSelection(ranges, 4, 4, 2)).toEqual([7, 7]); // moving forward → after it
+      expect(snapSelection(ranges, 4, 4, 7)).toEqual([2, 2]); // moving back → before it
+      expect(snapSelection(ranges, 0, 4, 0)).toEqual([0, 7]); // a selection covers whole capsules
+    });
+
+    it('removes a capsule as a whole', () => {
+      expect(deleteCapsule(text, 7, 'Backspace', ranges)).toEqual({ text: 'a or #חשוב_למבחן', caret: 2 });
+      expect(deleteCapsule(text, 11, 'Delete', ranges)).toEqual({ text: 'a #עצים or', caret: 10 });
+      expect(deleteCapsule(text, 1, 'Backspace', ranges)).toBeNull();
+      // typing inside is ignored; cutting part of it removes all of it
+      expect(guardEdit(text, 'a #עxצים or #חשוב_למבחן', ranges)).toEqual({ text, caret: 7 });
+      expect(guardEdit(text, 'a #עים or #חשוב_למבחן', ranges)).toEqual({ text: 'a  or #חשוב_למבחן', caret: 2 });
+      expect(guardEdit(text, text + ' x', ranges)).toEqual({ text: text + ' x' });
+    });
+
+    it('separates a letter typed against a capsule with a space', () => {
+      expect(typeBesideCapsule(text, 7, 'b', ranges)).toEqual({ text: 'a #עצים b or #חשוב_למבחן', caret: 9 });
+    });
   });
 });

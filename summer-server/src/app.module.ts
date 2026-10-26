@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
+import { CapsulesModule } from './capsules/capsules.module';
 import { CollectionsModule } from './collections/collections.module';
 import { CommentsModule } from './comments/comments.module';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
@@ -22,6 +23,7 @@ import { WhatsNewModule } from './whats-new/whats-new.module';
     ConfigModule,
     DatabaseModule,
     AuthModule,
+    CapsulesModule,
     PermissionsModule,
     UsersModule,
     ContentTypesModule,

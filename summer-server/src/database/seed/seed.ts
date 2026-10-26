@@ -166,8 +166,9 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
         some(PARAGRAPHS, 4)
           .map((p) => `<p>${p}</p>`)
           .join('') +
-        (r() < 0.4 ? '<ul><li>הגדרה</li><li>משפט</li><li>דוגמה</li></ul>' : '') +
-        ` <p>#${pick(LABELS).replace(/\s/g, '_')}</p>`;
+        (r() < 0.4 ? '<ul><li>הגדרה</li><li>משפט</li><li>דוגמה</li></ul>' : '');
+      // Content used to end with a #label hashtag; keep its random draw so the rest of the seed (and the tests) stay the same.
+      pick(LABELS);
       const notes = r() < 0.3 ? '<p>לבדוק שוב את ההוכחה בעמוד 3.</p>' : '';
       const fieldValues =
         type.name === 'lecture'

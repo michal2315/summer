@@ -5,20 +5,23 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { Subject, debounceTime, switchMap } from 'rxjs';
-import { FieldsType, IField, INotificationSettingsCondition, NotificationsFunctionsOptions } from '../../../shared/models';
+import { CapsuleChipComponent } from '../../../shared/components/capsules/capsule-chip/capsule-chip.component';
+import { FieldsType, ICapsule, IField, INotificationSettingsCondition, NotificationsFunctionsOptions } from '../../../shared/models';
+import { CapsuleService } from '../../../shared/services/capsule.service';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { LabelService } from '../../../shared/services/label.service';
-import { OPTIONS_BY_TYPE, isBetween } from '../notification-rules';
+import { OPTIONS_BY_TYPE, SUMMARY_TEXT_FIELD, isBetween, isCapsuleFunc } from '../notification-rules';
 
 type Operand = string | number | Date | null;
 
 /**
  * One rule condition as a form control: field → operator (per field type) → value input typed by the field.
- * *Between operators take two operands; an empty bound is open-ended.
+ * *Between operators take two operands; an empty bound is open-ended. Capsule operators take a capsule, stored as
+ * [id, name]. Besides the catalog fields there is the summary's own text (SUMMARY_TEXT_FIELD).
  */
 @Component({
   selector: 'app-create-notification-condition',
-  imports: [FormsModule, NzDatePickerModule, NzInputModule, NzInputNumberModule, NzSelectModule],
+  imports: [FormsModule, NzDatePickerModule, NzInputModule, NzInputNumberModule, NzSelectModule, CapsuleChipComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     { provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => CreateNotificationConditionComponent), multi: true },
@@ -30,7 +33,10 @@ type Operand = string | number | Date | null;
 export class CreateNotificationConditionComponent implements ControlValueAccessor, Validator {
   readonly contentTypes = inject(ContentTypeService);
   private readonly labels = inject(LabelService);
+  private readonly capsules = inject(CapsuleService);
   readonly FT = FieldsType;
+
+  readonly fieldOptions = computed(() => [SUMMARY_TEXT_FIELD, ...this.contentTypes.fields()]);
 
   readonly field = signal<IField | null>(null);
   readonly funcName = signal<NotificationsFunctionsOptions | null>(null);
@@ -39,6 +45,16 @@ export class CreateNotificationConditionComponent implements ControlValueAccesso
 
   readonly options = computed(() => (this.field() ? OPTIONS_BY_TYPE[this.field()!.type] ?? [] : []));
   readonly between = computed(() => isBetween(this.funcName()));
+  readonly capsuleMode = computed(() => isCapsuleFunc(this.funcName()));
+
+  /** Capsule picker: the chosen one first (so its name shows), then the search results. */
+  private readonly capsuleResults = signal<ICapsule[]>([]);
+  readonly capsuleQuery$ = new Subject<string>();
+  readonly capsuleOptions = computed(() => {
+    const id = this.operand(0) as string | null;
+    const chosen = id ? (this.capsules.byId(id) ?? { _id: id, name: String(this.operand(1) ?? id), description: '', words: [] }) : null;
+    return [...(chosen ? [chosen] : []), ...this.capsuleResults().filter((c) => c._id !== id)];
+  });
 
   readonly labelOptions = signal<string[]>([]);
   readonly labelQuery$ = new Subject<string>();
@@ -55,6 +71,14 @@ export class CreateNotificationConditionComponent implements ControlValueAccesso
       )
       .subscribe((l) => this.labelOptions.set(l));
     this.labelQuery$.next('');
+
+    this.capsuleQuery$
+      .pipe(
+        debounceTime(200),
+        switchMap((q) => this.capsules.search(q)),
+      )
+      .subscribe((list) => this.capsuleResults.set(list));
+    this.capsuleQuery$.next('');
   }
 
   operand(i: number): Operand {
@@ -62,7 +86,7 @@ export class CreateNotificationConditionComponent implements ControlValueAccesso
   }
 
   setField(id: string) {
-    const f = this.contentTypes.fieldsById().get(id) ?? null;
+    const f = id === SUMMARY_TEXT_FIELD._id ? SUMMARY_TEXT_FIELD : (this.contentTypes.fieldsById().get(id) ?? null);
     if (f?.type !== this.field()?.type) {
       // Operators and operand types depend on the field type — reset them.
       this.funcName.set(OPTIONS_BY_TYPE[f?.type ?? FieldsType.String]?.[0]?.value ?? null);
@@ -73,8 +97,16 @@ export class CreateNotificationConditionComponent implements ControlValueAccesso
   }
 
   setFunc(f: NotificationsFunctionsOptions) {
+    // A capsule operand and a typed one don't carry over to each other.
+    if (isCapsuleFunc(f) !== this.capsuleMode()) this.operands.set([]);
     this.funcName.set(f);
-    if (!isBetween(f)) this.operands.update((o) => o.slice(0, 1));
+    if (!isBetween(f) && !isCapsuleFunc(f)) this.operands.update((o) => o.slice(0, 1));
+    this.emit();
+  }
+
+  setCapsule(id: string | null) {
+    const c = id ? this.capsuleOptions().find((x) => x._id === id) : undefined;
+    this.operands.set(c ? [c._id, c.name] : []);
     this.emit();
   }
 
@@ -98,7 +130,12 @@ export class CreateNotificationConditionComponent implements ControlValueAccesso
     if (!field || !funcName) return null;
     const ser = (v: Operand) => (v instanceof Date ? v.toISOString() : v);
     const ops = this.operands();
-    const content = this.between() ? [ser(ops[0] ?? null), ser(ops[1] ?? null)] : field.type === FieldsType.Array ? ops.map(ser) : [ser(ops[0] ?? null)];
+    const content =
+      this.between() || this.capsuleMode()
+        ? [ser(ops[0] ?? null), ser(ops[1] ?? null)]
+        : field.type === FieldsType.Array
+          ? ops.map(ser)
+          : [ser(ops[0] ?? null)];
     return { field, funcName, content: content as (string | number | null)[] };
   }
 

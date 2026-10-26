@@ -1,5 +1,14 @@
-import { IQueryGroup, ISummarySearch, QueryTextField, SearchType } from '../models';
+import { ICapsule, IQueryGroup, ISummarySearch, QueryTextField, SearchType } from '../models';
+import { capsuleTokenId, isCapsuleToken, positiveWords } from '../utils/capsules';
 import { QueryTerm, parseQuery } from '../utils/search-syntax';
+
+/** Capsules already fetched (CapsuleService); an unknown #name highlights as the plain word, like the server searches it. */
+export interface CapsuleResolver {
+  byName(name: string): ICapsule | undefined;
+  byId(id: string): ICapsule | undefined;
+}
+
+const capsuleTerms = (c: ICapsule): QueryTerm[] => positiveWords(c).map((term) => ({ term, neg: false, exact: false }));
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const escapeHtml = (s: string) =>
@@ -7,11 +16,18 @@ const escapeHtml = (s: string) =>
 
 /**
  * Search text → match regex over the terms that must appear (not negated ones, operators, @users or :types).
- * Words are matched anywhere; "quoted text" is a whole-word exact match.
+ * Words are matched anywhere; "quoted text" is a whole-word exact match; a #capsule stands for its must and optional words.
  * Uses Unicode letter classes because \b does not understand Hebrew.
  */
-export function searchRegex(text: string | undefined, extra: QueryTerm[] = []): RegExp | null {
-  const terms = [...(text?.trim() ? parseQuery(text).groups.flat() : []), ...extra];
+export function searchRegex(text: string | undefined, extra: QueryTerm[] = [], capsules?: CapsuleResolver): RegExp | null {
+  const typed = (text?.trim() ? parseQuery(text).groups.flat() : []).filter((t) => !t.neg);
+  const terms = [
+    ...typed.flatMap((t) => {
+      const c = t.capsule ? capsules?.byName(t.term) : undefined;
+      return c ? capsuleTerms(c) : [t];
+    }),
+    ...extra,
+  ];
   const parts = terms
     .filter((t) => !t.neg)
     .map((t) => (t.exact ? `(?<![\\p{L}\\p{N}])${escapeRegex(t.term)}(?![\\p{L}\\p{N}])` : escapeRegex(t.term)));
@@ -30,22 +46,23 @@ const TYPE_FIELD: Partial<Record<SearchType, QueryTextField>> = {
 };
 
 /** Words the advanced search requires in this field ("anywhere" conditions count for every field). */
-function queryWords(q: IQueryGroup | undefined, field: QueryTextField | undefined): QueryTerm[] {
+function queryWords(q: IQueryGroup | undefined, field: QueryTextField | undefined, capsules?: CapsuleResolver): QueryTerm[] {
   if (!q) return [];
+  const word = (w: string): QueryTerm[] => {
+    if (!isCapsuleToken(w)) return [{ term: w, neg: false, exact: false }];
+    const c = capsules?.byId(capsuleTokenId(w));
+    return c ? capsuleTerms(c) : [];
+  };
   return q.children.flatMap((c) =>
-    c.type === 'group'
-      ? queryWords(c, field)
-      : c.op !== 'none' && (c.field === 'text' || c.field === field)
-        ? (c.words ?? []).map((term) => ({ term, neg: false, exact: false }))
-        : [],
+    c.type === 'group' ? queryWords(c, field, capsules) : c.op !== 'none' && (c.field === 'text' || c.field === field) ? (c.words ?? []).flatMap(word) : [],
   );
 }
 
 /** Highlight only fields whose search type is checked (no types selected ⇒ all), plus the advanced search's words for the field. */
-export function regexFor(search: ISummarySearch | null | undefined, type: SearchType): RegExp | null {
+export function regexFor(search: ISummarySearch | null | undefined, type: SearchType, capsules?: CapsuleResolver): RegExp | null {
   if (!search) return null;
   const textApplies = !search.searchTypes?.length || search.searchTypes.includes(type);
-  return searchRegex(textApplies ? search.text : undefined, queryWords(search.query, TYPE_FIELD[type]));
+  return searchRegex(textApplies ? search.text : undefined, queryWords(search.query, TYPE_FIELD[type], capsules), capsules);
 }
 
 /** Plain text → escaped HTML with <span class="highlight"> around hits. */

@@ -87,14 +87,6 @@ type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
 type ParentInfo = ISummaryParent & { contentTypeId: string };
 const LABELS_PAGE = 20;
 
-/** `#word` in the content becomes a label on submit. */
-export function hashtags(html: string): string[] {
-  // Quill puts each line in its own block; separate them so a #tag at the start of a line is still preceded by whitespace.
-  const spaced = html.replace(/<\/(p|div|li|h[1-6]|blockquote|pre)>|<br\s*\/?>/gi, '$& ');
-  const text = new DOMParser().parseFromString(spaced, 'text/html').body.textContent ?? '';
-  return [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map((m) => m[1].replace(/_/g, ' '));
-}
-
 @Component({
   selector: 'app-create-summary',
   imports: [
@@ -746,7 +738,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       eventDate: v.eventDate && kind !== SummaryKind.Running ? format(v.eventDate, DAY) : undefined,
       eventSecTime: v.eventSecTime && kind !== SummaryKind.Running ? format(v.eventSecTime, 'HH:mm') : undefined,
       department: v.department,
-      labels: [...new Set([...v.labels, ...hashtags(v.content)])],
+      labels: v.labels,
       collectionIds: kind === SummaryKind.Sumaroon ? [] : v.collections,
       permissions: v.permissions,
       taggedUsers: v.taggedUsers,

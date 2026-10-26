@@ -51,7 +51,7 @@
           }
           <div class="chips">
             @for (l of r.labels; track l.name) {
-              <nz-tag class="label-chip">#{{ l.name }}</nz-tag>
+              <nz-tag class="label-chip">{{ l.name }}</nz-tag>
             }
             @for (p of r.permissions; track p._id) {
               <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>

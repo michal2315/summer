@@ -1,0 +1,137 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $dark-gray;
+}
+
+.sigil {
+  min-width: 18px;
+  color: $capsule;
+  font-size: 13px;
+}
+
+.typed {
+  font-weight: 600;
+  color: $gray;
+}
+
+.spin {
+  color: $capsule;
+}
+
+.keys {
+  display: inline-flex;
+  gap: 3px;
+  margin-inline-start: auto;
+}
+
+.kbd {
+  border: 1px solid $border-color;
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: $gray;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+
+  &.active {
+    background: $capsule-bg;
+    .icon {
+      background: $capsule;
+      color: $white;
+    }
+  }
+}
+
+.icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: $capsule-bg;
+  color: $capsule;
+  font-size: 15px;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: $dark-blue;
+}
+
+.match {
+  font-weight: 800;
+  color: $capsule;
+}
+
+.preview {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: $gray;
+}
+
+.w {
+  &.must {
+    color: $cond-must;
+    font-weight: 600;
+  }
+  &.not {
+    color: $cond-not;
+    text-decoration: line-through;
+  }
+}
+
+.sep {
+  font-size: 10px;
+  font-weight: 700;
+  color: $capsule;
+  opacity: 0.75;
+}
+
+.count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: $gray;
+}
+
+.empty {
+  padding: 8px;
+  color: $gray;
+  font-size: 13px;
+}

@@ -151,6 +151,15 @@ export const TOUR_TOPICS: TourTopic[] = [
         prep: (ctx) => ctx.go('/summaries'),
       },
       {
+        id: 's-capsules',
+        sel: altSel('search'),
+        title: 'כמוסות',
+        body: '# פותח רשימת כמוסות: קבוצות מילים שמורות שנכנסות לחיפוש כיחידה אחת. כל מילה בכמוסה היא חובה, רשות או אסורה.',
+        tip: 'כמוסות עובדות גם בחיפוש המתקדם ובכללי התראה. לחיצה על כמוסה מציגה את המילים שבה.',
+        added: '2026-10-26',
+        prep: (ctx) => ctx.go('/summaries'),
+      },
+      {
         id: 's-history',
         sel: altSel('search'),
         title: 'חיפושים אחרונים ונעוצים',

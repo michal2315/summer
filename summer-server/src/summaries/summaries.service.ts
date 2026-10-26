@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { SQL, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { AuthService } from '../auth/auth.service';
+import { CapsulesService } from '../capsules/capsules.service';
 import { CurrentUser } from '../auth/identity-provider';
 import { ApiSummary, SummaryLengths } from '../common/api-types';
 import { htmlToText, sanitizeQuill } from '../common/html';
@@ -13,13 +14,14 @@ import { DatabaseService } from '../database/database.service';
 import { FieldType, SUMMARY_KINDS } from '../database/schema';
 import { LabelsRepository } from '../labels/labels.repository';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SUMMARY_TEXT_FIELD } from '../notifications/rule-matcher';
 import { validPermissionSet } from '../permissions/permission-assignment';
 import { PermissionsRepository } from '../permissions/permissions.repository';
 import { UsersRepository } from '../users/users.repository';
 import { FilesService, UploadedFile } from './files.service';
 import { SummariesRepository, SummaryRow, SummaryValues } from './summaries.repository';
 import { toApiSummary } from './summary.mapper';
-import { BUCKETS, Bucket, SummarySearch, summarySearchSchema } from './summary-search';
+import { BUCKETS, Bucket, SummarySearch, capsuleRefs, summarySearchSchema } from './summary-search';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -95,6 +97,7 @@ export class SummariesService {
     private readonly notifications: NotificationsService,
     private readonly auth: AuthService,
     private readonly permissions: PermissionsRepository,
+    private readonly capsules: CapsulesService,
   ) {}
 
   // ---------------------------------------------------------------- reads
@@ -132,7 +135,7 @@ export class SummariesService {
     const owner = await this.users.findById(ownerId);
     if (!owner) throw new NotFoundException();
     const ctx = { ownerId: f.isProfile ? owner.id : me.id, isProfile: f.isProfile };
-    const base = and(this.repo.visible(me), ...this.repo.filterConditions(f, this.config.timezone))!;
+    const base = and(this.repo.visible(me), ...(await this.filters(f)))!;
     const buckets = Object.fromEntries(BUCKETS.map((b) => [b.toLowerCase(), this.repo.bucketCondition(b, ctx)])) as Record<Lowercase<Bucket>, SQL>;
 
     const [ids, lengths] = await Promise.all([
@@ -147,21 +150,26 @@ export class SummariesService {
     const where = and(
       this.repo.visible(me),
       this.repo.bucketCondition('SUMMARY', { ownerId: me.id, isProfile: false }),
-      ...this.repo.filterConditions({ ...f, collections: [collectionId] }, this.config.timezone),
+      ...(await this.filters({ ...f, collections: [collectionId] })),
     )!;
     const [ids, total] = await Promise.all([this.repo.pageIds(where, this.repo.orderBy(f.sort), f.skip, f.limit), this.repo.count(where)]);
     return { summaries: await this.hydrate(me, ids), lengths: { summary: total, draft: 0, tagged: 0, favorite: 0 } };
   }
 
   /** Visible published summaries matching `f`. */
-  count(me: CurrentUser, f: SummarySearch): Promise<number> {
+  async count(me: CurrentUser, f: SummarySearch): Promise<number> {
     return this.repo.count(
       and(
         this.repo.visible(me),
         this.repo.bucketCondition('SUMMARY', { ownerId: me.id, isProfile: false }),
-        ...this.repo.filterConditions(f, this.config.timezone),
+        ...(await this.filters(f)),
       )!,
     );
+  }
+
+  /** The search filters as SQL, with the capsules it names fetched first. */
+  private async filters(f: SummarySearch): Promise<SQL[]> {
+    return this.repo.filterConditions(f, this.config.timezone, await this.capsules.lookup(capsuleRefs(f)));
   }
 
   /** Every visible published id matching `f` (Excel export), capped. */
@@ -169,7 +177,7 @@ export class SummariesService {
     const where = and(
       this.repo.visible(me),
       this.repo.bucketCondition('SUMMARY', { ownerId: me.id, isProfile: false }),
-      ...this.repo.filterConditions(f, this.config.timezone),
+      ...(await this.filters(f)),
     )!;
     return this.repo.pageIds(where, this.repo.orderBy(f.sort), 0, cap);
   }
@@ -402,8 +410,11 @@ export class SummariesService {
     await this.notifications.notify(userIds, { summaryId: id, text: `${me.fullName} תייג/ה אותך בתמצית "${title}"`, createdBy: me.id });
   }
 
+  /** Field values for rule matching, plus the summary's own text under SUMMARY_TEXT_FIELD. */
   private fieldMap(input: ValidInput): Map<string, string> {
-    return new Map(input.fieldValues.map((f) => [f.fieldId, f.value]));
+    const { title, contentText, notesText } = input.values;
+    const text = [title, contentText, notesText].filter(Boolean).join('\n');
+    return new Map([...input.fieldValues.map((f): [string, string] => [f.fieldId, f.value]), [SUMMARY_TEXT_FIELD._id, text]]);
   }
 
   /** Everything the database cannot check by itself: references, field types, and who may assign what. */

@@ -100,13 +100,13 @@
   <div class="foot">
     <div class="labels">
       @for (l of visibleLabels(); track l.name) {
-        <nz-tag class="label-chip" (click)="searchLabel(l.name, $event)"><span [innerHTML]="'#' + l.name | highlight: search() : T.Label"></span></nz-tag>
+        <nz-tag class="label-chip" (click)="searchLabel(l.name, $event)"><span [innerHTML]="l.name | highlight: search() : T.Label"></span></nz-tag>
       }
       @if (hiddenLabels().length) {
         <nz-tag class="label-chip" [nz-tooltip]="hiddenLabelsTip">+{{ hiddenLabels().length }}</nz-tag>
         <ng-template #hiddenLabelsTip>
           @for (l of hiddenLabels(); track l.name) {
-            <div>#{{ l.name }}</div>
+            <div>{{ l.name }}</div>
           }
         </ng-template>
       }

@@ -1,5 +1,5 @@
 import { dayRange, parseEventDate } from './time';
-import { parseQuery } from '../summaries/summary-search';
+import { capsuleRefs, parseQuery } from '../summaries/summary-search';
 
 describe('time zone helpers', () => {
   const TZ = 'Asia/Jerusalem';
@@ -22,7 +22,7 @@ describe('time zone helpers', () => {
 describe('search query', () => {
   const terms = (text: string) => parseQuery(text).groups.map((g) => g.map((t) => (t.neg ? '-' : '') + t.term));
 
-  it('keeps quoted phrases, splits words, drops hashtag marks', () => {
+  it('keeps quoted phrases, splits words, drops the # of a word that is not a capsule', () => {
     expect(terms('"שאלה ממבחן" #חשוב  graph')).toEqual([['שאלה ממבחן', 'חשוב', 'graph']]);
   });
 
@@ -43,5 +43,13 @@ describe('search query', () => {
     expect(q.users).toEqual(['michal']);
     expect(q.contentTypes).toEqual(['lecture', 'שעת קבלה']);
     expect(terms('biology exam @Michal :lecture or chemistry')).toEqual([['biology', 'exam'], ['chemistry']]);
+  });
+
+  it('marks #name terms as capsule references, from the text and the advanced tree', () => {
+    const q = parseQuery('#חשוב_למבחן או לא #עצים "#מצוטט"');
+    expect(q.capsules).toEqual(['חשוב_למבחן', 'עצים']);
+    expect(q.groups).toEqual([[{ term: 'חשוב_למבחן', neg: false, capsule: true }], [{ term: 'עצים', neg: true, capsule: true }, { term: '#מצוטט', neg: false }]]);
+    const tree = { type: 'group' as const, op: 'AND' as const, children: [{ type: 'cond' as const, field: 'text' as const, op: 'any' as const, words: ['#cap:cap-trees', 'גרף'], values: [] }] };
+    expect(capsuleRefs({ text: '#גרפים', query: tree })).toEqual({ ids: ['cap-trees'], names: ['גרפים'] });
   });
 });

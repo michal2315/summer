@@ -34,7 +34,7 @@
         <div class="inherited">
           <span class="muted">{{ p.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ p.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
           @for (l of p.labels; track l.name) {
-            <nz-tag class="label-chip" (click)="searchLabel(l.name)">#{{ l.name }}</nz-tag>
+            <nz-tag class="label-chip" (click)="searchLabel(l.name)">{{ l.name }}</nz-tag>
           }
           @for (perm of p.permissions; track perm._id) {
             <span class="perm"><span class="dot" [style.background]="perm.color"></span>{{ perm.name }}</span>
@@ -134,7 +134,7 @@
           <span class="muted">תגיות נוספות:</span>
         }
         @for (l of s.labels; track l.name) {
-          <nz-tag class="label-chip" (click)="searchLabel(l.name)"><span [innerHTML]="'#' + l.name | highlight: search() : T.Label"></span></nz-tag>
+          <nz-tag class="label-chip" (click)="searchLabel(l.name)"><span [innerHTML]="l.name | highlight: search() : T.Label"></span></nz-tag>
         }
       </div>
     }

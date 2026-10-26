@@ -1,0 +1,42 @@
+<div class="title">
+  <span class="sigil" nz-icon nzType="experiment"></span>
+  כמוסות
+  @if (query()) {
+    <span class="typed">· “{{ query().replaceAll('_', ' ') }}”</span>
+  }
+  @if (loading()) {
+    <span class="spin" nz-icon nzType="loading"></span>
+  }
+  <span class="keys"><span class="kbd">↑↓</span><span class="kbd">Enter</span></span>
+</div>
+
+@for (c of items(); track c._id; let i = $index) {
+  @let n = parts(c.name);
+  @let p = preview(c);
+  <div class="row" [class.active]="i === active()" (mouseenter)="activeChange.emit(i)" (click)="picked.emit(c)" role="option" [attr.aria-selected]="i === active()">
+    <span class="icon" nz-icon nzType="experiment"></span>
+    <div class="body">
+      <div class="name">{{ n[0] }}<span class="match">{{ n[1] }}</span>{{ n[2] }}</div>
+      <div class="preview">
+        @for (w of p.must; track w) {
+          <bdi class="w must">{{ w }}</bdi>
+        }
+        @for (w of p.optional; track w; let first = $first) {
+          @if (!first || p.must.length) {
+            <span class="sep">{{ p.must.length && first ? '+' : 'או' }}</span>
+          }
+          <bdi class="w">{{ w }}</bdi>
+        }
+        @for (w of p.not; track w) {
+          <bdi class="w not">{{ w }}</bdi>
+        }
+        @if (p.more > 0) {
+          <span class="sep">+{{ p.more }}</span>
+        }
+      </div>
+    </div>
+    <span class="count">{{ c.words.length }} מילים</span>
+  </div>
+} @empty {
+  <div class="empty">{{ loading() ? 'מחפש כמוסות…' : 'אין כמוסה בשם הזה' }}</div>
+}

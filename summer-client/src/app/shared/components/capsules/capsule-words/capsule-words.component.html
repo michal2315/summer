@@ -1,0 +1,32 @@
+<div class="head">
+  <span class="icon" nz-icon nzType="experiment"></span>
+  <div class="titles">
+    <div class="name" role="heading" aria-level="3">{{ capsule().name }}</div>
+    <div class="meta">{{ capsule().words.length }} מילים{{ capsule().description ? ' · ' + capsule().description : '' }}</div>
+  </div>
+</div>
+
+@if (filterable()) {
+  <div class="filter">
+    <span nz-icon nzType="search"></span>
+    <input [value]="filter()" (input)="filter.set($any($event.target).value)" placeholder="סינון מילים בכמוסה…" aria-label="סינון מילים" />
+  </div>
+}
+
+<div class="groups">
+  @for (g of groups(); track g.key) {
+    <div [class]="'group cond-' + g.key">
+      <div class="group-title">
+        <span class="badge">{{ g.label }}</span>
+        <span class="hint">{{ g.hint }}</span>
+      </div>
+      <div class="words">
+        @for (w of g.words; track w) {
+          <bdi class="word">{{ w }}</bdi>
+        }
+      </div>
+    </div>
+  } @empty {
+    <div class="empty">אין מילה כזו בכמוסה</div>
+  }
+</div>

@@ -63,7 +63,7 @@
           <span class="muted">טווח: {{ p.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ p.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
           <span class="muted">יורשת:</span>
           @for (l of p.labels; track l.name) {
-            <span class="chip">#{{ l.name }}</span>
+            <span class="chip">{{ l.name }}</span>
           }
           @for (perm of p.permissions; track perm._id) {
             <span class="chip"><span class="dot" [style.background]="perm.color"></span>{{ perm.name }}</span>
@@ -204,7 +204,7 @@
     <div class="grid">
       <nz-form-item>
         <nz-form-label [nzRequired]="kind() !== K.Sumaroon">{{ kind() === K.Sumaroon ? 'תגיות נוספות' : 'תגיות' }}</nz-form-label>
-        <nz-form-control nzErrorTip="חובה להוסיף לפחות תגית אחת" nzExtra="גם מילים עם # בתוכן הופכות לתגיות">
+        <nz-form-control nzErrorTip="חובה להוסיף לפחות תגית אחת">
           <nz-select
             formControlName="labels"
             nzMode="tags"
@@ -217,7 +217,7 @@
             @for (l of sortedLabels(); track l) {
               <nz-option nzCustomContent [nzValue]="l" [nzLabel]="l">
                 <span class="opt">
-                  <span class="opt-label">#{{ l }}</span>
+                  <span class="opt-label">{{ l }}</span>
                   <button type="button" class="opt-btn" (mousedown)="optionAction($event, favoriteLabel.bind(this, l))" aria-label="מועדף">
                     <span nz-icon nzType="star" [nzTheme]="isFavorite('favoriteLabels', l) ? 'fill' : 'outline'"></span>
                   </button>

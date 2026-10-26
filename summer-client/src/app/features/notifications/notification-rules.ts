@@ -1,18 +1,23 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Pipe, PipeTransform, inject, signal } from '@angular/core';
 import { Observable, map, tap } from 'rxjs';
-import { FieldsType, INotificationSettings, INotificationSettingsCondition, NotificationsFunctionsOptions as F } from '../../shared/models';
+import { FieldsType, IField, INotificationSettings, INotificationSettingsCondition, NotificationsFunctionsOptions as F } from '../../shared/models';
 
 export interface NotificationOption {
   label: string;
   value: F;
 }
 
+/** Not a catalog field: rules on it read the summary's title, content and notes (the server knows the same id). */
+export const SUMMARY_TEXT_FIELD: IField = { _id: 'summary-text', name: 'תוכן התמצית', type: FieldsType.String };
+
 /** Operators offered per field type (spec §8.1). Hour fields compare as strings. */
 export const OPTIONS_BY_TYPE: Record<FieldsType, NotificationOption[]> = {
   [FieldsType.String]: [
     { label: 'מכיל', value: F.StringContains },
     { label: 'לא מכיל', value: F.StringNotContains },
+    { label: 'תואם לכמוסה', value: F.CapsuleMatches },
+    { label: 'לא תואם לכמוסה', value: F.CapsuleNotMatches },
   ],
   [FieldsType.Hour]: [
     { label: 'מכיל', value: F.StringContains },
@@ -38,6 +43,8 @@ export const OPTIONS_BY_TYPE: Record<FieldsType, NotificationOption[]> = {
 const LABELS = new Map(Object.values(OPTIONS_BY_TYPE).flat().map((o) => [o.value, o.label]));
 
 export const isBetween = (f: F | null | undefined) => f === F.NumberBetween || f === F.DateBetween;
+/** content: [capsule id, capsule name] */
+export const isCapsuleFunc = (f: F | null | undefined) => f === F.CapsuleMatches || f === F.CapsuleNotMatches;
 
 /** Rule → readable Hebrew, e.g. «שם הקורס מכיל "אלגוריתמים" וגם מספר הרצאה בין 3 ל-∞». */
 export function describeRule(rule: Pick<INotificationSettings, 'conditions'>): string {
@@ -51,6 +58,7 @@ export function describeCondition(c: INotificationSettingsCondition): string {
     return typeof v === 'string' ? `"${v}"` : String(v);
   };
   const op = LABELS.get(c.funcName) ?? c.funcName;
+  if (isCapsuleFunc(c.funcName)) return `${c.field.name} ${op} #${c.content[1] ?? c.content[0]}`;
   if (isBetween(c.funcName)) return `${c.field.name} ${op} ${fmt(c.content[0])} ל-${fmt(c.content[1])}`;
   return `${c.field.name} ${op} ${c.content.map(fmt).join(', ')}`;
 }

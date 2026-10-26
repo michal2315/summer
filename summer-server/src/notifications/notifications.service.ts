@@ -1,13 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser } from '../auth/identity-provider';
+import { CapsulesService } from '../capsules/capsules.service';
 import { ApiNotification } from '../common/api-types';
 import { isUuid, parse, unique } from '../common/validation';
 import { ContentTypesRepository } from '../content-types/content-types.repository';
 import { RuleCondition } from '../database/schema';
 import { PermissionsRepository } from '../permissions/permissions.repository';
 import { NotificationsRepository, RuleRow } from './notifications.repository';
-import { RULE_FUNCTIONS, matchRule } from './rule-matcher';
+import { CAPSULE_FUNCTIONS, RULE_FUNCTIONS, SUMMARY_TEXT_FIELD, matchRule, ruleCapsuleIds } from './rule-matcher';
 
 const ruleBody = z.object({
   _id: z.string().optional(),
@@ -57,6 +58,7 @@ export class NotificationsService {
     private readonly repo: NotificationsRepository,
     private readonly contentTypes: ContentTypesRepository,
     private readonly permissions: PermissionsRepository,
+    private readonly capsules: CapsulesService,
   ) {}
 
   /**
@@ -88,8 +90,10 @@ export class NotificationsService {
     const followers = await this.repo.followerIds(author.id);
     const notified = new Set(await this.notify(followers, { summaryId: s.id, text: `${author.fullName} פרסם/ה תמצית חדשה "${s.title}"`, createdBy: author.id }));
 
-    for (const rule of await this.repo.activeRules()) {
-      if (rule.userId === author.id || notified.has(rule.userId) || !matchRule(rule.conditions, s.fieldValues)) continue;
+    const rules = await this.repo.activeRules();
+    const capsules = await this.capsules.lookup({ ids: rules.flatMap((r) => ruleCapsuleIds(r.conditions)) });
+    for (const rule of rules) {
+      if (rule.userId === author.id || notified.has(rule.userId) || !matchRule(rule.conditions, s.fieldValues, capsules)) continue;
       const sent = await this.notify([rule.userId], { summaryId: s.id, text: `תמצית חדשה תואמת לכלל "${rule.name}": "${s.title}"`, createdBy: author.id });
       sent.forEach((id) => notified.add(id));
     }
@@ -120,8 +124,10 @@ export class NotificationsService {
     // Snapshot field name/type from the catalog rather than trusting the client's copy.
     const fields = new Map((await this.contentTypes.fieldsByIds(unique(input.conditions.map((c) => c.field._id).filter(isUuid)))).map((f) => [f.id, f]));
     const conditions: RuleCondition[] = input.conditions.map((c) => {
-      const f = fields.get(c.field._id);
+      const f = c.field._id === SUMMARY_TEXT_FIELD._id ? { ...SUMMARY_TEXT_FIELD, id: SUMMARY_TEXT_FIELD._id } : fields.get(c.field._id);
       if (!f) throw new BadRequestException(`unknown field ${c.field._id}`);
+      if (CAPSULE_FUNCTIONS.includes(c.funcName) && (f.type !== 'string' || typeof c.content[0] !== 'string' || !c.content[0]))
+        throw new BadRequestException(`${c.funcName} needs a text field and a capsule id`);
       return { field: { _id: f.id, name: f.name, type: f.type }, funcName: c.funcName, content: c.content };
     });
     const values = { name: input.name, conditions, isMail: input.isMail, isNotify: input.isNotify };

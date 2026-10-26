@@ -29,7 +29,7 @@
               </span>
             </span>
             @for (l of ownLabels(s); track l) {
-              <span class="chip">#{{ l }}</span>
+              <span class="chip">{{ l }}</span>
             }
             @if (s.permissions.length) {
               <span class="lock" nz-icon nzType="lock" [nz-tooltip]="'הרשאות נוספות: ' + permissionNames(s)"></span>

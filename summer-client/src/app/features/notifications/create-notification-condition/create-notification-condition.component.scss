@@ -2,4 +2,5 @@
 nz-select { width: 100%; }
 .value { display: flex; gap: 6px; min-width: 0; }
 .value > * { flex: 1; min-width: 0; width: 100%; }
+.value > .peek { flex: 0 1 auto; width: auto; align-self: center; }
 @media (max-width: 768px) { :host { grid-template-columns: 1fr; } }

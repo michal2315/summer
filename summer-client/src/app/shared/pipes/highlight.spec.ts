@@ -30,7 +30,25 @@ describe('highlight', () => {
     expect(regexFor({ text: 'x' }, SearchType.Content)).not.toBeNull();
   });
 
-  it('strips a leading # so "#label" matches the label text', () => {
+  it('treats #word that is not a known capsule as the plain word', () => {
     expect(highlightText('מועד א', searchRegex('#מועד'))).toContain('<span class="highlight">מועד</span>');
+  });
+
+  it('highlights a capsule as its must and optional words, never its mustNot ones', () => {
+    const capsule = {
+      _id: 'c',
+      name: 'עצים',
+      description: '',
+      words: [
+        { word: 'AVL', condition: 'optional' as const },
+        { word: 'עץ', condition: 'must' as const },
+        { word: 'גרף', condition: 'mustNot' as const },
+      ],
+    };
+    const capsules = { byName: (n: string) => (n === 'עצים' ? capsule : undefined), byId: (id: string) => (id === 'c' ? capsule : undefined) };
+    expect('עץ AVL גרף'.match(searchRegex('#עצים', [], capsules)!)).toEqual(['עץ', 'AVL']);
+    expect('אחר'.match(searchRegex('#אחר', [], capsules)!)).toEqual(['אחר']); // unknown: the plain word
+    const search = { query: { type: 'group' as const, op: 'AND' as const, children: [{ type: 'cond' as const, field: 'text' as const, op: 'any' as const, words: ['#cap:c'] }] } };
+    expect('עץ'.match(regexFor(search, SearchType.Content, capsules)!)).toEqual(['עץ']);
   });
 });

@@ -96,15 +96,7 @@
     <div class="cond-value">
       @switch (fields[c.field].kind) {
         @case ('text') {
-          <nz-select
-            nzMode="tags"
-            nzSize="small"
-            [nzTokenSeparators]="[',']"
-            nzPlaceHolder="מילה או ביטוי + Enter"
-            [ngModel]="c.words"
-            (ngModelChange)="update(c, { words: $event })"
-            aria-label="מילים"
-          />
+          <app-capsule-words-input placeholder="מילה או ביטוי + Enter, # לכמוסה" [ngModel]="c.words" (ngModelChange)="update(c, { words: $event })" />
         }
         @case ('value') {
           @switch (c.field) {

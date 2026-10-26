@@ -62,3 +62,15 @@ $decline-hover: #ff7875;
 // Breakpoints
 $bp-narrow: 1100px;
 $bp-mobile: 768px;
+
+// Capsules (כמוסות) — one teal family wherever a capsule shows: search box, chips, suggestions, popovers
+$capsule: #0b7f86;
+$capsule-bg: #dcf2f3;
+$capsule-line: rgba(11, 127, 134, 0.45);
+// Capsule word conditions
+$cond-must: #08793a;
+$cond-must-bg: #e3f6ea;
+$cond-not: #c41d3a;
+$cond-not-bg: #fde8ec;
+$cond-optional: #55546f;
+$cond-optional-bg: #efeff4;

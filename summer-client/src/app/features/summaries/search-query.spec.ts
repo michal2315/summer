@@ -1,6 +1,5 @@
 import { ISummarySearch, SearchType } from '../../shared/models';
 import { activeFilterCount, searchFromParams, searchToParams } from './search-query';
-import { hashtags } from './create-summary/create-summary.component';
 
 describe('search query params', () => {
   it('round-trips a full search through the URL', () => {
@@ -31,15 +30,5 @@ describe('search query params', () => {
   it('counts active advanced filters', () => {
     expect(activeFilterCount({ text: 'x' })).toBe(0);
     expect(activeFilterCount({ colors: ['#ff0000'], users: ['u1'], dates: [] })).toBe(2);
-  });
-});
-
-describe('hashtags', () => {
-  it('turns #words in content into labels', () => {
-    expect(hashtags('<p>סיכום #חשוב ועוד #מועד_א</p><p>#שני</p>')).toEqual(['חשוב', 'מועד א', 'שני']);
-  });
-
-  it('ignores # inside words', () => {
-    expect(hashtags('<p>C# ו-a#b</p>')).toEqual([]);
   });
 });

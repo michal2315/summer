@@ -6,8 +6,11 @@ $tok-user-bg: #e8edff;
 $tok-type: #08793a;
 $tok-type-bg: #e3f6ea;
 $tok-and: $accent;
-$tok-or: #c25400;
+$tok-and-bg: #e4e4f4;
+$tok-or: #b54d00;
+$tok-or-bg: #ffead6;
 $tok-not: #c41d3a;
+$tok-not-bg: #fde3e8;
 
 :host {
   display: block;
@@ -107,34 +110,42 @@ $tok-not: #c41d3a;
   }
 }
 
-// Background via box-shadow so a token keeps the exact width of its text.
+// Every marked token is a filled pill, with the background drawn by box-shadow so it keeps the exact width of its
+// text (the mirror must line up with the input glyph for glyph).
+@mixin pill($color, $bg) {
+  color: $color;
+  background: $bg;
+  box-shadow: 0 0 0 2px $bg;
+}
 .tok {
   border-radius: 4px;
 }
 .tok-user {
-  color: $tok-user;
-  background: $tok-user-bg;
-  box-shadow: 0 0 0 2px $tok-user-bg;
+  @include pill($tok-user, $tok-user-bg);
 }
 .tok-type {
-  color: $tok-type;
-  background: $tok-type-bg;
-  box-shadow: 0 0 0 2px $tok-type-bg;
+  @include pill($tok-type, $tok-type-bg);
 }
 .tok-and {
-  color: $tok-and;
-  text-decoration: underline 2px;
-  text-underline-offset: 3px;
+  @include pill($tok-and, $tok-and-bg);
 }
 .tok-or {
-  color: $tok-or;
-  text-decoration: underline 2px;
-  text-underline-offset: 3px;
+  @include pill($tok-or, $tok-or-bg);
 }
 .tok-not {
-  color: $tok-not;
-  text-decoration: underline 2px;
-  text-underline-offset: 3px;
+  @include pill($tok-not, $tok-not-bg);
+}
+.tok-capsule {
+  @include pill($capsule, $capsule-bg);
+  // The name's underscores keep their width but read as spaces.
+  .us {
+    color: transparent;
+  }
+}
+// The popup title icon only takes the color.
+.sigil.tok-capsule {
+  background: none;
+  box-shadow: none;
 }
 
 .icon-btn {
@@ -255,6 +266,16 @@ $tok-not: #c41d3a;
   padding: 8px;
   color: $gray;
   font-size: 13px;
+}
+
+.capsule-chips {
+  gap: 6px;
+}
+
+.popup-hint {
+  padding: 0 8px 4px;
+  font-size: 12px;
+  color: $gray;
 }
 
 .chips {
