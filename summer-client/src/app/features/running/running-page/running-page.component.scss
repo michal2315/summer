@@ -1,18 +1,23 @@
+@use 'tokens' as *;
+
 :host { display: block; height: 100%; }
 .running {
-  display: flex; flex-direction: column; gap: 2px;
-  background: #fff; border-radius: 10px; padding: 6px 12px 8px;
-  border-inline-start: 4px solid #9b9bb1; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
+  position: relative;
+  display: flex; flex-direction: column; gap: 4px;
+  background: $white; border: 1px solid $border-color; border-radius: $radius-md; padding: 10px 14px;
+  box-shadow: $card-shadow;
 }
+// Grey start edge, full height and curving with the corners (as on the summary cards).
+.running::before { content: ''; position: absolute; inset: -1px; border-radius: inherit; border-inline-start: 4px solid $gray; pointer-events: none; }
 .row { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.kind { color: #666666; display: inline-flex; }
-.title { margin: 0; font-size: 17px; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kind { color: $dark-gray; display: inline-flex; }
+.title { margin: 0; font-size: 18px; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spacer { flex: 1; }
-.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; font-size: 12px; color: #666; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; font-size: 12px; color: $dark-gray; }
 .who { display: inline-flex; align-items: center; gap: 4px; }
 /* "פרטים": capped so the pinned header never pushes the sumaroons off screen. */
 .details { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; max-height: 30vh; overflow: auto; }
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.perm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: #efefef; padding: 1px 10px; border-radius: 12px; }
+.perm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: $white; border: 1px solid $border-color; padding: 1px 10px; border-radius: 999px; }
 .perm .dot { width: 8px; height: 8px; border-radius: 50%; }
 .loading { padding: 24px; }

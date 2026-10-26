@@ -20,6 +20,9 @@
       <label nz-checkbox [nzChecked]="selected()" (nzCheckedChange)="selectToggle.emit(s._id)" aria-label="בחירת התמצית"></label>
     }
     <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="28" />
+    @if (unread()) {
+      <span class="unread" nz-tooltip="חדש — טרם נקרא" aria-label="טרם נקרא"></span>
+    }
     <div class="meta">
       <div class="who">
         <a [routerLink]="['/profile', s.user._id]" class="name">{{ s.user.fullName }}</a>
@@ -27,11 +30,21 @@
           <span class="dept">· {{ s.department || s.user.department }}</span>
         }
       </div>
+      <!-- One relative date (the event's, else when it was written); exact dates in the tooltip. -->
       <div class="dates">
-        @if (s.eventDate) {
-          <span nz-tooltip="תאריך האירוע"><span nz-icon nzType="calendar"></span> {{ s.eventDate | dateFormat: 'dd/MM/yyyy' }}{{ s.eventSecTime ? ' ' + (s.eventSecTime | dateFormat: 'HH:mm') : '' }}</span>
-        }
-        <span nz-tooltip="נכתב בתאריך"><span nz-icon nzType="clock-circle"></span> {{ s.creationDate | dateFormat }}</span>
+        <span [nz-tooltip]="exactDates">
+          @if (s.eventDate) {
+            <span nz-icon nzType="calendar"></span> {{ s.eventDate | relativeTime }}
+          } @else {
+            <span nz-icon nzType="clock-circle"></span> נכתב {{ s.creationDate | relativeTime }}
+          }
+        </span>
+        <ng-template #exactDates>
+          @if (s.eventDate) {
+            <div>תאריך האירוע: {{ s.eventDate | dateFormat: 'dd/MM/yyyy' }}{{ s.eventSecTime ? ' ' + (s.eventSecTime | dateFormat: 'HH:mm') : '' }}</div>
+          }
+          <div>נכתב: {{ s.creationDate | dateFormat }}</div>
+        </ng-template>
       </div>
     </div>
 
@@ -49,13 +62,7 @@
           </ul>
         </nz-dropdown-menu>
       }
-      <app-color-picker [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
-      @if (seen()) {
-        <span class="seen" nz-tooltip="נקרא"><span nz-icon nzType="check-circle"></span></span>
-      }
-      <button class="icon" type="button" (click)="toggleOpen.emit(s)" [nz-tooltip]="s.kind === K.Running ? 'פתיחת תמצית הרצף' : active() ? 'סגירת התמצית' : 'פתיחת התמצית'" [attr.aria-pressed]="active()" aria-label="פתיחת התמצית">
-        <span nz-icon [nzType]="active() ? 'eye-invisible' : 'eye'"></span>
-      </button>
+      <app-color-picker class="color" [class.unset]="!s.color" [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
       @if (isMine()) {
         <button class="icon" type="button" nz-dropdown [nzDropdownMenu]="menu" nzTrigger="click" nzPlacement="bottomLeft" aria-label="פעולות">
           <span nz-icon nzType="more"></span>
@@ -73,7 +80,7 @@
     </div>
   </div>
 
-  <button type="button" class="body" (click)="toggleOpen.emit(s)">
+  <button type="button" class="body" (click)="toggleOpen.emit(s)" [attr.aria-expanded]="active()">
     <div class="title" role="heading" aria-level="3" [innerHTML]="s.title | highlight: search() : T.Title"></div>
     <div class="ql-container ql-snow read-only preview">
       <div class="ql-editor" [innerHTML]="s.content | richHtml: search() : T.Content"></div>

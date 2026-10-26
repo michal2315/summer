@@ -4,12 +4,14 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { catchError, of } from 'rxjs';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
+import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { WhatsNewService } from '../../../shared/components/whats-new';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { UserService } from '../../auth/user.service';
 import { APP_CONFIG } from '../../config/app-config';
 import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { AltKeyId } from '../../../shared/keyboard/alt-keys';
+import { TourService } from '../../../shared/tour/tour.service';
 
 interface NavItem {
   label: string;
@@ -20,7 +22,7 @@ interface NavItem {
 
 @Component({
   selector: 'app-side-nav',
-  imports: [RouterLink, RouterLinkActive, NzIconModule, AvatarComponent, AltKeyDirective],
+  imports: [RouterLink, RouterLinkActive, NzIconModule, AvatarComponent, NotificationBellComponent, AltKeyDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './side-nav.component.html',
   styleUrl: './side-nav.component.scss',
@@ -33,6 +35,7 @@ export class SideNavComponent {
   });
 
   readonly whatsNew = inject(WhatsNewService);
+  readonly tour = inject(TourService);
   readonly navigate = output<void>();
   readonly user = this.users.user;
   readonly contactHref = `mailto:${this.config.usersMail.join(',')}?subject=${encodeURIComponent('פנייה בנושא Summer')}`;

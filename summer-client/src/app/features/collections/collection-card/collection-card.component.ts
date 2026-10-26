@@ -5,12 +5,12 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { ICollection } from '../../../shared/models';
-import { DateFormatPipe } from '../../../shared/pipes/pipes';
+import { DateFormatPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
 
 /** A collection rendered with the same structure and styles as a summary card (styles/_card.scss). */
 @Component({
   selector: 'app-collection-card',
-  imports: [RouterLink, NzIconModule, NzTagModule, NzToolTipModule, AvatarComponent, DateFormatPipe],
+  imports: [RouterLink, NzIconModule, NzTagModule, NzToolTipModule, AvatarComponent, DateFormatPipe, RelativeTimePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class.active]': 'active()',

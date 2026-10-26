@@ -8,7 +8,7 @@
 .page {
   height: 100%;
   display: grid;
-  grid-template-columns: var(--tree-width, 300px) 8px minmax(0, 1fr);
+  grid-template-columns: calc(var(--tree-width, 300px) + 12px) 12px minmax(0, 1fr);
 }
 
 // ---------- tree ----------
@@ -17,10 +17,12 @@
 .tree {
   overflow: auto;
   background: $white;
-  border: 1px solid $input-hover-color;
-  border-radius: 12px;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
   box-shadow: $card-shadow;
-  padding: 10px 6px 16px;
+  padding: 14px 8px 16px;
+  margin: 12px;
+  margin-inline-end: 0;
 }
 
 // Drag handle between the tree and the viewer.
@@ -31,14 +33,21 @@
   &::after {
     content: '';
     position: absolute;
-    inset: 0 3px;
+    top: 50%;
+    inset-inline: 4px;
+    height: 44px;
+    transform: translateY(-50%);
     border-radius: 2px;
-    background: transparent;
-    transition: background 0.15s;
+    background: $border-strong;
+    opacity: 0.6;
+    transition:
+      background $transition,
+      opacity $transition;
   }
   &:hover::after,
   &:focus-visible::after {
-    background: $input-hover-color;
+    background: $primary-pink;
+    opacity: 1;
   }
   &:focus-visible {
     outline: none;
@@ -49,7 +58,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px 8px;
+  padding: 0 6px 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid $border-color;
   .title {
     display: flex;
     align-items: center;
@@ -73,13 +84,15 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  border-radius: 5px;
+  border-radius: $border-radius;
   color: $dark-blue;
+  transition: background $transition;
   &:hover {
     background: $app-background;
   }
   &.active {
-    background: $input-color;
+    background: $background-soft;
+    color: $pink-strong;
     font-weight: 700;
   }
   .link {
@@ -135,9 +148,6 @@
     color: $dark-blue;
     background: $input-hover-color;
   }
-  &:focus-visible {
-    outline: 2px solid $accent;
-  }
 }
 span.twisty {
   cursor: default;
@@ -175,10 +185,10 @@ li.loading {
   overflow: auto;
   app-summary-detail {
     display: block;
-    padding: 24px 16px;
+    padding: 12px 12px 24px;
   }
   .back {
-    margin: 12px 8px -12px;
+    margin: 14px 12px 0;
   }
 }
 
@@ -209,7 +219,6 @@ li.loading {
   }
   .tree {
     max-height: 45vh;
-    border-inline-end: none;
-    border-bottom: 1px solid $input-color;
+    margin: 8px;
   }
 }

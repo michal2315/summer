@@ -1,9 +1,11 @@
+@use 'tokens' as *;
+
 :host { display: block; height: 100%; }
 .header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.back { font-size: 13px; color: #666; }
-.page-title { display: inline-flex; gap: 6px; align-items: center; }
+.page-title { display: inline-flex; gap: 8px; align-items: center; }
+.page-title [nz-icon] { color: $primary-orange; }
 .perms { display: flex; gap: 6px; flex-wrap: wrap; }
-.perm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: #efefef; padding: 1px 10px; border-radius: 12px; }
+.perm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: $white; border: 1px solid $border-color; padding: 1px 10px; border-radius: 999px; }
 .perm .dot { width: 8px; height: 8px; border-radius: 50%; }
 .spacer { flex: 1; }
 .loading { padding: 24px; }

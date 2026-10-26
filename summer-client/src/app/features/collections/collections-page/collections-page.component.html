@@ -5,7 +5,6 @@
         <input nz-input placeholder="חיפוש לקטים" [ngModel]="text()" (ngModelChange)="onText($event)" aria-label="חיפוש לקטים" />
       </nz-input-group>
       <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
-      <app-notification-bell />
     </div>
 
     <div class="header">
@@ -30,9 +29,20 @@
         />
       }
       @if (loading()) {
-        <div class="loader"><nz-spin nzSimple /></div>
+        <app-card-skeleton [count]="items().length ? 2 : 4" />
       } @else if (!items().length) {
-        <nz-empty nzNotFoundImage="simple" nzNotFoundContent="לא נמצאו לקטים" />
+        <div class="empty-state" role="status">
+          @if (text()) {
+            <span class="empty-icon" nz-icon nzType="search"></span>
+            <div class="empty-title">לא נמצאו לקטים בשם "{{ text() }}"</div>
+            <button nz-button type="button" (click)="onText('')"><span nz-icon nzType="close-circle"></span> ניקוי החיפוש</button>
+          } @else {
+            <span class="empty-icon" nz-icon nzType="folder"></span>
+            <div class="empty-title">{{ all() ? 'עדיין אין לקטים' : 'אין לקטים שאת/ה מנהל/ת' }}</div>
+            <div class="empty-hint">לקט מאגד תמציות בנושא אחד, כדי שיהיה קל למצוא ולשתף אותן.</div>
+            <button nz-button nzType="primary" type="button" (click)="create()"><span nz-icon nzType="plus"></span> לקט חדש</button>
+          }
+        </div>
       }
       @if (!done()) {
         <div class="sentinel" (appInView)="loadMore()"></div>
@@ -43,8 +53,6 @@
   <div aside>
     @if (selectedId(); as id) {
       <app-selected-collection [collectionId]="id" (closed)="close()" />
-    } @else {
-      <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו לקט מהרשימה כדי לראות את פרטיו" />
     }
   </div>
 </app-resizable-page>

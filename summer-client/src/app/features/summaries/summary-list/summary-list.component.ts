@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { format } from 'date-fns';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
-import { NzEmptyModule } from 'ng-zorro-antd/empty';
+import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { CardSkeletonComponent } from '../../../shared/components/card-skeleton/card-skeleton.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
-import { Router } from '@angular/router';
+import { LoadingQuipComponent } from '../../../shared/easter-eggs/loading-quip/loading-quip.component';
+import { SummyComponent } from '../../../shared/easter-eggs/summy/summy.component';
+import { Router, RouterLink } from '@angular/router';
 import { ISummary, ISummaryParent, ISummarySearch } from '../../../shared/models';
 import { SummaryCardComponent } from '../summary-card/summary-card.component';
 import { SummaryListStore } from '../summary-list.store';
@@ -19,12 +21,19 @@ interface Group {
   items: Item[];
 }
 
+/** What an empty, unfiltered list says — and optionally offers. */
+export interface EmptyState {
+  title: string;
+  hint?: string;
+  action?: { label: string; link: string[] };
+}
+
 /** Sumaroon titles a bundle row lists before "ועוד". */
 const BUNDLE_PREVIEW = 3;
 
 @Component({
   selector: 'app-summary-list',
-  imports: [NzDividerModule, NzEmptyModule, NzIconModule, NzSpinModule, InViewDirective, SummaryCardComponent],
+  imports: [NzButtonModule, NzDividerModule, NzIconModule, RouterLink, CardSkeletonComponent, InViewDirective, LoadingQuipComponent, SummaryCardComponent, SummyComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     tabindex: '0',
@@ -48,8 +57,14 @@ export class SummaryListComponent {
   readonly bundlePreview = BUNDLE_PREVIEW;
   private readonly router = inject(Router);
   readonly toggle = output<ISummary>();
+  /** A search or filter is applied — an empty result then offers to clear it. */
+  readonly filtered = input(false);
+  readonly empty = input<EmptyState>({ title: 'אין כאן עדיין תמציות' });
+  readonly clearSearch = output<void>();
 
   readonly focusedIndex = signal(-1);
+  /** Easter egg: a search that finds exactly one summary. */
+  readonly directHit = computed(() => this.filtered() && !this.store.loading() && this.store.total() === 1);
 
   /** Group under an event-date divider only when sorted by event date — otherwise the dividers would be noise. */
   readonly groups = computed<Group[]>(() => {

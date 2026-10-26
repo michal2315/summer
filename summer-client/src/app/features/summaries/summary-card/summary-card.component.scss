@@ -4,15 +4,43 @@
 .collections {
   all: unset;
   cursor: pointer;
-  background: $gray-tag;
-  border-radius: 10px;
-  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: $orange-50;
+  color: $orange-strong;
+  border-radius: 999px;
+  padding: 1px 8px;
   font-weight: 700;
+  &:hover {
+    background: $orange-100;
+  }
 }
 
-.seen {
-  color: #ff6975;
-  font-size: 13px;
+// Unread: a small brand dot before the author, instead of marking the read ones.
+.unread {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: -2px;
+  border-radius: 50%;
+  background: $background;
+  box-shadow: 0 0 0 3px rgba($primary-pink, 0.15);
+}
+
+// No colour yet: the picker appears only while the card is hovered or focused.
+.color.unset {
+  opacity: 0;
+  transition: opacity $transition;
+}
+.card:hover .color.unset,
+.card:focus-within .color.unset {
+  opacity: 1;
+}
+@media (hover: none) {
+  .color.unset {
+    opacity: 1;
+  }
 }
 
 // ---- running summary / sumaroon ----
@@ -24,11 +52,12 @@
   gap: 6px;
   font-size: 12px;
   color: $accent;
-  padding: 4px 10px;
-  margin: -4px -4px 6px;
-  border-radius: $border-radius $border-radius 0 0;
-  background: $app-background;
-  border-bottom: 1px solid $input-color;
+  padding: 4px 12px;
+  margin: -8px -12px 4px;
+  border-radius: 11px 11px 0 0;
+  background: $surface-subtle;
+  border-bottom: 1px solid $border-color;
+  transition: background $transition;
   .parent-title {
     font-weight: 700;
     overflow: hidden;
@@ -38,13 +67,10 @@
   &:hover {
     background: $input-color;
   }
-  &:focus-visible {
-    outline: 2px solid $accent;
-  }
 }
 // A running summary reads as a stack of three cards: two offset "sheets" behind it, a grey banner on top.
-$sheet-1: #d6d6dc;
-$sheet-2: #e4e4e8;
+$sheet-1: $border-strong;
+$sheet-2: $input-hover-color;
 $stack:
   -6px 6px 0 -1px $white,
   -6px 6px 0 0 $sheet-1,
@@ -54,17 +80,24 @@ $stack:
 :host(.running) {
   padding: 0 0 12px 12px;
   .card {
-    border-inline-start-color: $gray;
     box-shadow:
       $stack,
-      0 1px 6px rgba(0, 0, 0, 0.07);
+      $card-shadow;
+    &::before {
+      border-inline-start-color: $gray;
+    }
     // Keep the stack on hover (the shared card style swaps the shadow).
     &:hover {
       box-shadow:
         $stack,
-        0 2px 12px rgba(0, 0, 0, 0.14);
+        $card-shadow-hover;
     }
   }
+}
+:host(.running.active) .card {
+  box-shadow:
+    $stack,
+    0 0 0 3px rgba($primary-pink, 0.14);
 }
 .running-banner {
   display: flex;
@@ -72,10 +105,11 @@ $stack:
   gap: 6px;
   font-size: 12px;
   color: $dark-blue;
-  background: $gray-tag;
-  padding: 3px 10px;
+  background: $surface-subtle;
+  border-bottom: 1px solid $border-color;
+  padding: 4px 12px;
   margin: -8px -12px 4px;
-  border-radius: 6px 6px 0 0;
+  border-radius: 11px 11px 0 0;
   .range {
     color: $dark-gray;
   }
@@ -87,12 +121,13 @@ $stack:
 .sumaroon-preview {
   list-style: none;
   margin: 2px 0 4px;
-  padding: 6px 8px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  background: $app-background;
-  border-radius: 6px;
+  gap: 3px;
+  background: $surface-subtle;
+  border: 1px solid $border-color;
+  border-radius: $border-radius;
   font-size: 12px;
   li {
     display: flex;
@@ -110,7 +145,7 @@ $stack:
     font-size: 11px;
     font-weight: 700;
     background: $white;
-    border: 1px solid $gray;
+    border: 1px solid $border-strong;
   }
   .t {
     overflow: hidden;

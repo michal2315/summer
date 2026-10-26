@@ -1,12 +1,16 @@
-.comments { border-top: 1px solid #f0f0f0; padding-top: 12px; }
-.comments-title { font-size: 13px; font-weight: 800; margin: 0 0 6px; }
-ul { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.comment { display: flex; gap: 8px; align-items: flex-start; }
-.bubble { background: #f7f7f7; border-radius: 10px; padding: 4px 10px; font-size: 12.5px; flex: 1; min-width: 0; }
+@use 'tokens' as *;
+
+.comments { border-top: 1px solid $border-color; padding-top: 16px; margin-top: 4px; }
+.comments-title { font-size: 14px; font-weight: 800; margin: 0 0 10px; }
+ul { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.comment { display: flex; gap: 10px; align-items: flex-start; }
+.bubble { background: $surface-subtle; border: 1px solid $border-color; border-radius: $radius-md; border-start-start-radius: 4px; padding: 6px 12px 8px; font-size: 13px; flex: 1; min-width: 0; }
 .head { display: flex; align-items: center; gap: 8px; }
-.name { font-weight: 700; color: #05043d; }
-.time { font-size: 11px; color: #9b9bb1; }
+.name { font-weight: 700; color: $dark-blue; }
+.name:hover { color: $pink-strong; }
+.time { font-size: 11px; color: $gray; }
 .head button { margin-inline-start: auto; }
-.comment-text { margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; }
+.comment-text { margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
 .composer { display: flex; gap: 8px; align-items: flex-end; }
+.composer textarea { border-radius: $radius-md; }
 nz-mention { flex: 1; }

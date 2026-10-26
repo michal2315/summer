@@ -3,16 +3,14 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
+import { CardSkeletonComponent } from '../../../shared/components/card-skeleton/card-skeleton.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
-import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { ResizablePageComponent } from '../../../shared/components/resizable-page/resizable-page.component';
 import { ICollection } from '../../../shared/models';
 import { CollectionService } from '../../../shared/services/collection.service';
@@ -28,13 +26,11 @@ const PAGE = 20;
   imports: [
     FormsModule,
     NzButtonModule,
-    NzEmptyModule,
     NzIconModule,
     NzInputModule,
-    NzSpinModule,
     NzSwitchModule,
+    CardSkeletonComponent,
     InViewDirective,
-    NotificationBellComponent,
     ResizablePageComponent,
     CollectionCardComponent,
     SelectedCollectionComponent,

@@ -1,0 +1,112 @@
+<svg class="summy" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="summy-face" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffc94a" />
+      <stop offset="100%" stop-color="#ff9155" />
+    </linearGradient>
+  </defs>
+
+  <g class="rays">
+    @for (r of rays; track r) {
+      <rect x="57" y="4" width="6" height="14" rx="3" [attr.transform]="'rotate(' + r + ' 60 60)'" />
+    }
+  </g>
+
+  <g class="body">
+    <circle class="face" cx="60" cy="60" r="34" fill="url(#summy-face)" />
+    <circle class="cheek" cx="42" cy="68" r="5" />
+    <circle class="cheek" cx="78" cy="68" r="5" />
+
+    @switch (mood()) {
+      @case ('empty') {
+        <g class="shades">
+          <rect x="38" y="48" width="19" height="12" rx="5" />
+          <rect x="63" y="48" width="19" height="12" rx="5" />
+          <path d="M57 53 h6" class="bridge" />
+          <path d="M42 51 l5 -2" class="glint" />
+          <path d="M67 51 l5 -2" class="glint" />
+        </g>
+        <path class="mouth" d="M48 72 q12 10 24 0" />
+      }
+      @case ('error') {
+        <g class="dizzy">
+          <path d="M43 50 l9 9 M52 50 l-9 9" />
+          <path d="M68 50 l9 9 M77 50 l-9 9" />
+        </g>
+        <path class="mouth" d="M46 76 q3.5 -4 7 0 t7 0 t7 0 t7 0" />
+        <path class="sweat" d="M88 38 q5 8 0 11 q-5 -3 0 -11 z" />
+      }
+      @case ('soldier') {
+        <g class="eyes">
+          <ellipse cx="49" cy="60" rx="3.5" ry="4" />
+          <ellipse cx="71" cy="60" rx="3.5" ry="4" />
+        </g>
+        <path class="mouth" d="M51 74 q9 6 18 0" />
+        <g class="helmet">
+          <path d="M24 52 Q24 21 60 21 Q96 21 96 52 Z" />
+          <rect class="brim" x="20" y="49" width="80" height="7" rx="3.5" />
+          <path class="strap" d="M27 56 Q30 84 52 90 M93 56 Q90 84 68 90" />
+          <circle class="net" cx="44" cy="35" r="2" />
+          <circle class="net" cx="60" cy="29" r="2" />
+          <circle class="net" cx="76" cy="35" r="2" />
+          <circle class="net" cx="52" cy="44" r="2" />
+          <circle class="net" cx="68" cy="44" r="2" />
+        </g>
+        <!-- A Tavor (bullpup: grip in front of the magazine), red-dot sight on top, held across the chest. -->
+        <g class="rifle" transform="translate(60 92) rotate(-18)">
+          <path class="stock" d="M-38 -6 L12 -8 L18 -2 L18 5 L-38 6 Q-41 0 -38 -6 Z" />
+          <rect class="barrel" x="17" y="-3" width="20" height="5" rx="1" />
+          <rect class="barrel" x="35" y="-4" width="4" height="7" rx="1" />
+          <rect class="rail" x="-16" y="-11" width="28" height="3" rx="1" />
+          <rect class="sight" x="-7" y="-19" width="13" height="9" rx="2" />
+          <circle class="dot" cx="-0.5" cy="-14.5" r="2.5" />
+          <rect class="mag" x="-20" y="5" width="8" height="13" rx="1.5" transform="rotate(8 -16 5)" />
+          <path class="stock" d="M1 5 L8 5 L5 18 L-1 18 Z" />
+          <path class="guard" d="M8 7 Q16 7 15 14" />
+          <circle class="hand" cx="3" cy="11" r="5" />
+          <circle class="hand" cx="24" cy="4" r="5" />
+        </g>
+      }
+      @case ('target') {
+        <path class="wink" d="M44 56 q5 -4 10 0" />
+        <ellipse class="eye" cx="71" cy="55" rx="3.5" ry="4.5" />
+        <g class="reticle">
+          <circle cx="71" cy="55" r="12" />
+          <path d="M71 39 v6 M71 65 v6 M55 55 h6 M81 55 h6" />
+          <circle class="dot" cx="71" cy="55" r="2" />
+        </g>
+        <path class="mouth" d="M50 73 q10 6 20 -2" />
+      }
+      @default {
+        <g class="eyes">
+          <ellipse cx="49" cy="55" rx="3.5" ry="4.5" />
+          <ellipse cx="71" cy="55" rx="3.5" ry="4.5" />
+        </g>
+        @if (mood() === 'search') {
+          <ellipse class="mouth-o" cx="60" cy="73" rx="4" ry="5" />
+        } @else {
+          <path class="mouth" d="M51 74 q9 -5 18 0" />
+        }
+      }
+    }
+  </g>
+
+  @switch (mood()) {
+    @case ('search') {
+      <g class="glass">
+        <circle cx="92" cy="86" r="11" />
+        <path d="M100 94 l10 10" />
+      </g>
+    }
+    @case ('lost') {
+      <text class="question" x="96" y="30">?</text>
+    }
+    @case ('locked') {
+      <g class="lock">
+        <path class="shackle" d="M51 92 v-6 a9 9 0 0 1 18 0 v6" />
+        <rect x="46" y="91" width="28" height="22" rx="5" />
+        <circle class="keyhole" cx="60" cy="101" r="3" />
+      </g>
+    }
+  }
+</svg>

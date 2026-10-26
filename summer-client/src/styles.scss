@@ -23,6 +23,12 @@ body {
   height: 100%;
   color: $dark-blue;
   background: $white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba($primary-pink, 0.2);
 }
 
 // Scrollbars hidden everywhere — areas still scroll by wheel, touch and keyboard.
@@ -33,30 +39,156 @@ body {
   display: none;
 }
 
-// Search hit
-.highlight {
-  background: yellow;
-  font-weight: bold;
+// One visible keyboard-focus ring for custom (`all: unset`) controls across the app.
+:is(a, button, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid rgba($primary-pink, 0.55);
+  outline-offset: 2px;
 }
 
-// Primary button = 137° orange→pink gradient
+// Search hit — a soft marker stroke in the brand orange
+.highlight {
+  background: linear-gradient(transparent 12%, rgba($primary-orange, 0.32) 12%, rgba($primary-orange, 0.32) 92%, transparent 92%);
+  color: inherit;
+  font-weight: 700;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+// ---- Buttons ----
+// Primary button = 137° orange→pink gradient with a soft brand glow
 .ant-btn-primary:not([disabled]) {
   background: $background;
   border: none;
+  box-shadow: 0 4px 12px -4px rgba($primary-pink, 0.55);
+  transition:
+    box-shadow $transition,
+    transform $transition,
+    background $transition;
   &:hover,
   &:focus {
     background: $background-hover;
+    box-shadow: 0 6px 16px -4px rgba($primary-pink, 0.6);
+  }
+  &:active {
+    transform: translateY(1px);
   }
 }
 
-// Tag chips
+.ant-btn-default:not([disabled]):not(.ant-btn-dangerous) {
+  &:hover,
+  &:focus {
+    color: $pink-strong;
+    border-color: rgba($primary-pink, 0.5);
+    background: $pink-50;
+  }
+}
+
+.ant-btn-text:not([disabled]):not(.ant-btn-dangerous) {
+  color: $dark-gray;
+  &:hover,
+  &:focus {
+    color: $dark-blue;
+    background: $input-color;
+  }
+}
+
+// Segmented (radio-button) toggles read as one pill
+.ant-radio-group-solid .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+  background: $background;
+  border-color: transparent !important;
+  &::before {
+    background-color: transparent !important;
+  }
+}
+
+// ---- Tags ----
 .ant-tag.label-chip {
   background: $gray-tag;
   border: none;
-  font-weight: 700;
+  border-radius: 999px;
+  font-weight: 600;
   color: $dark-blue;
   font-size: 12px;
+  padding-inline: 8px;
   cursor: pointer;
+  transition:
+    background $transition,
+    color $transition;
+  &:hover {
+    background: $pink-50;
+    color: $pink-strong;
+  }
+}
+
+// ---- Tabs ----
+.ant-tabs-ink-bar {
+  background: $background;
+  height: 3px !important;
+  border-radius: 3px 3px 0 0;
+}
+.ant-tabs-tab-btn {
+  font-weight: 600;
+}
+.ant-tabs-top > .ant-tabs-nav::before {
+  border-bottom-color: $border-color;
+}
+
+// ---- Overlays ----
+.ant-dropdown-menu,
+.ant-select-dropdown,
+.ant-picker-dropdown .ant-picker-panel-container,
+.ant-popover-inner {
+  border-radius: $radius-md;
+  box-shadow: $shadow;
+}
+.ant-dropdown-menu {
+  padding: 6px;
+}
+.ant-dropdown-menu-item,
+.ant-select-item {
+  border-radius: $radius-sm;
+}
+.ant-popover-title {
+  font-weight: 700;
+  border-bottom-color: $border-color;
+}
+.ant-tooltip-inner {
+  font-size: 12px;
+  min-height: 28px;
+  padding: 5px 10px;
+}
+.ant-modal-content {
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow;
+}
+.ant-modal-header {
+  border-radius: $radius-lg $radius-lg 0 0;
+}
+.ant-modal-title {
+  font-weight: 800;
+  font-size: 17px;
+}
+
+// ---- Inputs ----
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select:not(.ant-select-customize-input) .ant-select-selector,
+.ant-picker,
+.ant-input-number {
+  transition:
+    border-color $transition,
+    box-shadow $transition;
+}
+
+// ---- Collapse ----
+.ant-collapse-borderless > .ant-collapse-item {
+  border-bottom-color: $border-color;
+}
+
+// ---- Empty states ----
+.ant-empty-description {
+  color: $gray;
 }
 
 // Quill's own CSS forces `text-align: left`; the app is RTL, so lines without an explicit alignment go right.
@@ -71,6 +203,9 @@ body {
 }
 .ant-form-vertical .ant-form-item-label {
   padding-bottom: 4px;
+  > label {
+    font-weight: 600;
+  }
 }
 
 // Read-only Quill HTML
@@ -87,10 +222,11 @@ body {
 // Quill editors in forms: keep RTL toolbar sensible
 .ql-toolbar.ql-snow,
 .ql-container.ql-snow {
-  border-color: #d9d9d9;
+  border-color: $border-strong;
 }
 .ql-toolbar.ql-snow {
   border-radius: $border-radius $border-radius 0 0;
+  background: $surface-subtle;
 }
 .ql-container.ql-snow:not(.read-only) {
   border-radius: 0 0 $border-radius $border-radius;
@@ -104,9 +240,79 @@ body {
   color: $gray;
 }
 
+// Back navigation: one recognisable pill everywhere (arrow + where it leads).
+.back-link {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: 30px;
+  padding: 0 12px 0 14px;
+  border-radius: 999px;
+  border: 1px solid $border-strong;
+  background: $white;
+  color: $dark-blue;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: $card-shadow;
+  transition:
+    background $transition,
+    border-color $transition,
+    color $transition;
+  [nz-icon] {
+    font-size: 13px;
+    transition: transform $transition;
+  }
+  &:hover,
+  &:focus-visible {
+    color: $pink-strong;
+    border-color: rgba($primary-pink, 0.5);
+    background: $pink-50;
+    [nz-icon] {
+      transform: translateX(3px); // RTL: nudges toward "back"
+    }
+  }
+}
+
+// Empty result: an explanation and, where it helps, one next step.
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 16px;
+  text-align: center;
+  .empty-icon {
+    font-size: 22px;
+    color: $primary-pink;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    background: $background-soft;
+    margin-bottom: 4px;
+  }
+  .empty-title {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .empty-hint {
+    font-size: 13px;
+    color: $dark-gray;
+    max-width: 380px;
+    margin-bottom: 6px;
+  }
+}
+
 .page-title {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 800;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
@@ -121,4 +327,13 @@ body {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

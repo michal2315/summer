@@ -28,7 +28,8 @@
 .feed-scroller {
   height: 100%;
   overflow: auto;
-  // Room on the inline-end (left in RTL) for the scroll rail.
+  // A little room so the active card's focus ring isn't clipped; more on the inline-end (left in RTL) for the scroll rail.
+  padding: 4px 4px 0;
   padding-inline-end: 18px;
 }
 
@@ -41,13 +42,6 @@
   margin-bottom: -8px;
 }
 
-.no-selection {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  margin: 0;
-}
 
 .toolbar {
   display: flex;
@@ -66,7 +60,7 @@
 .top {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   &.sticky {
     position: sticky;
     top: 0;
@@ -74,4 +68,59 @@
     background: $app-background;
     padding-bottom: 8px;
   }
+}
+
+.toolbar {
+  .title-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-inline-end: 6px;
+  }
+  .count-pill {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: $pink-50;
+    color: $pink-strong;
+  }
+  .count {
+    font-size: 14px;
+    font-weight: 800;
+    padding-inline-end: 4px;
+  }
+  // View switcher: one quiet pill with the active view in the brand gradient.
+  ::ng-deep .ant-radio-group {
+    display: inline-flex;
+    padding: 2px;
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: 999px;
+  }
+  ::ng-deep .ant-radio-button-wrapper {
+    border: none !important;
+    border-radius: 999px !important;
+    background: transparent;
+    height: 22px;
+    line-height: 22px;
+    padding: 0 10px;
+    color: $gray;
+    &::before {
+      display: none;
+    }
+    &:hover {
+      color: $dark-blue;
+    }
+  }
+  ::ng-deep .ant-radio-button-wrapper-checked {
+    background: $background !important;
+    color: $white !important;
+    box-shadow: 0 2px 6px -2px rgba($primary-pink, 0.6) !important;
+  }
+}
+
+.tabs ::ng-deep .ant-tabs-nav {
+  margin-bottom: 4px;
 }

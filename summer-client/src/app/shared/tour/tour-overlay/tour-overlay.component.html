@@ -1,0 +1,86 @@
+@if (shown(); as s) {
+  <div class="tour" [class.doing]="doing()" [class.free]="!hasTarget()">
+    @for (b of [0, 1, 2, 3]; track b) {
+      <div class="block" #block></div>
+    }
+    <div class="hole" #hole></div>
+
+    <div class="pop" #pop role="dialog" [attr.aria-label]="s.title" [class.in]="entered()" [class.busy]="busy()" [class.done]="done()">
+      <div class="top">
+        <span class="topic">{{ tour.topicTitle(s) }}</span>
+        @if (tour.isNew(s)) {
+          <span class="new">חדש</span>
+        }
+        <button type="button" class="close" (click)="close()" title="סגירת הסיור (Esc)" aria-label="סגירת הסיור">
+          <span nz-icon nzType="close"></span>
+        </button>
+      </div>
+
+      <div class="title" role="heading" aria-level="2">{{ s.title }}</div>
+      <div class="body">{{ s.body }}</div>
+
+      @if (s.tip) {
+        <div class="tip">
+          <span class="tip-label">טיפ</span>
+          <span>{{ s.tip }}</span>
+        </div>
+      }
+
+      @if (keyHints().length) {
+        <div class="keys">
+          @for (k of keyHints(); track $index) {
+            <span class="key-hint">
+              <span class="combo" dir="ltr">
+                @for (part of k.keys; track $index) {
+                  @if ($index) {
+                    <span class="plus">+</span>
+                  }
+                  <span class="kbd">{{ part }}</span>
+                }
+              </span>
+              @if (k.label) {
+                <span class="key-label">{{ k.label }}</span>
+              }
+            </span>
+          }
+        </div>
+      }
+
+      @if (doing() && s.do; as d) {
+        <div class="do"><span class="pulse"></span>{{ d.hint }}</div>
+      }
+
+      <div class="foot">
+        @if (!tour.isFirst()) {
+          <button nz-button type="button" (click)="prev()">הקודם</button>
+        }
+        <span class="steps">{{ tour.index() + 1 }} / {{ tour.steps().length }}</span>
+        <span class="spacer"></span>
+        @if (s.action; as a) {
+          <button nz-button type="button" (click)="runAction(s)">{{ a.label }}</button>
+        }
+        @if (doing()) {
+          <button nz-button nzType="text" type="button" class="primary-action" (click)="next()">דלג</button>
+        } @else {
+          <button nz-button nzType="primary" type="button" class="primary-action" (click)="next()">{{ tour.isLast() ? 'סיום' : 'הבא' }}</button>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+@if (tour.hubAnchor(); as anchor) {
+  <app-tour-hub [anchor]="anchor" />
+}
+
+@if (tour.nudgeOpen() && tour.unseenNew().length && !shown()) {
+  <div class="nudge" role="status">
+    <span class="dot"></span>
+    <span class="nudge-text">
+      <span class="nudge-title">{{ tour.unseenNew().length === 1 ? 'משהו חדש' : tour.unseenNew().length + ' דברים חדשים' }}</span>
+      · {{ unseenNewTitles() }}
+    </span>
+    <button nz-button nzType="primary" nzSize="small" type="button" (click)="tour.startNew()">הצגה</button>
+    <button type="button" class="close" (click)="tour.dismissNudge()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+  </div>
+}

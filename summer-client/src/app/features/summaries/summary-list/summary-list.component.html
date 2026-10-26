@@ -36,10 +36,37 @@
   }
 }
 
+@if (directHit()) {
+  <div class="empty-state direct-hit" role="status">
+    <app-summy mood="target" />
+    <div class="empty-title">פגיעה ישירה 🎯</div>
+    <div class="empty-hint">תוצאה אחת בדיוק</div>
+  </div>
+}
+
 @if (store.loading()) {
-  <div class="loader"><nz-spin nzSimple /></div>
+  @if (!store.summaries().length) {
+    <app-loading-quip />
+  }
+  <app-card-skeleton [count]="store.summaries().length ? 2 : 4" />
 } @else if (store.loaded() && !store.summaries().length) {
-  <nz-empty class="empty" nzNotFoundImage="simple" nzNotFoundContent="לא נמצאו תוצאות" />
+  <div class="empty-state" role="status">
+    @if (filtered()) {
+      <app-summy mood="search" />
+      <div class="empty-title">לא נמצאו תמציות שמתאימות לחיפוש</div>
+      <div class="empty-hint">נסו מילים אחרות, או הסירו חלק מהמסננים.</div>
+      <button nz-button type="button" (click)="clearSearch.emit()"><span nz-icon nzType="close-circle"></span> ניקוי החיפוש</button>
+    } @else {
+      <app-summy mood="empty" />
+      <div class="empty-title">{{ empty().title }}</div>
+      @if (empty().hint; as hint) {
+        <div class="empty-hint">{{ hint }}</div>
+      }
+      @if (empty().action; as a) {
+        <a nz-button nzType="primary" [routerLink]="a.link"><span nz-icon nzType="plus"></span> {{ a.label }}</a>
+      }
+    }
+  </div>
 }
 
 @if (store.hasMore()) {

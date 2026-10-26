@@ -1,0 +1,45 @@
+@use 'tokens' as *;
+
+:host {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: $dark-gray;
+}
+
+// Re-created for every quip (track by text), so each one fades in.
+.text {
+  background: linear-gradient(90deg, $dark-gray 0%, $dark-gray 40%, $primary-orange 50%, $dark-gray 60%, $dark-gray 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    fade-in 0.3s ease-out,
+    shine 1.8s linear infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+// RTL: the glint travels right → left, with the reading direction.
+@keyframes shine {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text {
+    animation: none;
+  }
+}

@@ -8,8 +8,11 @@
         <span class="dept">· {{ c.managers.length === 1 ? 'מנהל/ת אחד/ת' : c.managers.length + ' מנהלים' }}</span>
       </div>
       <div class="dates">
-        <span nz-tooltip="עודכן"><span nz-icon nzType="clock-circle"></span> {{ c.updatedAt | dateFormat }}</span>
-        <span nz-tooltip="נוצר"><span nz-icon nzType="calendar"></span> {{ c.createdAt | dateFormat: 'dd/MM/yyyy' }}</span>
+        <span [nz-tooltip]="exactDates"><span nz-icon nzType="clock-circle"></span> עודכן {{ c.updatedAt | relativeTime }}</span>
+        <ng-template #exactDates>
+          <div>עודכן: {{ c.updatedAt | dateFormat }}</div>
+          <div>נוצר: {{ c.createdAt | dateFormat: 'dd/MM/yyyy' }}</div>
+        </ng-template>
       </div>
     </div>
 

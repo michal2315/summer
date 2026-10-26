@@ -5,11 +5,11 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subject, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
-import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { IContentType, IQueryGroup, ISummarySearch, UserRef } from '../../../shared/models';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { SearchHistoryService, stripPaging } from '../../../shared/services/search-history.service';
 import { querySegments, replaceShortcut, shortcutAt } from '../../../shared/utils/search-syntax';
+import { EasterEggsService } from '../../../shared/easter-eggs/easter-eggs.service';
 import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { AdvancedSearchComponent } from '../advanced-search/advanced-search.component';
 import { countConditions } from '../advanced-search/query-tree';
@@ -37,7 +37,7 @@ type Suggestion = { kind: 'user'; user: UserRef } | { kind: 'type'; type: IConte
 
 @Component({
   selector: 'app-summary-search',
-  imports: [NzBadgeModule, NzIconModule, NzTagModule, NzToolTipModule, NotificationBellComponent, AdvancedSearchComponent, AltKeyDirective],
+  imports: [NzBadgeModule, NzIconModule, NzTagModule, NzToolTipModule, AdvancedSearchComponent, AltKeyDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-search.component.html',
   styleUrl: './summary-search.component.scss',
@@ -50,10 +50,10 @@ export class SummarySearchComponent {
   private readonly users = inject(UserService);
   private readonly contentTypes = inject(ContentTypeService);
   private readonly history = inject(SearchHistoryService);
+  private readonly eggs = inject(EasterEggsService);
 
   /** Currently applied search (from the URL). */
   readonly search = input<ISummarySearch>({});
-  readonly showBell = input(true);
   readonly placeholder = input('חיפוש תמציות');
   readonly searchChange = output<ISummarySearch>();
 
@@ -174,6 +174,7 @@ export class SummarySearchComponent {
   }
 
   submit() {
+    this.eggs.onSearch(this.text());
     this.apply({ ...this.search(), text: this.text().trim() || undefined });
     this.input().nativeElement.blur();
   }

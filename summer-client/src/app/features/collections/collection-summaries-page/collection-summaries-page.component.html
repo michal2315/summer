@@ -1,8 +1,8 @@
 @if (collection(); as c) {
-  <app-summary-browser [ownerId]="userId()!" [collection]="c" [searchPlaceholder]="'חיפוש בתוך ' + c.name" [detailAside]="!embedded()">
+  <app-summary-browser [ownerId]="userId()!" [collection]="c" [searchPlaceholder]="'חיפוש בתוך ' + c.name" [detailAside]="!embedded()" [empty]="empty">
     <div browser-header class="header">
       @if (!embedded()) {
-        <a routerLink="/collections" class="back"><span nz-icon nzType="arrow-right"></span> לקטים</a>
+        <a routerLink="/collections" class="back-link"><span nz-icon nzType="arrow-right"></span> חזרה ללקטים</a>
       }
       <div class="page-title" role="heading" aria-level="1"><span nz-icon nzType="folder-open"></span> {{ c.name }}</div>
       <span class="perms">

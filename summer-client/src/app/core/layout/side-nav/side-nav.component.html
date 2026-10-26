@@ -4,13 +4,16 @@
   </a>
 
   @if (user(); as u) {
-    <a class="user" [routerLink]="['/profile', u._id]" (click)="navigate.emit()">
-      <app-avatar [user]="u" [size]="32" />
-      <span class="who">
-        <span class="name">{{ u.fullName }}</span>
-        <span class="dept">{{ u.department }}</span>
-      </span>
-    </a>
+    <div class="me">
+      <a class="user" [routerLink]="['/profile', u._id]" (click)="navigate.emit()">
+        <app-avatar [user]="u" [size]="28" />
+        <span class="who">
+          <span class="name">{{ u.fullName }}</span>
+          <span class="dept">{{ u.department }}</span>
+        </span>
+      </a>
+      <app-notification-bell />
+    </div>
   }
 
   <ul class="links">
@@ -25,6 +28,17 @@
   </ul>
 
   <div class="footer">
+    <button
+      #tourBtn
+      type="button"
+      class="tour-btn"
+      appAltKey="tour"
+      [class.has-new]="tour.unseenNew().length"
+      (click)="tour.toggleHub(tourBtn)"
+      [attr.aria-expanded]="!!tour.hubAnchor()"
+    >
+      <span nz-icon nzType="compass"></span> סיור ועזרה
+    </button>
     <button type="button" (click)="whatsNew.open()"><span nz-icon nzType="gift"></span> מה חדש</button>
     <a [href]="contactHref"><span nz-icon nzType="mail"></span> צרו קשר במייל</a>
     <span class="credit">פותח ב-💗 על ידי מיכל גולן</span>

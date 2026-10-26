@@ -1,3 +1,5 @@
+@use 'tokens' as *;
+
 :host { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.count { font-weight: 700; font-size: 13px; }
-.count.capped { color: #e74d3d; }
+.count { font-weight: 700; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: $pink-50; color: $pink-strong; }
+.count.capped { color: $error-color; }

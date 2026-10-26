@@ -1,17 +1,22 @@
 @if (!store.selectMode()) {
   <button nz-button nzSize="small" type="button" appAltKey="selectMode" (click)="store.setSelectMode(true)"><span nz-icon nzType="check-square"></span> בחירה</button>
   @if (excelActions()) {
-    <button nz-button nzSize="small" type="button" nz-dropdown [nzDropdownMenu]="templates" nzTrigger="click">
-      <span nz-icon nzType="download"></span> תבנית Excel <span nz-icon nzType="down"></span>
+    <!-- Rarely used: Excel import/templates live behind one overflow button. -->
+    <button nz-button nzSize="small" nzType="text" type="button" nz-dropdown [nzDropdownMenu]="more" nzTrigger="click" nz-tooltip="פעולות Excel" aria-label="פעולות Excel">
+      <span nz-icon nzType="more"></span>
     </button>
-    <nz-dropdown-menu #templates="nzDropdownMenu">
+    <nz-dropdown-menu #more="nzDropdownMenu">
       <ul nz-menu>
-        @for (t of contentTypes.list(); track t._id) {
-          <li nz-menu-item (click)="downloadTemplate(t)">{{ t.displayName }}</li>
-        }
+        <li nz-menu-item (click)="openUpload()"><span nz-icon nzType="upload"></span>&nbsp;העלאת Excel</li>
+        <li nz-submenu nzTitle="הורדת תבנית Excel" nzIcon="download">
+          <ul>
+            @for (t of contentTypes.list(); track t._id) {
+              <li nz-menu-item (click)="downloadTemplate(t)">{{ t.displayName }}</li>
+            }
+          </ul>
+        </li>
       </ul>
     </nz-dropdown-menu>
-    <button nz-button nzSize="small" type="button" (click)="openUpload()"><span nz-icon nzType="upload"></span> העלאת Excel</button>
   }
 } @else {
   <span class="count" [class.capped]="store.selectedCount() >= store.maxSelection">נבחרו: {{ store.selectedCount() }}</span>

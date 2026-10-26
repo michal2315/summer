@@ -12,6 +12,8 @@ import { SummaryBrowserComponent } from '../../summaries/summary-browser/summary
 import { CollectionEditorData, CollectionEditorModalComponent } from '../collection-editor-modal/collection-editor-modal.component';
 
 /** /collections/:id — the collection's summaries with the full search/filter set, detail in the aside. */
+import { EmptyState } from '../../summaries/summary-list/summary-list.component';
+
 @Component({
   selector: 'app-collection-summaries-page',
   imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, SummaryBrowserComponent],
@@ -20,6 +22,10 @@ import { CollectionEditorData, CollectionEditorModalComponent } from '../collect
   styleUrl: './collection-summaries-page.component.scss',
 })
 export class CollectionSummariesPageComponent {
+  readonly empty: EmptyState = {
+    title: 'הלקט עדיין ריק',
+    hint: 'כדי להוסיף תמציות: בדף הבית לחצו על "בחירה", סמנו תמציות ובחרו "הוספה ללקט".',
+  };
   private readonly service = inject(CollectionService);
   private readonly users = inject(UserService);
   private readonly router = inject(Router);

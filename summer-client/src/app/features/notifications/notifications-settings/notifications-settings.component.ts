@@ -9,7 +9,6 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
 import { NzTagModule } from 'ng-zorro-antd/tag';
-import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { INotificationSettings } from '../../../shared/models';
 import { NotificationNamePipe, NotificationsSettingsService, describeRule } from '../notification-rules';
 
@@ -26,7 +25,6 @@ import { NotificationNamePipe, NotificationsSettingsService, describeRule } from
     NzPopconfirmModule,
     NzSkeletonModule,
     NzTagModule,
-    NotificationBellComponent,
     NotificationNamePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

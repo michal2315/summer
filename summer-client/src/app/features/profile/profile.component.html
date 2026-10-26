@@ -1,7 +1,7 @@
 @if (profile(); as p) {
-  <app-summary-browser [ownerId]="p._id" [isProfile]="true" [showTabs]="isOwn()" [searchPlaceholder]="'חיפוש בתמציות של ' + p.fullName">
+  <app-summary-browser [ownerId]="p._id" [isProfile]="true" [showTabs]="isOwn()" [searchPlaceholder]="'חיפוש בתמציות של ' + p.fullName" [empty]="empty()">
     <div browser-header class="header">
-      <app-avatar [user]="p" [size]="70" />
+      <app-avatar [user]="p" [size]="56" />
       <div class="who">
         <div class="page-title" role="heading" aria-level="1">{{ p.fullName }}</div>
         <span class="muted">{{ p.department }}</span>
@@ -15,7 +15,8 @@
         </button>
       }
     </div>
+    <app-milestones browser-header [userId]="p._id" [isOwn]="isOwn()" />
   </app-summary-browser>
 } @else {
-  <div class="loading"><nz-skeleton [nzActive]="true" [nzAvatar]="{ size: 70 }" /></div>
+  <div class="loading"><nz-skeleton [nzActive]="true" [nzAvatar]="{ size: 56 }" /></div>
 }

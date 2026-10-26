@@ -1,0 +1,270 @@
+@use 'tokens' as *;
+
+:host {
+  display: inline-block;
+  width: var(--size);
+  height: var(--size);
+  flex-shrink: 0;
+}
+
+.summy {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.rays {
+  fill: $star;
+  transform-origin: 60px 60px;
+  animation: spin 18s linear infinite;
+}
+.body {
+  transform-origin: 60px 94px;
+  animation: bob 2.6s ease-in-out infinite;
+}
+.cheek {
+  fill: $primary-pink;
+  opacity: 0.35;
+}
+.eyes {
+  fill: $dark-blue;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 4s infinite;
+}
+.mouth,
+.dizzy path,
+.glass path,
+.shackle {
+  fill: none;
+  stroke: $dark-blue;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.mouth-o {
+  fill: $dark-blue;
+}
+.shades rect {
+  fill: $dark-blue;
+}
+.bridge {
+  stroke: $dark-blue;
+  stroke-width: 3;
+}
+.glint {
+  stroke: $white;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+.sweat {
+  fill: #6ec6ff;
+  animation: drip 1.6s ease-in infinite;
+}
+.glass {
+  circle {
+    fill: rgba($white, 0.55);
+    stroke: $dark-blue;
+    stroke-width: 4;
+  }
+  path {
+    stroke-width: 5;
+  }
+  animation: sweep 2.4s ease-in-out infinite;
+}
+.question {
+  font: 800 26px sans-serif;
+  fill: $primary-pink;
+  animation: float 1.8s ease-in-out infinite;
+}
+.lock {
+  rect {
+    fill: $dark-gray;
+  }
+  .keyhole {
+    fill: $white;
+  }
+  .shackle {
+    stroke: $dark-gray;
+    stroke-width: 4;
+  }
+}
+
+// Per-mood motion on top of the shared bob.
+:host(.mood-search) .eyes,
+:host(.mood-lost) .eyes {
+  animation:
+    look 2.4s ease-in-out infinite,
+    blink 4s infinite;
+}
+:host(.mood-error) .body {
+  animation: wobble 0.9s ease-in-out infinite;
+}
+:host(.mood-empty) .body {
+  animation-duration: 4s;
+}
+
+// ---- soldier ----
+$olive: #5b6b3a;
+$olive-dark: #3f4a28;
+$gun: #2b2f22;
+$red-dot: #ff2a3d;
+
+.helmet {
+  path:first-child {
+    fill: $olive;
+  }
+  .brim {
+    fill: $olive-dark;
+  }
+  .strap {
+    fill: none;
+    stroke: $olive-dark;
+    stroke-width: 2;
+  }
+  .net {
+    fill: $olive-dark;
+    opacity: 0.6;
+  }
+}
+.rifle {
+  .stock,
+  .mag {
+    fill: $gun;
+  }
+  .barrel,
+  .rail,
+  .sight {
+    fill: #1a1d14;
+  }
+  .guard {
+    fill: none;
+    stroke: $gun;
+    stroke-width: 2;
+  }
+  .hand {
+    fill: #ffc94a;
+    stroke: $orange-strong;
+    stroke-width: 1;
+  }
+}
+.dot {
+  fill: $red-dot;
+  filter: drop-shadow(0 0 2px $red-dot);
+  animation: glow-dot 1.2s ease-in-out infinite;
+}
+
+// ---- target ----
+.wink,
+.reticle circle:first-child,
+.reticle path {
+  fill: none;
+  stroke-linecap: round;
+}
+.wink {
+  stroke: $dark-blue;
+  stroke-width: 3;
+}
+.eye {
+  fill: $dark-blue;
+}
+.reticle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lock-on 2.4s ease-in-out infinite;
+  circle:first-child,
+  path {
+    stroke: $red-dot;
+    stroke-width: 2;
+  }
+}
+
+@keyframes glow-dot {
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes lock-on {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  10% {
+    transform: scale(1.25);
+  }
+  20% {
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes bob {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes look {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  25% {
+    translate: -4px 0;
+  }
+  65% {
+    translate: 4px 0;
+  }
+}
+@keyframes sweep {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-58px, -6px) rotate(-8deg);
+  }
+}
+@keyframes wobble {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes drip {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+}
+@keyframes float {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}

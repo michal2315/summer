@@ -1,0 +1,85 @@
+@use 'tokens' as *;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card {
+  background: $white;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: $card-shadow;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+// A light band sweeps across every bone; the shared background-attachment keeps them in step.
+.bone {
+  border-radius: 6px;
+  background: linear-gradient(90deg, $input-color 0%, $input-color 40%, $surface-subtle 50%, $input-color 60%, $input-color 100%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.pill {
+  width: 54px;
+  height: 18px;
+  border-radius: 999px;
+  margin-inline-start: auto;
+}
+.line {
+  height: 10px;
+}
+.name {
+  width: 120px;
+}
+.date {
+  width: 80px;
+  height: 8px;
+}
+.title {
+  height: 13px;
+}
+.text {
+  width: 100%;
+}
+.tag {
+  width: 64px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+// RTL: the band travels right → left, with the reading direction.
+@keyframes shimmer {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}

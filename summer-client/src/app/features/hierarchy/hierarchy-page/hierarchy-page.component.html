@@ -30,7 +30,7 @@
   <div class="viewer">
     @if (summaryId(); as id) {
       @if (backLabel(); as label) {
-        <button nz-button nzType="link" type="button" class="back" (click)="backToContainer()">
+        <button type="button" class="back-link back" (click)="backToContainer()">
           <span nz-icon nzType="arrow-right"></span> {{ label }}
         </button>
       }

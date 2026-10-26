@@ -11,7 +11,7 @@ import { ColorPickerComponent } from '../../../shared/components/color-picker/co
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { ISummary, ISummarySearch, SearchType, SummaryKind } from '../../../shared/models';
 import { colorGlow } from '../../../shared/models/colors';
-import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
+import { DateFormatPipe, HighlightPipe, RelativeTimePipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { SummaryActionsService } from '../summary-actions.service';
 import { SummaryListStore } from '../summary-list.store';
 
@@ -30,6 +30,7 @@ const VISIBLE_LABELS = 4;
     ColorPickerComponent,
     ContentTypeIconComponent,
     DateFormatPipe,
+    RelativeTimePipe,
     HighlightPipe,
     RichHtmlPipe,
   ],
@@ -67,7 +68,8 @@ export class SummaryCardComponent {
   });
   readonly glow = colorGlow;
   readonly isMine = computed(() => this.summary().user?._id === this.users.userId());
-  readonly seen = computed(() => this.summary().seenBy?.includes(this.users.userId() ?? ''));
+  /** Someone else's summary this user hasn't opened yet. */
+  readonly unread = computed(() => !this.isMine() && !this.summary().seenBy?.includes(this.users.userId() ?? ''));
   readonly visibleLabels = computed(() => this.summary().labels.slice(0, VISIBLE_LABELS));
   readonly hiddenLabels = computed(() => this.summary().labels.slice(VISIBLE_LABELS));
 

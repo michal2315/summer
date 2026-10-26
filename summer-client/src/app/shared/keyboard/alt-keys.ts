@@ -25,6 +25,7 @@ export const ALT_KEYS = {
   dashboard: { key: '8', label: 'דשבורד', group: 'עמודים' },
 
   help: { key: '/', label: 'כל קיצורי המקלדת', group: 'עזרה' },
+  tour: { key: 'Q', label: 'סיור ועזרה', group: 'עזרה' },
 } as const satisfies Record<string, { key: string; label: string; group: string }>;
 
 export type AltKeyId = keyof typeof ALT_KEYS;

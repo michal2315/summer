@@ -1,8 +1,34 @@
-.bell { font-size: 20px; }
+@use 'tokens' as *;
+
+.bell { font-size: 18px; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.rows { list-style: none; margin: 0; padding: 0; width: 320px; max-height: 420px; overflow: auto; }
-.row { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px; border-radius: 8px; cursor: pointer; }
-.row:hover, .row:focus-visible { background: #f7f7f7; }
-.row.unread { background: #fff4f5; }
+.rows { list-style: none; margin: 0 -6px; padding: 0; width: 340px; max-height: 420px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.row { all: unset; box-sizing: border-box; position: relative; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 12px; border-radius: $border-radius; cursor: pointer; transition: background $transition; }
+.row:hover, .row:focus-visible { background: $app-background; }
+.row.unread { background: $pink-50; }
+.row.unread::before { content: ''; position: absolute; inset-inline-start: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: $primary-pink; }
 .row.unread .text { font-weight: 700; }
-.time { font-size: 12px; color: #9b9bb1; }
+.time { font-size: 12px; color: $gray; }
+
+// Count badge: a true circle for one digit; widens into a pill only for 10+.
+:host ::ng-deep .ant-badge-count {
+  min-width: 16px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  box-shadow: 0 0 0 2px $white;
+  &.ant-badge-multiple-words {
+    width: auto;
+    padding: 0 4px;
+    border-radius: 8px;
+  }
+  .ant-scroll-number-only,
+  .ant-scroll-number-only-unit {
+    height: 16px;
+    line-height: 16px;
+  }
+}

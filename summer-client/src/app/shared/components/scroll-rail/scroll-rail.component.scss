@@ -7,7 +7,7 @@
   inset-inline-end: 0; // RTL: the left edge of the scroll area
   width: 10px;
   border-radius: 5px;
-  background: rgba(5, 4, 61, 0.05);
+  background: rgba($dark-blue, 0.04);
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -23,7 +23,7 @@
   inset-inline: 1px;
   top: 0;
   border-radius: 4px;
-  background: #b9b9c6;
+  background: $border-strong;
   transition: background 0.15s;
 
   :host(:hover) &,

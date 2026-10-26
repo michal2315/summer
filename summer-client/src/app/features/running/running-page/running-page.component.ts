@@ -17,6 +17,8 @@ import { SummaryBrowserComponent } from '../../summaries/summary-browser/summary
 import { RunningBackService } from '../running-back';
 
 /** /running/:id — a running summary (תמצית רצף): its details on top, its sumaroons below, a sumaroon in the side panel. */
+import { EmptyState } from '../../summaries/summary-list/summary-list.component';
+
 @Component({
   selector: 'app-running-page',
   imports: [
@@ -37,6 +39,7 @@ import { RunningBackService } from '../running-back';
   styleUrl: './running-page.component.scss',
 })
 export class RunningPageComponent {
+  readonly empty: EmptyState = { title: 'עדיין אין תמציתוניות בתמצית הרצף הזו' };
   private readonly service = inject(SummaryService);
   private readonly users = inject(UserService);
   private readonly router = inject(Router);

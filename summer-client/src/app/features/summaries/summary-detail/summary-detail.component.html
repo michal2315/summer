@@ -24,8 +24,6 @@
       }
     </div>
 
-    <nz-alert nzType="warning" nzShowIcon nzMessage="שימו לב! אין לצטט תמצית ללא תיאום עם המחבר.ת שלה." class="tip" />
-
     @if (s.parent; as p) {
       <div class="running-header" role="region" aria-label="תמצית הרצף">
         <div class="part-of">
@@ -164,6 +162,8 @@
     @if (s.kind === K.Running) {
       <app-sumaroon-list [running]="s" />
     }
+
+    <div class="quote-note"><span nz-icon nzType="info-circle"></span> אין לצטט תמצית ללא תיאום עם המחבר.ת שלה.</div>
 
     <app-comments [summary]="s" [search]="search()" (summaryChange)="onCommentsChange($event)" />
   </div>

@@ -4,13 +4,32 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 100vh;
-  padding: 14px 10px;
+  padding: 12px 10px 10px;
   gap: 10px;
 }
 
-.logo img {
-  height: 32px;
+.logo {
+  display: block;
+  padding: 0 8px;
+  img {
+    height: 26px;
+    display: block;
+  }
+}
+
+// User tile + notification bell share one bordered row.
+.me {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-inline-end: 2px;
+  border-radius: 10px;
+  border: 1px solid $border-color;
+  background: $surface-subtle;
+  .user {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .user {
@@ -18,10 +37,11 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: $border-radius;
+  border-radius: 9px;
   color: $dark-blue;
+  transition: background $transition;
   &:hover {
-    background: $app-background;
+    background: $white;
   }
   .who {
     display: flex;
@@ -38,9 +58,10 @@
   }
   .name {
     font-weight: 700;
+    font-size: 13px;
   }
   .dept {
-    font-size: 80%;
+    font-size: 11px;
     color: $gray;
   }
 }
@@ -54,19 +75,49 @@
   gap: 2px;
 
   a {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 7px 12px;
-    font-size: 16px;
-    color: $dark-blue;
-    border-radius: 5px;
+    gap: 9px;
+    padding: 6px 10px;
+    font-size: 14px;
+    font-weight: 500;
+    color: $dark-gray;
+    border-radius: 10px;
+    transition:
+      background $transition,
+      color $transition;
+    [nz-icon] {
+      font-size: 15px;
+      color: $gray;
+      transition: color $transition;
+    }
     &:hover {
       background: $app-background;
+      color: $dark-blue;
+      [nz-icon] {
+        color: $dark-blue;
+      }
     }
+    // Active: brand wash, pink text and a gradient marker on the inline-start edge.
     &.active {
-      background: #efefef;
+      background: $background-soft;
+      color: $pink-strong;
       font-weight: 700;
+      [nz-icon] {
+        color: $primary-pink;
+      }
+      &::before {
+        content: '';
+        position: absolute;
+        inset-inline-start: 0;
+        top: 7px;
+        bottom: 7px;
+        width: 3px;
+        border-start-end-radius: 4px;
+        border-end-end-radius: 4px;
+        background: $background;
+      }
     }
   }
 }
@@ -75,8 +126,10 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 13px;
+  gap: 1px;
+  font-size: 12.5px;
+  padding-top: 6px;
+  border-top: 1px solid $border-color;
 
   a,
   button {
@@ -84,18 +137,31 @@
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 14px;
-    color: $dark-blue;
-    border-radius: 5px;
+    gap: 9px;
+    padding: 4px 10px;
+    color: $dark-gray;
+    border-radius: $border-radius;
+    transition:
+      background $transition,
+      color $transition;
     &:hover,
     &:focus-visible {
       background: $app-background;
+      color: $dark-blue;
     }
   }
+  // Unseen new tour steps: a brand dot after the label.
+  .tour-btn.has-new::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: $background;
+    box-shadow: 0 0 0 3px rgba($primary-pink, 0.15);
+  }
   .credit {
-    font-size: 80%;
+    font-size: 11px;
     color: $gray;
-    padding: 6px 14px 0;
+    padding: 4px 10px 0;
   }
 }

@@ -88,7 +88,7 @@
   border-radius: 50%;
   background: $primary-orange;
   border: 3px solid $white;
-  box-shadow: 0 0 0 1px #ddd;
+  box-shadow: 0 0 0 1px $border-strong;
 }
 
 .card {
@@ -102,7 +102,7 @@
   gap: 2px;
   padding: 6px 8px;
   background: $app-background;
-  border: 1px solid #e8e8e8;
+  border: 1px solid $border-color;
   border-inline-start-width: 3px;
   border-radius: 8px;
   font-size: 12px;
@@ -125,11 +125,11 @@
 }
 
 .event.current .card {
-  background: #fff4f5;
+  background: $pink-50;
   border-color: $primary-pink;
 }
 .undated {
   font-size: 12px;
-  color: #666666;
+  color: $dark-gray;
   margin: 0 0 8px;
 }

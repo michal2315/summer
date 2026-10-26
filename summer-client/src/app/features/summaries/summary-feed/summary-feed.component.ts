@@ -5,6 +5,7 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { UserService } from '../../../core/auth/user.service';
 import { SummaryBrowserComponent } from '../summary-browser/summary-browser.component';
+import { EmptyState } from '../summary-list/summary-list.component';
 
 @Component({
   selector: 'app-summary-feed',
@@ -15,4 +16,9 @@ import { SummaryBrowserComponent } from '../summary-browser/summary-browser.comp
 })
 export class SummaryFeedComponent {
   readonly userId = inject(UserService).userId;
+  readonly empty: EmptyState = {
+    title: 'עדיין אין כאן תמציות',
+    hint: 'תמציות שפורסמו ויש לך הרשאה לראות יופיעו כאן.',
+    action: { label: 'כתיבת תמצית חדשה', link: ['/summaries/new'] },
+  };
 }

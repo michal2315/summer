@@ -6,14 +6,13 @@
     [detailAside]="!embedded()"
     [stickyHeader]="true"
     [searchPlaceholder]="'חיפוש בתוך ' + r.title"
+    [empty]="empty"
   >
     <!-- Compact: one title row and one meta row; content, fields, labels and permissions behind "פרטים". -->
     <div browser-header class="running">
       <div class="row">
         @if (!embedded()) {
-          <button nz-button nzType="text" nzShape="circle" type="button" (click)="back(r)" nz-tooltip="חזרה" aria-label="חזרה">
-            <span nz-icon nzType="arrow-right"></span>
-          </button>
+          <button type="button" class="back-link" (click)="back(r)"><span nz-icon nzType="arrow-right"></span> חזרה</button>
         }
         <span class="kind" nz-tooltip="תמצית רצף"><span nz-icon nzType="unordered-list"></span></span>
         <div class="title" role="heading" aria-level="1" [title]="r.title">{{ r.title }}</div>

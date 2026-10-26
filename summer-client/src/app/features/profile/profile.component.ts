@@ -8,10 +8,12 @@ import { UserService } from '../../core/auth/user.service';
 import { AvatarComponent } from '../../shared/components/avatar/avatar.component';
 import { UserRef } from '../../shared/models';
 import { SummaryBrowserComponent } from '../summaries/summary-browser/summary-browser.component';
+import { EmptyState } from '../summaries/summary-list/summary-list.component';
+import { MilestonesComponent } from '../../shared/easter-eggs/milestones/milestones.component';
 
 @Component({
   selector: 'app-profile',
-  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, AvatarComponent, SummaryBrowserComponent],
+  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, AvatarComponent, MilestonesComponent, SummaryBrowserComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss',
@@ -25,6 +27,11 @@ export class ProfileComponent {
   readonly busy = signal(false);
 
   readonly isOwn = computed(() => this.userId() === this.users.userId());
+  readonly empty = computed<EmptyState>(() =>
+    this.isOwn()
+      ? { title: 'עדיין לא כתבת תמציות', action: { label: 'כתיבת תמצית חדשה', link: ['/summaries/new'] } }
+      : { title: 'אין תמציות שאפשר להציג כאן' },
+  );
   readonly isFollowing = computed(() => this.users.user()?.following.includes(this.userId()) ?? false);
 
   constructor() {

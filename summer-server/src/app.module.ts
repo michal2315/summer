@@ -10,6 +10,7 @@ import { DatabaseModule } from './database/database.module';
 import { FoldersModule } from './folders/folders.module';
 import { HealthController } from './health.controller';
 import { LabelsModule } from './labels/labels.module';
+import { MilestonesModule } from './milestones/milestones.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { SummariesModule } from './summaries/summaries.module';
@@ -26,6 +27,7 @@ import { WhatsNewModule } from './whats-new/whats-new.module';
     ContentTypesModule,
     LabelsModule,
     SummariesModule,
+    MilestonesModule,
     CommentsModule,
     CollectionsModule,
     FoldersModule,

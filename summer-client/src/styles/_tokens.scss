@@ -2,37 +2,58 @@
 
 $content-padding: 4rem;
 
-// Colors
-$app-background: #f7f7f7;
-$input-color: #efefef;
-$input-hover-color: #e1e1e1;
+// Brand — orange → pink stays the app's identity
 $primary-pink: #ff4056;
 $primary-orange: #ff9155;
-$accent: #01004f;
+$pink-strong: #e8253d; // pink text on light tints (keeps contrast)
+$pink-50: #fff1f3;
+$pink-100: #ffdfe4;
+$orange-50: #fff5ee;
+$orange-100: #ffe6d6;
+$orange-strong: #c2571b; // orange text on light tints
+$star: #fab005;
 $background: linear-gradient(137deg, $primary-orange 0%, $primary-pink 100%);
 $background-hover: linear-gradient(125deg, #ec854d 0%, #e7364b 100%);
+// Very light brand wash for selected / highlighted surfaces
+$background-soft: linear-gradient(137deg, $orange-50 0%, $pink-50 100%);
+$focus-ring: 0 0 0 3px rgba(255, 64, 86, 0.18);
+
+$accent: #01004f;
 $success-color: #2dd070;
 $error-color: #e74d3d;
 $warning-color: #f1c40f;
-$card-background: #f7f7f7;
 $white: #ffffff;
 $black: #000000;
 
+// Neutrals (slightly cool, to sit with the navy text)
+$app-background: #f5f5f9;
+$card-background: $app-background;
+$surface-subtle: #f7f7fa; // quiet fill inside white surfaces
+$input-color: #efeff4;
+$input-hover-color: #e4e4ec;
+$border-color: #e8e8ef;
+$border-strong: #d6d6e0;
+
 // Text
 $dark-blue: #05043d;
-$gray: #9b9bb1;
-$dark-gray: #666666;
+$dark-gray: #55546f;
+$gray: #8e8ea6;
 
 // Tag
-$gray-tag: #efefef;
+$gray-tag: #efeff4;
 
 // Summary color palette — keep in sync with SUMMARY_COLORS (shared/models/colors.ts)
 $summary-colors: #fe9eae, #ff0000, #ffa500, #008000, #00b2b2, #0000c9, #800080, #808080;
 
 // Shadow / radius
-$shadow: 0 2px 20px #00000038;
-$card-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+$shadow: 0 16px 40px -12px rgba(5, 4, 61, 0.22), 0 2px 6px rgba(5, 4, 61, 0.06);
+$card-shadow: 0 1px 2px rgba(5, 4, 61, 0.05), 0 1px 3px rgba(5, 4, 61, 0.04);
+$card-shadow-hover: 0 8px 24px -10px rgba(5, 4, 61, 0.18), 0 2px 4px rgba(5, 4, 61, 0.05);
+$radius-sm: 6px;
 $border-radius: 8px;
+$radius-md: 12px;
+$radius-lg: 16px;
+$transition: 0.16s ease;
 
 // AI suggestion buttons
 $accept-hover: #73d13d;

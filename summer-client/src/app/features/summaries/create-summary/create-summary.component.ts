@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, FormBuilder, FormControl, FormGroup, FormRecord, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -10,6 +10,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -18,9 +19,10 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { NzUploadFile, NzUploadModule } from 'ng-zorro-antd/upload';
 import { QuillEditorComponent } from 'ngx-quill';
 import type Quill from 'quill';
-import { Subject, debounceTime, distinctUntilChanged, forkJoin, startWith, switchMap, take } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, filter, forkJoin, map, startWith, switchMap, take } from 'rxjs';
 import { HasPendingChanges } from '../../../core/auth/guards';
 import { UserService } from '../../../core/auth/user.service';
+import { StorageService } from '../../../core/storage/storage.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import {
@@ -36,7 +38,7 @@ import {
   SummaryPayload,
   UserRef,
 } from '../../../shared/models';
-import { DateFormatPipe } from '../../../shared/pipes/pipes';
+import { DateFormatPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
 import { CollectionService } from '../../../shared/services/collection.service';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { LabelService } from '../../../shared/services/label.service';
@@ -60,6 +62,26 @@ const SAVED_TEXT: Record<SummaryKind, [string, string]> = {
   [SummaryKind.Running]: ['תמצית הרצף פורסמה', 'תמצית הרצף עודכנה'],
   [SummaryKind.Sumaroon]: ['התמציתונית פורסמה', 'התמציתונית עודכנה'],
 };
+
+/** Field types in the "שדות נוספים" picker. */
+const FIELD_TYPE_LABEL: Record<FieldsType, string> = {
+  [FieldsType.String]: 'טקסט',
+  [FieldsType.Number]: 'מספר',
+  [FieldsType.Date]: 'תאריך',
+  [FieldsType.Hour]: 'שעה',
+  [FieldsType.Array]: 'רשימה',
+};
+
+/** Unsaved form state kept in this browser, per summary (or "new"), so a closed tab or a crash doesn't lose work. */
+const LOCAL_DRAFT_KEY = 'summaryFormDraft';
+interface LocalDraft {
+  savedAt: string;
+  value: FormValue;
+  /** Display names for the selected collections / tagged users, which the form only holds as ids. */
+  collections: ICollectionRef[];
+  users: UserRef[];
+}
+type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
 
 /** The running summary a sumaroon is written into, plus the content type it imposes. */
 type ParentInfo = ISummaryParent & { contentTypeId: string };
@@ -95,10 +117,12 @@ export function hashtags(html: string): string[] {
     AvatarComponent,
     ContentTypeIconComponent,
     DateFormatPipe,
+    RelativeTimePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-summary.component.html',
   styleUrl: './create-summary.component.scss',
+  host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
 })
 export class CreateSummaryComponent implements HasPendingChanges {
   private readonly fb = inject(FormBuilder).nonNullable;
@@ -113,6 +137,9 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private readonly router = inject(Router);
   private readonly message = inject(NzMessageService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly modal = inject(NzModalService);
+  private readonly storage = inject(StorageService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** Set by the edit route's resolver (withComponentInputBinding). */
   readonly summary = input<ISummary | undefined>(undefined);
@@ -125,6 +152,9 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly kinds = [SummaryKind.Summary, SummaryKind.Running, SummaryKind.Sumaroon];
 
   readonly FT = FieldsType;
+  readonly fieldTypeLabel = FIELD_TYPE_LABEL;
+  /** Notes stay behind a button until wanted (or already filled). */
+  readonly notesOpen = signal(false);
   readonly saving = signal(false);
   private saved = false;
   readonly submitted = signal(false);
@@ -168,6 +198,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     requireSync: true,
   });
   readonly contentType = computed<IContentType | undefined>(() => this.contentTypes.list().find((t) => t._id === this.contentTypeId()));
+  readonly collectionsRequired = computed(() => this.contentType()?.name === GENERIC && this.kind() !== SummaryKind.Sumaroon);
   readonly typeFieldDefs = computed(() =>
     (this.contentType()?.fields ?? []).flatMap((f) => {
       const field = this.contentTypes.fieldsById().get(f.field);
@@ -225,6 +256,34 @@ export class CreateSummaryComponent implements HasPendingChanges {
   });
   readonly sortedLabels = computed(() => this.pinFirst(this.labelOptions(), (l) => l, 'pinnedLabels', 'favoriteLabels'));
   readonly sortedCollections = computed(() => this.pinFirst(this.collectionOptions(), (c) => c._id, 'pinnedCollections', 'favoriteCollections'));
+
+  // ---- what's missing (shown beside the save buttons after a failed publish) ----
+  /** Ticks on every value/validity change, so the computed below re-reads control state. */
+  private readonly formTick = toSignal(this.form.events.pipe(map(() => ({}))), { initialValue: {} });
+  readonly missing = computed(() => {
+    this.formTick();
+    const c = this.form.controls;
+    const out: string[] = [];
+    const check = (invalid: boolean, name: string) => invalid && out.push(name);
+    check(c.contentType.invalid, 'סוג תוכן');
+    check(c.parent.invalid, 'תמצית רצף');
+    check(c.title.invalid, 'כותרת');
+    check(c.content.invalid, 'תוכן');
+    check(c.range.invalid, 'טווח תאריכים');
+    check(c.eventDate.invalid, 'תאריך האירוע');
+    check(c.link.invalid, 'קישור');
+    for (const d of this.typeFieldDefs()) check(!!this.typeFields.controls[d.field._id]?.invalid, d.field.name);
+    check(c.labels.invalid, 'תגיות');
+    check(c.collections.invalid, 'לקטים');
+    check(c.permissions.invalid, 'הרשאות');
+    return out;
+  });
+
+  // ---- local autosave ----
+  /** A locally saved draft from an earlier visit, offered for restore. */
+  readonly restorable = signal<LocalDraft | null>(null);
+  readonly autosavedAt = signal<Date | null>(null);
+  private readonly localDraftKey = computed(() => `${LOCAL_DRAFT_KEY}:${this.summary()?._id ?? 'new'}`);
 
   readonly editorPlaceholder = 'תתפרעו :) הוסיפו # לפני מילה בשביל להפוך אותה לתגית';
 
@@ -355,6 +414,71 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
     this.labelSearch$.next('');
     this.collectionSearch$.next('');
+
+    // Offer to restore unsaved work from an earlier visit (the key is known once the edit resolver's input is set).
+    effect(() => {
+      const key = this.localDraftKey();
+      untracked(() => this.restorable.set(this.storage.get<LocalDraft>(key)));
+    });
+
+    // Autosave while editing — paused while an older draft waits for restore/discard, so it isn't overwritten.
+    this.form.valueChanges
+      .pipe(
+        debounceTime(1000),
+        filter(() => this.form.dirty && !this.saved && !this.restorable()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.saveLocalDraft());
+  }
+
+  private saveLocalDraft() {
+    const v = this.form.getRawValue();
+    const draft: LocalDraft = {
+      savedAt: new Date().toISOString(),
+      value: v,
+      collections: this.collectionOptions().filter((c) => v.collections.includes(c._id)),
+      users: this.userOptions().filter((u) => v.taggedUsers.includes(u._id)),
+    };
+    this.storage.set(this.localDraftKey(), draft);
+    this.autosavedAt.set(new Date());
+  }
+
+  private clearLocalDraft() {
+    this.storage.remove(this.localDraftKey());
+    this.autosavedAt.set(null);
+  }
+
+  restoreDraft() {
+    const d = this.restorable();
+    if (!d) return;
+    const { typeFields, extraFields, kind, contentType, ...rest } = reviveDates(d.value);
+    // Same order as fill(): kind and type first, so the type-field group is rebuilt with the saved values.
+    this.pendingTypeValues = typeFields;
+    this.form.controls.kind.setValue(kind);
+    this.form.controls.contentType.setValue(contentType);
+    this.form.controls.typeFields.patchValue(typeFields);
+    this.form.patchValue(rest);
+    this.form.controls.extraFields.clear();
+    for (const e of extraFields) this.addExtraRow(e.field, e.value);
+    this.labelOptions.update((l) => this.withSelected(l, rest.labels));
+    this.collectionOptions.update((c) => mergeById(d.collections, c));
+    this.userOptions.update((u) => mergeById(d.users, u));
+    this.notesOpen.set(!!rest.notes);
+    this.form.markAsDirty();
+    this.restorable.set(null);
+    this.message.success('העבודה שוחזרה');
+  }
+
+  discardDraft() {
+    this.clearLocalDraft();
+    this.restorable.set(null);
+  }
+
+  /** Closing the tab or reloading with unsaved changes: let the browser ask first. */
+  onBeforeUnload(event: BeforeUnloadEvent) {
+    if (this.canLeave()) return;
+    event.preventDefault();
+    event.returnValue = '';
   }
 
   private populate(s: ISummary) {
@@ -403,6 +527,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.collectionOptions.update((c) => mergeById(s.collectionIds, c));
     this.userOptions.set(s.taggedUsers);
     this.existingFiles.set([...s.files]);
+    this.notesOpen.set(!!s.notes);
     this.form.markAsPristine();
   }
 
@@ -540,16 +665,40 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.form.markAsDirty();
   }
 
-  resetForm() {
+  confirmReset() {
+    this.modal.confirm({
+      nzTitle: this.isEdit() ? 'לבטל את כל השינויים?' : 'לנקות את כל הטופס?',
+      nzContent: this.isEdit() ? 'התמצית תחזור למצב השמור האחרון.' : 'כל מה שמילאת, כולל הקבצים שצורפו, יימחק.',
+      nzOkText: this.isEdit() ? 'ביטול השינויים' : 'ניקוי',
+      nzOkDanger: true,
+      nzCancelText: 'חזרה לטופס',
+      nzOnOk: () => this.resetForm(),
+    });
+  }
+
+  private resetForm() {
     const s = this.summary();
     if (s) this.populate(s);
     else {
       this.form.reset();
       this.form.controls.extraFields.clear();
       this.fileList.set([]);
+      this.notesOpen.set(false);
     }
     this.submitted.set(false);
     this.duplicates.set([]);
+    this.clearLocalDraft();
+  }
+
+  /** Bring the first field with an error into view and focus it. */
+  scrollToFirstError() {
+    // After change detection, so the error classes are on the page.
+    setTimeout(() => {
+      const el = this.host.nativeElement.querySelector<HTMLElement>('.ant-form-item-has-error, .types.no-selection-error');
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.querySelector<HTMLElement>('input, textarea, .ql-editor, button')?.focus({ preventScroll: true });
+    });
   }
 
   canLeave(): boolean {
@@ -568,6 +717,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       for (const ctrl of Object.values(c.typeFields.controls)) ctrl.markAsDirty();
       for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.collections, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
       this.message.warning(isDraft ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
+      this.scrollToFirstError();
       return;
     }
 
@@ -613,6 +763,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       next: (s) => {
         this.saved = true;
         this.saving.set(false);
+        this.clearLocalDraft();
         if (folder && isDraft) this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
         else if (folder) this.folderService.addItems(folder, [{ type: 'summary', _id: s._id }]).subscribe();
         this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
@@ -646,6 +797,14 @@ function serialize(type: FieldsType, value: FieldValue): string {
   if (value === null || value === undefined || value === '') return '';
   if (value instanceof Date) return type === FieldsType.Hour ? format(value, 'HH:mm') : value.toISOString();
   return String(value);
+}
+
+/** JSON turns Dates into ISO strings; turn them back (dates, times and ranges are Date values in the form). */
+function reviveDates<T>(value: T): T {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(value)) return new Date(value) as T;
+  if (Array.isArray(value)) return value.map(reviveDates) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, reviveDates(v)])) as T;
+  return value;
 }
 
 function mergeById<T extends { _id: string }>(a: T[], b: T[]): T[] {

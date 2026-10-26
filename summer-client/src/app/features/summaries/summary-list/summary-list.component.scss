@@ -1,29 +1,49 @@
+@use 'tokens' as *;
+
 :host { display: flex; flex-direction: column; gap: 6px; outline: none; padding-bottom: 24px; }
 // ant sets 16px on .ant-divider-with-text, which beats a plain element selector.
-:host ::ng-deep .ant-divider-with-text { margin: 4px 0 -2px; font-size: 12px; font-weight: 700; }
-.loader { display: grid; place-items: center; padding: 24px; }
-.empty { padding: 48px 0; }
+// Date dividers stick to the top of the feed, so you always know which day you are in.
+:host ::ng-deep .ant-divider-with-text {
+  position: sticky;
+  top: -4px; // the scroller's top padding
+  z-index: 2;
+  margin: 2px -4px 0;
+  padding: 6px 4px 4px;
+  background: $app-background;
+  font-size: 12px;
+  font-weight: 700;
+  color: $dark-gray;
+  border-top-color: $border-color;
+}
+:host ::ng-deep .ant-divider-with-text::before, :host ::ng-deep .ant-divider-with-text::after { border-top-color: $border-color; }
+
 .sentinel { height: 1px; }
 
+// Easter egg: exactly one search result — laid out like the empty state (global .empty-state), under the card.
+.direct-hit { padding-top: 32px; animation: hit-in 0.35s ease-out; }
+@keyframes hit-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .direct-hit { animation: none; } }
+
 // Feed: a running summary's new sumaroons bundled into one row (looks like a small stack, not a full card).
+$stack: -4px 4px 0 -1px $white, -4px 4px 0 0 $border-strong;
 .bundle {
   all: unset;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   padding: 8px 12px;
-  background: #fff;
-  border-radius: 10px;
-  border-inline-start: 4px solid #9b9bb1;
-  box-shadow: -4px 4px 0 -1px #fff, -4px 4px 0 0 #d6d6dc, 0 1px 6px rgba(0, 0, 0, 0.07);
+  background: $white;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: $stack, $card-shadow;
   margin: 0 0 4px 4px;
   font-size: 13px;
-  &:hover { box-shadow: -4px 4px 0 -1px #fff, -4px 4px 0 0 #d6d6dc, 0 2px 12px rgba(0, 0, 0, 0.14); }
-  &:focus-visible { outline: 2px solid #01004f; }
+  transition: box-shadow $transition, border-color $transition;
+  &:hover { border-color: $border-strong; box-shadow: $stack, $card-shadow-hover; }
 }
-.bundle-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.bundle-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bundle-head { display: flex; align-items: center; gap: 6px; min-width: 0; color: $dark-gray; }
+.bundle-title { font-weight: 700; color: $dark-blue; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bundle-list { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; }
-.bundle-item { background: #efefef; border-radius: 10px; padding: 0 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bundle-more { color: #666666; }
+.bundle-item { background: $surface-subtle; border: 1px solid $border-color; border-radius: 999px; padding: 0 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bundle-more { color: $dark-gray; }

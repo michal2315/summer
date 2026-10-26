@@ -6,7 +6,6 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, injec
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
@@ -20,7 +19,7 @@ import { SummaryActionsBarComponent } from '../summary-actions-bar/summary-actio
 import { SummariesTableComponent } from '../summaries-table/summaries-table.component';
 import { SummaryDetailComponent } from '../summary-detail/summary-detail.component';
 import { SummaryListStore } from '../summary-list.store';
-import { SummaryListComponent } from '../summary-list/summary-list.component';
+import { EmptyState, SummaryListComponent } from '../summary-list/summary-list.component';
 import { SummarySearchComponent } from '../summary-search/summary-search.component';
 import { SumaroonTimelineComponent } from '../../running/sumaroon-timeline/sumaroon-timeline.component';
 
@@ -45,7 +44,6 @@ const jsonEqual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringi
     NgTemplateOutlet,
     FormsModule,
     NzButtonModule,
-    NzEmptyModule,
     NzIconModule,
     NzRadioModule,
     NzTabsModule,
@@ -74,8 +72,11 @@ export class SummaryBrowserComponent {
   readonly ownerId = input.required<string>();
   readonly isProfile = input(false);
   readonly showTabs = input(false);
-  readonly showBell = input(true);
   readonly searchPlaceholder = input('חיפוש תמציות');
+  /** Page heading shown at the start of the toolbar row, with the result count beside it. */
+  readonly pageTitle = input<string | null>(null);
+  /** What the list says when it is empty and nothing is searched. */
+  readonly empty = input<EmptyState>({ title: 'אין כאן עדיין תמציות' });
   /** List this collection's summaries instead of the owner's feed. */
   readonly collection = input<ICollection | null>(null);
   /** Excel template download + upload in the toolbar (feed). */
@@ -111,13 +112,14 @@ export class SummaryBrowserComponent {
   readonly sort = computed<SortKey>(() => this.search().sort ?? this.defaultSort());
   /** The search with its effective sort filled in (the timeline numbers and groups by it). */
   readonly sortedSearch = computed<ISummarySearch>(() => ({ ...this.search(), sort: this.sort() }));
-  /** Grouping hides individual sumaroons, so it's off as soon as anything is searched or filtered. */
-  readonly groupActive = computed(() => {
-    if (!this.groupSumaroons() || this.tab() !== SummarySearch.Summary) return false;
+  /** Anything searched or filtered (sort and view don't count). */
+  readonly filtered = computed(() => {
     const s = this.search();
     const filled = (v: unknown) => (Array.isArray(v) ? v.length > 0 : !!v);
-    return ![s.text, s.labels, s.users, s.contentTypes, s.colors, s.dates, s.createdDates, s.collections, s.department, s.kinds].some(filled);
+    return [s.text, s.labels, s.users, s.contentTypes, s.colors, s.dates, s.createdDates, s.collections, s.department, s.kinds].some(filled);
   });
+  /** Grouping hides individual sumaroons, so it's off as soon as anything is searched or filtered. */
+  readonly groupActive = computed(() => this.groupSumaroons() && this.tab() === SummarySearch.Summary && !this.filtered());
 
   constructor() {
     effect(() => {
@@ -165,6 +167,11 @@ export class SummaryBrowserComponent {
 
   onSearch(s: ISummarySearch) {
     this.patchParams(searchToParams(s));
+  }
+
+  /** Empty result's "clear search": drop every filter, keep the sort. */
+  clearSearch() {
+    this.onSearch({ sort: this.search().sort });
   }
 
   onSort(sort: SortKey) {

@@ -1,0 +1,178 @@
+@use 'tokens' as *;
+
+// Matches FLASHES.tavor.ms in easter-eggs.service.ts.
+$duration: 3.4s;
+$red-dot: #ff2a3d;
+$size: 280px;
+
+.flash {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  pointer-events: none;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 50%, rgba(#3f4a28, 0.35) 0%, rgba($dark-blue, 0.6) 70%);
+  animation: wash $duration ease-in-out forwards;
+}
+
+// Faint scan lines, like looking through an optic.
+.scan {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba($white, 0.04) 0 2px, transparent 2px 5px);
+}
+
+.lock {
+  position: relative;
+  width: $size;
+  height: $size;
+  display: grid;
+  place-items: center;
+}
+
+// Sweeps in from the top corner, overshoots, settles — then two lock-on pulses.
+.reticle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: sweep $duration cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+  .ring,
+  .cross,
+  .ticks {
+    fill: none;
+    stroke: $red-dot;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+  .thin {
+    stroke-width: 1;
+    stroke-dasharray: 4 6;
+  }
+  .dot {
+    fill: $red-dot;
+    filter: drop-shadow(0 0 6px $red-dot);
+  }
+  filter: drop-shadow(0 0 4px rgba($red-dot, 0.6));
+}
+
+// Corner brackets snap in at the moment of lock.
+.brackets {
+  position: absolute;
+  inset: -14px;
+  animation: snap $duration ease-out forwards;
+}
+.corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 0 solid $white;
+}
+.tl {
+  top: 0;
+  left: 0;
+  border-top-width: 4px;
+  border-left-width: 4px;
+}
+.tr {
+  top: 0;
+  right: 0;
+  border-top-width: 4px;
+  border-right-width: 4px;
+}
+.bl {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: 4px;
+  border-left-width: 4px;
+}
+.br {
+  bottom: 0;
+  right: 0;
+  border-bottom-width: 4px;
+  border-right-width: 4px;
+}
+
+.summy {
+  position: relative;
+  animation: pop $duration cubic-bezier(0.2, 0.9, 0.3, 1.4) forwards;
+}
+
+@keyframes wash {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes sweep {
+  0% {
+    transform: translate(-38vw, -30vh) scale(1.8);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  26% {
+    transform: translate(12px, 8px) scale(0.95);
+  }
+  32% {
+    transform: translate(0, 0) scale(1);
+  }
+  // lock-on pulses
+  36% {
+    transform: scale(0.9);
+  }
+  40% {
+    transform: scale(1);
+  }
+  44% {
+    transform: scale(0.9);
+  }
+  48%,
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes snap {
+  0%,
+  44% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+  50%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes pop {
+  0%,
+  46% {
+    transform: scale(0) rotate(-20deg);
+  }
+  56% {
+    transform: scale(1.12) rotate(4deg);
+  }
+  62%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+// Reduced motion: everything simply appears in place.
+@media (prefers-reduced-motion: reduce) {
+  .reticle,
+  .brackets,
+  .summy {
+    animation: none;
+  }
+}

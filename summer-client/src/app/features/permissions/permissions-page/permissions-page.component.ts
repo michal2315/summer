@@ -10,7 +10,6 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { catchError, of } from 'rxjs';
-import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { IPermission } from '../../../shared/models';
 import { PermissionService } from '../../../shared/services/permission.service';
 
@@ -34,7 +33,6 @@ const NEW_ID = '__new__';
     NzInputModule,
     NzPopconfirmModule,
     NzToolTipModule,
-    NotificationBellComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './permissions-page.component.html',

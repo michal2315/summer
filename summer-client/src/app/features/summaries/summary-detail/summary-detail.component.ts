@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
@@ -28,7 +27,6 @@ const SNAPSHOT_KEY = 'currSummary';
   selector: 'app-summary-detail',
   imports: [
     RouterLink,
-    NzAlertModule,
     NzButtonModule,
     NzCollapseModule,
     NzEmptyModule,
