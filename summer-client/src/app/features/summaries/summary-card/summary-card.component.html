@@ -18,6 +18,9 @@
   <div class="head">
     @if (selectable()) {
       <label nz-checkbox [nzChecked]="selected()" (nzCheckedChange)="selectToggle.emit(s._id)" aria-label="בחירת התמצית"></label>
+      @if (!s.canEdit) {
+        <span class="no-edit" nz-icon nzType="lock" nz-tooltip="אין לך הרשאת עריכה — פעולות עריכה ידלגו עליה" aria-label="ללא הרשאת עריכה"></span>
+      }
     }
     <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="28" />
     @if (unread()) {
@@ -87,6 +90,8 @@
     </div>
   </button>
 
+  <app-match-snippets class="snippets" [summary]="s" [search]="search()" [visibleLabels]="visibleLabels().length" />
+
   @if (s.kind === K.Running && s.sumaroonPreview?.length) {
     <ol class="sumaroon-preview" aria-label="תמציתוניות">
       @for (x of s.sumaroonPreview; track x._id; let i = $index) {
@@ -99,6 +104,7 @@
   }
   <div class="foot">
     <div class="labels">
+      <app-capsule-catch [summary]="s" [search]="search()" />
       @for (l of visibleLabels(); track l.name) {
         <nz-tag class="label-chip" (click)="searchLabel(l.name, $event)"><span [innerHTML]="l.name | highlight: search() : T.Label"></span></nz-tag>
       }

@@ -8,11 +8,12 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
+import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { INotificationSettings } from '../../../shared/models';
 import { NotificationNamePipe, NotificationsSettingsService, describeRule } from '../notification-rules';
 
-/** /notifications — notification rules admin: list, filter, edit, delete. */
+/** /notifications — the user's e-mail switches, and notification rules admin: list, filter, edit, delete. */
 @Component({
   selector: 'app-notifications-settings',
   imports: [
@@ -24,6 +25,7 @@ import { NotificationNamePipe, NotificationsSettingsService, describeRule } from
     NzInputModule,
     NzPopconfirmModule,
     NzSkeletonModule,
+    NzSwitchModule,
     NzTagModule,
     NotificationNamePipe,
   ],
@@ -43,6 +45,7 @@ export class NotificationsSettingsComponent {
 
   constructor() {
     this.service.load();
+    this.service.loadPreferences();
   }
 
   remove(r: INotificationSettings) {

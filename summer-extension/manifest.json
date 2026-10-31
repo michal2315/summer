@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Summer",
+  "short_name": "Summer",
+  "version": "0.1.0",
+  "description": "שליחת טקסט מסומן מכל אתר לסאמר כטיוטת תמצית.",
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Summer", "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" } },
+  "options_page": "options.html",
+  "permissions": ["contextMenus", "storage", "notifications", "scripting", "activeTab"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"]
+}

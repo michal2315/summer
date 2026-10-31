@@ -47,6 +47,7 @@ export class SideNavComponent {
       { label: 'לקטים', icon: 'folder', link: ['/collections'], altKey: 'collections' },
       { label: 'היררכיה', icon: 'apartment', link: ['/hierarchy'], altKey: 'hierarchy' },
       { label: 'התראות', icon: 'notification', link: ['/notifications'], altKey: 'notifications' },
+      { label: 'כמוסות', icon: 'experiment', link: ['/capsules'], altKey: 'capsules' },
       { label: 'הרשאות', icon: 'lock', link: ['/permissions'], altKey: 'permissions' },
       { label: 'תוסף', icon: 'appstore-add', link: ['/extension'], altKey: 'extension' },
     ];

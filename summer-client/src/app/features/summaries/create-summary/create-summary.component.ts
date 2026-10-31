@@ -32,6 +32,7 @@ import {
   IField,
   ISummary,
   ISummaryParent,
+  ISummaryTemplate,
   SUMMARY_KIND_LABEL,
   SearchType,
   SummaryKind,
@@ -44,6 +45,7 @@ import { ContentTypeService } from '../../../shared/services/content-type.servic
 import { LabelService } from '../../../shared/services/label.service';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { SummaryService } from '../../../shared/services/summary.service';
+import { SummaryTemplateService } from '../../../shared/services/summary-template.service';
 import { FolderService, managedFolderPaths } from '../../../shared/services/folder.service';
 
 type FieldValue = string | number | Date | null;
@@ -85,6 +87,8 @@ type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
 
 /** The running summary a sumaroon is written into, plus the content type it imposes. */
 type ParentInfo = ISummaryParent & { contentTypeId: string };
+/** The sharing-section values a template fills in. */
+type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'collections' | 'folder'>;
 const LABELS_PAGE = 20;
 
 @Component({
@@ -132,6 +136,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private readonly modal = inject(NzModalService);
   private readonly storage = inject(StorageService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  readonly templates = inject(SummaryTemplateService);
 
   /** Set by the edit route's resolver (withComponentInputBinding). */
   readonly summary = input<ISummary | undefined>(undefined);
@@ -168,6 +173,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     labels: [[] as string[], Validators.required],
     collections: [[] as string[]],
     taggedUsers: [[] as string[]],
+    taggedPermissions: [[] as string[]],
     notes: [''],
     eventDate: [new Date() as Date | null],
     eventSecTime: [null as Date | null],
@@ -246,8 +252,22 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const pinned = new Set(this.users.user()?.pinnedPermissions ?? []);
     return [...this.permissionGroups.assignable()].sort((a, b) => Number(pinned.has(b._id)) - Number(pinned.has(a._id)));
   });
+  /** Any group can be tagged, not only the ones the user may assign. */
+  readonly taggablePermissions = computed(() => {
+    const pinned = new Set(this.users.user()?.pinnedPermissions ?? []);
+    return [...this.permissionGroups.list()].sort((a, b) => Number(pinned.has(b._id)) - Number(pinned.has(a._id)));
+  });
   readonly sortedLabels = computed(() => this.pinFirst(this.labelOptions(), (l) => l, 'pinnedLabels', 'favoriteLabels'));
   readonly sortedCollections = computed(() => this.pinFirst(this.collectionOptions(), (c) => c._id, 'pinnedCollections', 'favoriteCollections'));
+
+  // ---- sharing-section templates ----
+  /** The template last applied (shown in the picker). */
+  readonly appliedTemplate = signal<string | null>(null);
+  /** What the last applied template replaced, so it can be undone. */
+  readonly templateUndo = signal<{ name: string; previousId: string | null; values: SharingValues } | null>(null);
+  readonly templateName = signal('');
+  readonly templatePopoverOpen = signal(false);
+  readonly templateNameTaken = computed(() => this.templates.list().some((t) => t.name === this.templateName().trim()));
 
   // ---- what's missing (shown beside the save buttons after a failed publish) ----
   /** Ticks on every value/validity change, so the computed below re-reads control state. */
@@ -257,17 +277,18 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const c = this.form.controls;
     const out: string[] = [];
     const check = (invalid: boolean, name: string) => invalid && out.push(name);
-    check(c.contentType.invalid, 'סוג תוכן');
+    // Same order as the sections on the page.
     check(c.parent.invalid, 'תמצית רצף');
-    check(c.title.invalid, 'כותרת');
-    check(c.content.invalid, 'תוכן');
+    check(c.contentType.invalid, 'סוג תוכן');
+    for (const d of this.typeFieldDefs()) check(!!this.typeFields.controls[d.field._id]?.invalid, d.field.name);
     check(c.range.invalid, 'טווח תאריכים');
     check(c.eventDate.invalid, 'תאריך האירוע');
     check(c.link.invalid, 'קישור');
-    for (const d of this.typeFieldDefs()) check(!!this.typeFields.controls[d.field._id]?.invalid, d.field.name);
+    check(c.title.invalid, 'כותרת');
+    check(c.content.invalid, 'תוכן');
+    check(c.permissions.invalid, 'הרשאות');
     check(c.labels.invalid, 'תגיות');
     check(c.collections.invalid, 'לקטים');
-    check(c.permissions.invalid, 'הרשאות');
     return out;
   });
 
@@ -276,6 +297,12 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly restorable = signal<LocalDraft | null>(null);
   readonly autosavedAt = signal<Date | null>(null);
   private readonly localDraftKey = computed(() => `${LOCAL_DRAFT_KEY}:${this.summary()?._id ?? 'new'}`);
+
+  readonly hasSharingValues = computed(() => {
+    this.formTick();
+    const v = this.form.getRawValue();
+    return !!(v.permissions.length || v.taggedUsers.length || v.taggedPermissions.length || v.labels.length || v.collections.length || v.folder);
+  });
 
   readonly editorPlaceholder = 'תתפרעו :) הוסיפו # לפני מילה בשביל להפוך אותה לתגית';
 
@@ -406,6 +433,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
     this.labelSearch$.next('');
     this.collectionSearch$.next('');
+    this.templates.load();
 
     // Offer to restore unsaved work from an earlier visit (the key is known once the edit resolver's input is set).
     effect(() => {
@@ -505,6 +533,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       labels: s.labels.map((l) => l.name),
       collections: s.collectionIds.map((c) => c._id),
       taggedUsers: s.taggedUsers.map((u) => u._id),
+      taggedPermissions: s.taggedPermissions.map((p) => p._id),
       notes: s.notes ?? '',
       eventDate: s.eventDate ? new Date(s.eventDate) : null,
       eventSecTime: s.eventSecTime ? new Date(s.eventSecTime) : null,
@@ -546,6 +575,82 @@ export class CreateSummaryComponent implements HasPendingChanges {
       const date = this.form.controls.eventDate.value;
       if (!date || this.outsideParentRange(date)) this.form.controls.eventDate.setValue(parseISO(p.rangeStart));
     });
+  }
+
+  // ---- sharing-section templates ----
+  /** Replace the sharing section with the template's values; the fields stay editable afterwards. */
+  applyTemplate(id: string | null) {
+    const t = this.templates.list().find((x) => x._id === id);
+    if (!t) return;
+    const sumaroon = this.kind() === SummaryKind.Sumaroon;
+    const canPlace = !this.isEdit() && !sumaroon;
+    const assignable = new Set(this.permissionGroups.assignable().map((p) => p._id));
+    const permissions = t.permissions.filter((p) => assignable.has(p));
+    const known = this.permissionGroups.byId();
+    const taggedPermissions = t.taggedPermissions.filter((p) => known.has(p));
+    const folder = canPlace && this.folderOptions().some((f) => f._id === t.folder) ? t.folder : null;
+    const skipped =
+      t.permissions.length - permissions.length + t.taggedPermissions.length - taggedPermissions.length + (canPlace && t.folder && !folder ? 1 : 0);
+
+    this.templateUndo.set({ name: t.name, previousId: this.appliedTemplate(), values: this.sharingValues() });
+    this.labelOptions.update((l) => this.withSelected(l, t.labels));
+    this.collectionOptions.update((c) => mergeById(t.collections, c));
+    this.userOptions.update((u) => mergeById(t.taggedUsers, u));
+    this.form.patchValue({
+      permissions,
+      taggedUsers: t.taggedUsers.map((u) => u._id),
+      taggedPermissions,
+      labels: [...t.labels],
+      collections: sumaroon ? [] : t.collections.map((c) => c._id),
+      ...(canPlace ? { folder } : {}),
+    });
+    this.form.markAsDirty();
+    this.appliedTemplate.set(t._id);
+    if (skipped) this.message.warning('חלק מהפריטים בתבנית כבר לא זמינים לך ולא נוספו');
+  }
+
+  undoTemplate() {
+    const u = this.templateUndo();
+    if (!u) return;
+    this.form.patchValue(u.values);
+    this.appliedTemplate.set(u.previousId);
+    this.templateUndo.set(null);
+  }
+
+  /** Opening the save popover suggests the applied template's name, so updating it is one click. */
+  onTemplatePopover(open: boolean) {
+    this.templatePopoverOpen.set(open);
+    if (open) this.templateName.set(this.templates.list().find((t) => t._id === this.appliedTemplate())?.name ?? '');
+  }
+
+  saveTemplate() {
+    const name = this.templateName().trim();
+    if (!name) return;
+    const replacing = this.templateNameTaken();
+    this.templates.save({ name, ...this.sharingValues() }).subscribe((list) => {
+      this.appliedTemplate.set(list.find((t) => t.name === name)?._id ?? null);
+      this.templatePopoverOpen.set(false);
+      this.message.success(replacing ? 'התבנית עודכנה' : 'התבנית נשמרה');
+    });
+  }
+
+  deleteTemplate(t: ISummaryTemplate) {
+    this.modal.confirm({
+      nzTitle: `למחוק את התבנית "${t.name}"?`,
+      nzContent: 'תמציות שכבר נכתבו איתה לא ישתנו.',
+      nzOkText: 'מחיקה',
+      nzOkDanger: true,
+      nzCancelText: 'ביטול',
+      nzOnOk: () =>
+        this.templates.delete(t._id).subscribe(() => {
+          if (this.appliedTemplate() === t._id) this.appliedTemplate.set(null);
+        }),
+    });
+  }
+
+  private sharingValues(): SharingValues {
+    const { permissions, taggedUsers, taggedPermissions, labels, collections, folder } = this.form.getRawValue();
+    return { permissions, taggedUsers, taggedPermissions, labels, collections, folder };
   }
 
   // ---- template helpers ----
@@ -679,6 +784,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
     }
     this.submitted.set(false);
     this.duplicates.set([]);
+    this.appliedTemplate.set(null);
+    this.templateUndo.set(null);
     this.clearLocalDraft();
   }
 
@@ -742,6 +849,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       collectionIds: kind === SummaryKind.Sumaroon ? [] : v.collections,
       permissions: v.permissions,
       taggedUsers: v.taggedUsers,
+      taggedPermissions: v.taggedPermissions,
       summaryFields,
       files: this.existingFiles(),
       isDraft,

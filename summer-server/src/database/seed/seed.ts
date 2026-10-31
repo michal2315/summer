@@ -43,10 +43,10 @@ const COMMENTS = ['תודה רבה! עזר מאוד 🙏', 'יש טעות קטנ
 
 const TABLES = [
   'folder_summaries', 'folder_collections', 'folder_editors', 'folder_permissions', 'folders',
-  'notifications', 'notification_rules', 'whats_new_seen', 'user_pinned_searches', 'user_pinned_permissions', 'user_fav_labels',
+  'notifications', 'notification_rule_hits', 'notification_rules', 'whats_new_seen', 'user_pinned_searches', 'user_pinned_permissions', 'user_fav_labels',
   'user_pinned_labels', 'user_pinned_collections', 'user_fav_collections', 'user_fav_summaries', 'user_follows',
   'summary_collections', 'collection_editors', 'collection_permissions', 'collections', 'comments', 'summary_files',
-  'summary_seen', 'summary_tagged_users', 'summary_fields', 'summary_labels', 'summary_editors', 'summary_permissions',
+  'summary_seen', 'summary_tagged_users', 'summary_tagged_permissions', 'summary_fields', 'summary_labels', 'summary_editors', 'summary_permissions',
   'summaries', 'labels', 'content_type_fields', 'content_types', 'fields', 'permissions', 'users',
 ];
 
@@ -85,6 +85,7 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
         { name: 'מדעי ההתנהגות', groupName: 'behavioral', color: '#800080' },
         { name: 'סטודנטים שנה א׳', groupName: 'year-1', color: '#ffa500' },
         { name: 'סגל אקדמי', groupName: 'staff', color: '#ff0000' },
+        { name: 'תבור', groupName: 'tavor', color: '#8b5a2b' },
       ])
       .returning();
     const perm = (group: string) => permissions.find((p) => p.groupName === group)!.id;

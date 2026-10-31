@@ -9,9 +9,10 @@ import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { Subject, debounceTime, map, of, switchMap } from 'rxjs';
 import { UserService } from '../../../../core/auth/user.service';
 import { AvatarComponent } from '../../../../shared/components/avatar/avatar.component';
-import { IMention, ISummary, ISummarySearch, SearchType, UserRef } from '../../../../shared/models';
+import { IMention, IPermission, ISummary, ISummarySearch, SearchType, UserRef } from '../../../../shared/models';
 import { HighlightPipe, RelativeTimePipe } from '../../../../shared/pipes/pipes';
 import { CommentService } from '../../../../shared/services/comment.service';
+import { PermissionService } from '../../../../shared/services/permission.service';
 
 interface Suggestion {
   /** text inserted after the prefix (no spaces, so the mention survives as one token) */
@@ -20,7 +21,7 @@ interface Suggestion {
   mention: IMention;
 }
 
-/** Comment list + composer. "@" mentions users (they get notified). Replaces angular-mentions with nz-mention. */
+/** Comment list + composer. "@" mentions users or permission groups (they get notified). Replaces angular-mentions with nz-mention. */
 @Component({
   selector: 'app-comments',
   imports: [FormsModule, RouterLink, NzButtonModule, NzIconModule, NzInputModule, NzMentionModule, NzPopconfirmModule, AvatarComponent, HighlightPipe, RelativeTimePipe],
@@ -31,6 +32,7 @@ interface Suggestion {
 export class CommentsComponent {
   readonly users = inject(UserService);
   private readonly comments = inject(CommentService);
+  private readonly permissions = inject(PermissionService);
 
   readonly summary = input.required<ISummary>();
   readonly search = input<ISummarySearch | null>(null);
@@ -52,7 +54,13 @@ export class CommentsComponent {
         debounceTime(200),
         switchMap(({ value }) => {
           this.searching.set(true);
-          return value ? this.users.query(value).pipe(map((list) => list.map(userSuggestion))) : of([]);
+          if (!value) return of([]);
+          const text = value.toLowerCase();
+          const groups = this.permissions
+            .list()
+            .filter((p) => p.name.toLowerCase().includes(text))
+            .map(groupSuggestion);
+          return this.users.query(value).pipe(map((list) => [...list.map(userSuggestion), ...groups]));
         }),
       )
       .subscribe((list) => {
@@ -98,5 +106,11 @@ const userSuggestion = (u: UserRef): Suggestion => ({
   label: `${u.fullName}${u.department ? ' - ' + u.department : ''}`,
   mention: { _id: u._id, type: 'user', value: u.username, icon: '' },
 });
+
+/** Group names may contain spaces; underscores keep the mention a single token. */
+const groupSuggestion = (p: IPermission): Suggestion => {
+  const value = p.name.trim().replace(/\s+/g, '_');
+  return { value, label: `${p.name} (קבוצה)`, mention: { _id: p._id, type: 'permission', value, icon: '' } };
+};
 
 const dedupe = (list: IMention[]) => list.filter((m, i) => list.findIndex((x) => x._id === m._id && x.type === m.type) === i);

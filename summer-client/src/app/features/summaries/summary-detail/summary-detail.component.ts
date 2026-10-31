@@ -11,12 +11,14 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subscription } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
+import { CapsuleCatchComponent } from '../../../shared/components/capsules/capsule-catch/capsule-catch.component';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { ColorPickerComponent } from '../../../shared/components/color-picker/color-picker.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { FieldsType, ISummary, ISummaryField, ISummarySearch, SUMMARY_KIND_LABEL, SearchType, SummaryKind } from '../../../shared/models';
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { SummaryService } from '../../../shared/services/summary.service';
+import { MatchNavComponent } from '../match-nav/match-nav.component';
 import { SummaryActionsService } from '../summary-actions.service';
 import { SumaroonListComponent } from '../running/sumaroon-list/sumaroon-list.component';
 import { CommentsComponent } from './comments/comments.component';
@@ -35,6 +37,7 @@ const SNAPSHOT_KEY = 'currSummary';
     NzTagModule,
     NzToolTipModule,
     AvatarComponent,
+    CapsuleCatchComponent,
     ColorPickerComponent,
     ContentTypeIconComponent,
     CommentsComponent,
@@ -42,6 +45,7 @@ const SNAPSHOT_KEY = 'currSummary';
     DateFormatPipe,
     HighlightPipe,
     RichHtmlPipe,
+    MatchNavComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-detail.component.html',

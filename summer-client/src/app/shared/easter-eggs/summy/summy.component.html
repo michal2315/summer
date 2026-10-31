@@ -67,6 +67,53 @@
           <circle class="hand" cx="24" cy="4" r="5" />
         </g>
       }
+      @case ('pm') {
+        <!-- Curly ginger hair: one uneven mass hugging the head, spirals and highlights inside. -->
+        <g class="hair">
+          <path
+            class="mass"
+            d="M21 52
+               A6 6 0 0 1 24 41 A7 7 0 0 1 31 31 A6.5 6.5 0 0 1 41 24 A7 7 0 0 1 51 19 A6 6 0 0 1 62 18
+               A7.5 7.5 0 0 1 73 20 A6.5 6.5 0 0 1 83 26 A7 7 0 0 1 91 34 A6 6 0 0 1 96 44 A5.5 5.5 0 0 1 99 53
+               L93 52
+               A5 5 0 0 1 86 46 A5.5 5.5 0 0 1 77 43 A5 5 0 0 1 68 45 A5.5 5.5 0 0 1 59 42 A5 5 0 0 1 50 45
+               A5.5 5.5 0 0 1 41 43 A5 5 0 0 1 33 47 A5 5 0 0 1 27 53 Z"
+          />
+          <path
+            class="swirl"
+            d="M31 41 a3 3 0 1 1 3 3 a1.5 1.5 0 1 1 -1.5 -1.5
+               M42 31 a3.5 3.5 0 1 1 3.5 3.5 a1.8 1.8 0 1 1 -1.8 -1.8
+               M56 26 a2.8 2.8 0 1 1 2.8 2.8
+               M67 27 a3.5 3.5 0 1 1 3.5 3.5 a1.8 1.8 0 1 1 -1.8 -1.8
+               M80 32 a3 3 0 1 1 3 3
+               M89 42 a2.5 2.5 0 1 1 2.5 2.5
+               M50 37 a2.4 2.4 0 1 1 2.4 2.4
+               M75 39 a2.4 2.4 0 1 1 2.4 2.4"
+          />
+          <path class="shine" d="M45 25 q4 -3 8 -2 M64 21 q4 -1 7 1 M33 33 q2 -3 5 -4" />
+        </g>
+        <path class="happy" d="M44 57 q5 -6 10 0 M66 57 q5 -6 10 0" />
+        <path class="grin" d="M46 68 q14 16 28 0 z" />
+        <g class="freckles">
+          <circle cx="40" cy="64" r="1.2" />
+          <circle cx="44" cy="66" r="1.2" />
+          <circle cx="76" cy="66" r="1.2" />
+          <circle cx="80" cy="64" r="1.2" />
+        </g>
+        <!-- Clipboard: the three boxes tick themselves off in turn. -->
+        <g class="clipboard">
+          <rect class="board" x="70" y="74" width="32" height="40" rx="3" />
+          <rect class="paper" x="73" y="80" width="26" height="31" rx="1.5" />
+          <rect class="clip" x="80" y="71" width="12" height="6" rx="2" />
+          @for (row of [86, 95, 104]; track row; let i = $index) {
+            <rect class="box" x="76" [attr.y]="row - 3" width="5" height="5" rx="1" />
+            <path [class]="'tick tick-' + i" [attr.d]="'M76.5 ' + row + ' l1.8 1.8 l3.4 -4'" />
+            <path class="todo" [attr.d]="'M84 ' + row + ' h12'" />
+          }
+          <circle class="hand" cx="72" cy="98" r="5" />
+          <circle class="hand" cx="101" cy="92" r="5" />
+        </g>
+      }
       @case ('target') {
         <path class="wink" d="M44 56 q5 -4 10 0" />
         <ellipse class="eye" cx="71" cy="55" rx="3.5" ry="4.5" />

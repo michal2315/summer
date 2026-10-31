@@ -6,12 +6,14 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { UserService } from '../../../core/auth/user.service';
+import { CapsuleCatchComponent } from '../../../shared/components/capsules/capsule-catch/capsule-catch.component';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { ColorPickerComponent } from '../../../shared/components/color-picker/color-picker.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { ISummary, ISummarySearch, SearchType, SummaryKind } from '../../../shared/models';
 import { colorGlow } from '../../../shared/models/colors';
 import { DateFormatPipe, HighlightPipe, RelativeTimePipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
+import { MatchSnippetsComponent } from '../match-snippets/match-snippets.component';
 import { SummaryActionsService } from '../summary-actions.service';
 import { SummaryListStore } from '../summary-list.store';
 
@@ -27,12 +29,14 @@ const VISIBLE_LABELS = 4;
     NzTagModule,
     NzToolTipModule,
     AvatarComponent,
+    CapsuleCatchComponent,
     ColorPickerComponent,
     ContentTypeIconComponent,
     DateFormatPipe,
     RelativeTimePipe,
     HighlightPipe,
     RichHtmlPipe,
+    MatchSnippetsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-card.component.html',

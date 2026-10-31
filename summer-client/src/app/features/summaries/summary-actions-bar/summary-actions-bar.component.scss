@@ -1,5 +1,28 @@
 @use 'tokens' as *;
 
 :host { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.count { font-weight: 700; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: $pink-50; color: $pink-strong; }
+
+// Selection mode reads as its own bar: a soft tinted surface around the whole group.
+:host(.selecting) { padding: 3px 6px; border-radius: 999px; background: $background-soft; border: 1px solid $pink-100; }
+
+.selection { display: inline-flex; align-items: center; gap: 6px; padding-inline-start: 4px; }
+.count { font-weight: 700; font-size: 13px; color: $pink-strong; white-space: nowrap; }
 .count.capped { color: $error-color; }
+.locked {
+  display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 12.5px; line-height: 20px;
+  padding: 0 8px; border: none; border-radius: 999px; background: $orange-100; color: $orange-strong; cursor: pointer;
+  &:hover { background: $orange-50; }
+}
+.locked-info { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; max-width: 240px; font-size: 13px; }
+
+.edits .ant-btn { padding-inline: 8px; }
+.menu-count { margin-inline-start: 4px; color: $gray; }
+
+// Same swatches as the card's colour picker.
+.palette { display: grid; grid-template-columns: repeat(3, 24px); gap: 8px; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; transition: transform $transition; }
+.swatch:hover { transform: scale(1.1); }
+.swatch.none { background: $white; border: 1px solid $border-strong; color: $gray; font-size: 11px; }
+
+.divider { width: 1px; height: 16px; margin: 0 2px; background: $pink-100; }
+.close { color: $gray; }

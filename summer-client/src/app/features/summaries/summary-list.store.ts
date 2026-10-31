@@ -40,10 +40,21 @@ export class SummaryListStore {
   readonly version = signal(0);
   private readonly tab = signal<SummarySearch>(SummarySearch.Summary);
 
-  // ---- selection mode (export / add-to-collection / remove-from-collection) ----
+  // ---- selection mode (export / bulk edits / remove-from-collection) ----
   readonly selectMode = signal(false);
-  readonly selected = signal<ReadonlySet<string>>(new Set());
-  readonly selectedCount = computed(() => this.selected().size);
+  /** Selected id → its row as listed when selected (kept across pages, so bulk actions know kind and canEdit). */
+  private readonly selection = signal<ReadonlyMap<string, ISummary | undefined>>(new Map());
+  readonly selected = computed<ReadonlySet<string>>(() => new Set(this.selection().keys()));
+  readonly selectedCount = computed(() => this.selection().size);
+  readonly selectedRows = computed(() => [...this.selection()].map(([id, summary]) => ({ id, summary })));
+  /** Selected rows the user may not edit (a row never listed counts as editable; the server re-checks anyway). */
+  readonly selectedNotEditable = computed(() => this.selectedRows().filter((r) => r.summary?.canEdit === false).map((r) => r.id));
+  /** How much of the loaded list is selected (drives the select-all checkbox). */
+  readonly loadedSelection = computed<'none' | 'some' | 'all'>(() => {
+    const rows = this.summaries();
+    const n = rows.filter((s) => this.selection().has(s._id)).length;
+    return !n ? 'none' : n === rows.length ? 'all' : 'some';
+  });
 
   /** Total for the active bucket (drives "N תמציות", table pagination and end-of-list detection). */
   readonly total = computed(() => {
@@ -102,26 +113,33 @@ export class SummaryListStore {
   // ---- selection ----
   setSelectMode(on: boolean) {
     this.selectMode.set(on);
-    if (!on) this.selected.set(new Set());
+    if (!on) this.selection.set(new Map());
   }
 
   toggleSelected(id: string) {
-    const next = new Set(this.selected());
+    const next = new Map(this.selection());
     if (next.has(id)) next.delete(id);
-    else if (next.size < this.maxSelection) next.add(id);
-    this.selected.set(next);
+    else if (next.size < this.maxSelection) next.set(id, this.summaries().find((s) => s._id === id));
+    this.selection.set(next);
   }
 
   /** Select every loaded row (up to the export cap), or clear if they are all selected already. */
   toggleSelectAllLoaded() {
-    const ids = this.summaries().map((s) => s._id);
-    const all = ids.every((id) => this.selected().has(id));
-    const next = new Set(this.selected());
-    for (const id of ids) {
-      if (all) next.delete(id);
-      else if (next.size < this.maxSelection) next.add(id);
+    const rows = this.summaries();
+    const all = rows.every((s) => this.selection().has(s._id));
+    const next = new Map(this.selection());
+    for (const s of rows) {
+      if (all) next.delete(s._id);
+      else if (next.size < this.maxSelection && !next.has(s._id)) next.set(s._id, s);
     }
-    this.selected.set(next);
+    this.selection.set(next);
+  }
+
+  /** Drop `ids` from the selection (e.g. the rows a bulk edit would skip). */
+  deselect(ids: string[]) {
+    const next = new Map(this.selection());
+    for (const id of ids) next.delete(id);
+    this.selection.set(next);
   }
 
   /** The query currently listed — used by "export all results". */

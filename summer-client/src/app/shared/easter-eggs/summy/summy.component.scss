@@ -179,6 +179,105 @@ $red-dot: #ff2a3d;
   }
 }
 
+// ---- pm ----
+$ginger: #d4572a;
+$ginger-dark: #a8431f;
+
+.hair {
+  .mass {
+    fill: $ginger;
+    stroke: $ginger-dark;
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+  }
+  // Little spirals so the mass reads as curls.
+  .swirl {
+    fill: none;
+    stroke: $ginger-dark;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    opacity: 0.75;
+  }
+  .shine {
+    fill: none;
+    stroke: #f59a66;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+}
+.happy {
+  fill: none;
+  stroke: $dark-blue;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.grin {
+  fill: $dark-blue;
+  stroke: $dark-blue;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.freckles circle {
+  fill: $ginger-dark;
+  opacity: 0.55;
+}
+.clipboard {
+  .board {
+    fill: #c8945a;
+  }
+  .paper {
+    fill: $white;
+  }
+  .clip {
+    fill: $dark-gray;
+  }
+  .box {
+    fill: none;
+    stroke: $gray;
+    stroke-width: 1;
+  }
+  .todo {
+    stroke: $border-strong;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .tick {
+    fill: none;
+    stroke: $success-color;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 8;
+    stroke-dashoffset: 8;
+    animation: tick 2.4s ease-out infinite;
+  }
+  .tick-1 {
+    animation-delay: 0.35s;
+  }
+  .tick-2 {
+    animation-delay: 0.7s;
+  }
+  .hand {
+    fill: #ffc94a;
+    stroke: $orange-strong;
+    stroke-width: 1;
+  }
+}
+
+// Each box ticks, stays ticked, and the list resets near the end of the loop.
+@keyframes tick {
+  0% {
+    stroke-dashoffset: 8;
+  }
+  15%,
+  85% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 8;
+  }
+}
+
 @keyframes glow-dot {
   50% {
     opacity: 0.55;

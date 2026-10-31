@@ -1,0 +1,58 @@
+<!doctype html>
+<!--
+  Summer e-mail layout. Rendered by src/notifications/mail-templates.ts:
+    {{name}}   escaped text        {{{name}}}  trusted HTML built by the server
+  Vars: preheader, title, body (HTML), ctaUrl, ctaLabel, appUrl, settingsUrl.
+  E-mail clients ignore <style> blocks and most modern CSS: keep styles inline and layout in tables.
+  The logo is attached to every mail as cid:summer-logo (summer-logo.png, next to this file).
+-->
+<html dir="rtl" lang="he">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>{{title}}</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f5f5f9;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{preheader}}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f5f9;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="max-width:560px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e8e8ef;">
+            <tr>
+              <td style="height:6px;line-height:6px;font-size:0;background-color:#ff4056;background-image:linear-gradient(137deg,#ff9155 0%,#ff4056 100%);">&nbsp;</td>
+            </tr>
+            <tr>
+              <td align="right" style="padding:20px 28px 4px 28px;">
+                <a href="{{appUrl}}" style="text-decoration:none;"><img src="cid:summer-logo" width="132" height="43" alt="Summer" style="display:block;border:0;width:132px;height:43px;" /></a>
+              </td>
+            </tr>
+            <tr>
+              <td dir="rtl" style="padding:12px 28px 4px 28px;font-family:Arial,Helvetica,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:#01004f;text-align:right;">{{title}}</td>
+            </tr>
+            <tr>
+              <td dir="rtl" style="padding:8px 28px 8px 28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#01004f;text-align:right;">{{{body}}}</td>
+            </tr>
+            <tr>
+              <td align="right" style="padding:12px 28px 28px 28px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="border-radius:8px;background-color:#e8253d;">
+                      <a href="{{ctaUrl}}" style="display:inline-block;padding:11px 22px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;">{{ctaLabel}}</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td dir="rtl" style="padding:16px 28px 20px 28px;border-top:1px solid #e8e8ef;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#6b6b80;text-align:right;">
+                קיבלת את המייל הזה מ-<a href="{{appUrl}}" style="color:#6b6b80;">Summer</a>.
+                אפשר לבחור אילו מיילים לקבל ב<a href="{{settingsUrl}}" style="color:#6b6b80;">ניהול התראות</a>.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

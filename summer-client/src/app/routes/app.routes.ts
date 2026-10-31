@@ -34,6 +34,11 @@ export const routes: Routes = [
       },
       { path: 'notifications', loadChildren: () => import('./notifications.routes') },
       {
+        path: 'capsules',
+        loadComponent: () => import('../features/capsules/capsules-page/capsules-page.component').then((m) => m.CapsulesPageComponent),
+        title: 'Summer · כמוסות',
+      },
+      {
         path: 'permissions',
         loadComponent: () => import('../features/permissions/permissions-page/permissions-page.component').then((m) => m.PermissionsPageComponent),
         title: 'Summer · הרשאות',

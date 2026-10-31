@@ -1,15 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiUser } from '../common/api-types';
-import { isUuid } from '../common/validation';
+import { z } from 'zod';
+import { ApiBulkResult, ApiUser } from '../common/api-types';
+import { isUuid, parse, unique, zId } from '../common/validation';
 import { DatabaseService } from '../database/database.service';
 import { LabelsRepository } from '../labels/labels.repository';
 import { PermissionsRepository } from '../permissions/permissions.repository';
+import { BULK_MAX } from '../summaries/summaries.service';
 import { UserStateRepository } from './user-state.repository';
 import { UsersRepository } from './users.repository';
 
 const MAX_PINNED_SEARCH_BYTES = 4096;
 const MAX_PINNED_SEARCHES = 50;
+
+const bulkFavoriteSchema = z.object({ summaryIds: z.array(zId).min(1).max(BULK_MAX), favorite: z.boolean() });
 /** Keys that do not distinguish one saved search from another. */
 const IGNORED_SEARCH_KEYS = new Set(['sort', 'isPin', 'skip', 'limit']);
 
@@ -84,6 +88,16 @@ export class UsersService {
       return true;
     });
     return this.me(me);
+  }
+
+  /** Add (only summaries the caller can see) or remove many favourites at once. */
+  async bulkFavorite(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
+    const p = parse(bulkFavoriteSchema, body);
+    const ids = unique(p.summaryIds);
+    const visible = p.favorite ? await this.state.visibleSummaryIds(me, ids) : new Set(ids);
+    const applied = ids.filter((id) => visible.has(id));
+    await this.state.setFavoriteSummaries(me.id, applied, p.favorite);
+    return { applied, skipped: ids.filter((id) => !visible.has(id)).map((id) => ({ id, reason: 'not-found' as const })) };
   }
 
   async follow(me: CurrentUser, userId: string): Promise<ApiUser> {

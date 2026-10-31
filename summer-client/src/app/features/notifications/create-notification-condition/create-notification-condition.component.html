@@ -31,37 +31,37 @@
       <app-capsule-chip class="peek" size="sm" [capsuleId]="$any(id)" />
     }
   } @else {
-  @switch (field()?.type) {
-    @case (FT.Number) {
-      <nz-input-number [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" [nzPlaceHolder]="between() ? 'מ- (ריק = ללא הגבלה)' : 'ערך'" [nzDisabled]="disabled()" />
-      @if (between()) {
-        <nz-input-number [ngModel]="operand(1)" (ngModelChange)="setOperand(1, $event)" nzPlaceHolder="עד (ריק = ללא הגבלה)" [nzDisabled]="disabled()" />
-      }
-    }
-    @case (FT.Date) {
-      <nz-date-picker [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" nzFormat="dd/MM/yyyy" [nzPlaceHolder]="between() ? 'מתאריך' : 'תאריך'" [nzDisabled]="disabled()" />
-      @if (between()) {
-        <nz-date-picker [ngModel]="operand(1)" (ngModelChange)="setOperand(1, $event)" nzFormat="dd/MM/yyyy" nzPlaceHolder="עד תאריך" [nzDisabled]="disabled()" />
-      }
-    }
-    @case (FT.Array) {
-      <nz-select
-        nzMode="tags"
-        nzPlaceHolder="ערכים"
-        [ngModel]="operands()"
-        (ngModelChange)="setAll($event)"
-        (nzOnSearch)="labelQuery$.next($event)"
-        [nzDisabled]="disabled()"
-        aria-label="ערכים"
-      >
-        @for (l of labelOptions(); track l) {
-          <nz-option [nzValue]="l" [nzLabel]="l" />
+    @switch (field()?.type) {
+      @case (FT.Number) {
+        <nz-input-number [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" [nzPlaceHolder]="between() ? 'מ- (ריק = ללא הגבלה)' : 'ערך'" [nzDisabled]="disabled()" />
+        @if (between()) {
+          <nz-input-number [ngModel]="operand(1)" (ngModelChange)="setOperand(1, $event)" nzPlaceHolder="עד (ריק = ללא הגבלה)" [nzDisabled]="disabled()" />
         }
-      </nz-select>
+      }
+      @case (FT.Date) {
+        <nz-date-picker [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" nzFormat="dd/MM/yyyy" [nzPlaceHolder]="between() ? 'מתאריך' : 'תאריך'" [nzDisabled]="disabled()" />
+        @if (between()) {
+          <nz-date-picker [ngModel]="operand(1)" (ngModelChange)="setOperand(1, $event)" nzFormat="dd/MM/yyyy" nzPlaceHolder="עד תאריך" [nzDisabled]="disabled()" />
+        }
+      }
+      @case (FT.Array) {
+        <nz-select
+          nzMode="tags"
+          nzPlaceHolder="ערכים"
+          [ngModel]="operands()"
+          (ngModelChange)="setAll($event)"
+          (nzOnSearch)="labelQuery$.next($event)"
+          [nzDisabled]="disabled()"
+          aria-label="ערכים"
+        >
+          @for (l of labelOptions(); track l) {
+            <nz-option [nzValue]="l" [nzLabel]="l" />
+          }
+        </nz-select>
+      }
+      @default {
+        <input nz-input placeholder="ערך" [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" [disabled]="disabled() || !field()" aria-label="ערך" />
+      }
     }
-    @default {
-      <input nz-input placeholder="ערך" [ngModel]="operand(0)" (ngModelChange)="setOperand(0, $event)" [disabled]="disabled() || !field()" aria-label="ערך" />
-    }
-  }
   }
 </span>

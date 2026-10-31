@@ -21,3 +21,12 @@ export const LOADING_QUIPS = [
   'מתדרכים את התמציות',
   'כאן תבור, עבור',
 ];
+
+/** Team signatures (Michal, Tomer): one of these replaces the first line of about one load in RARE_ODDS. */
+export const RARE_QUIPS = [
+  'מיכל שולחת ד"ש מהקוד',
+  'מיכל עוד כאן, בין השורות',
+  "תומר ביקש עוד פיצ'ר קטן",
+  'מתעדפים מחדש לפי תומר',
+];
+export const RARE_ODDS = 200;

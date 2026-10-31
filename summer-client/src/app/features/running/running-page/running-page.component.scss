@@ -21,3 +21,10 @@
 .perm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: $white; border: 1px solid $border-color; padding: 1px 10px; border-radius: 999px; }
 .perm .dot { width: 8px; height: 8px; border-radius: 50%; }
 .loading { padding: 24px; }
+
+// The search matched the running summary's own labels or content, hidden while "פרטים" is closed.
+.details-hit {
+  background: rgba($summy-yellow, 0.35);
+  box-shadow: inset 0 0 0 1.5px $summy-yellow-strong;
+  border-radius: 999px;
+}

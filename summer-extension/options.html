@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>Summer · הגדרות התוסף</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="card">
+    <div class="title"><img src="icons/icon-48.png" alt=""> הגדרות התוסף</div>
+    <label for="serverUrl">כתובת סאמר</label>
+    <input id="serverUrl" type="url" dir="ltr" placeholder="https://summer.example">
+    <label for="contentType">סוג תוכן לטיוטות</label>
+    <select id="contentType"><option value="">הראשון ברשימה</option></select>
+    <div class="actions">
+      <button id="save">שמירה</button>
+      <button id="test" class="secondary">בדיקת חיבור</button>
+    </div>
+    <div id="status" class="status"></div>
+    <div class="hint">מסמנים טקסט בכל דף, קליק ימני ← "שליחה לסאמר". הטיוטה תופיע בלשונית "טיוטות" בפרופיל.</div>
+  </div>
+  <script src="config.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

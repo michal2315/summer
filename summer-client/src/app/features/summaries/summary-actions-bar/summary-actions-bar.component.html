@@ -1,12 +1,14 @@
 @if (!store.selectMode()) {
   <button nz-button nzSize="small" type="button" appAltKey="selectMode" (click)="store.setSelectMode(true)"><span nz-icon nzType="check-square"></span> בחירה</button>
-  @if (excelActions()) {
-    <!-- Rarely used: Excel import/templates live behind one overflow button. -->
-    <button nz-button nzSize="small" nzType="text" type="button" nz-dropdown [nzDropdownMenu]="more" nzTrigger="click" nz-tooltip="פעולות Excel" aria-label="פעולות Excel">
-      <span nz-icon nzType="more"></span>
-    </button>
-    <nz-dropdown-menu #more="nzDropdownMenu">
-      <ul nz-menu>
+  <!-- Everything Excel that doesn't need a selection lives behind one button. -->
+  <button nz-button nzSize="small" type="button" class="excel" nz-dropdown [nzDropdownMenu]="excel" nzTrigger="click" [nzLoading]="exporting()">
+    <span nz-icon nzType="file-excel"></span> Excel <span nz-icon nzType="down"></span>
+  </button>
+  <nz-dropdown-menu #excel="nzDropdownMenu">
+    <ul nz-menu>
+      <li nz-menu-item (click)="export(true)"><span nz-icon nzType="export"></span>&nbsp;ייצוא כל תוצאות החיפוש</li>
+      @if (excelActions()) {
+        <li nz-menu-divider></li>
         <li nz-menu-item (click)="openUpload()"><span nz-icon nzType="upload"></span>&nbsp;העלאת Excel</li>
         <li nz-submenu nzTitle="הורדת תבנית Excel" nzIcon="download">
           <ul>
@@ -15,19 +17,116 @@
             }
           </ul>
         </li>
-      </ul>
-    </nz-dropdown-menu>
-  }
+      }
+    </ul>
+  </nz-dropdown-menu>
 } @else {
-  <span class="count" [class.capped]="store.selectedCount() >= store.maxSelection">נבחרו: {{ store.selectedCount() }}</span>
-  <button nz-button nzSize="small" nzType="link" type="button" (click)="store.toggleSelectAllLoaded()">בחירת כל המוצגים</button>
+  <div class="selection">
+    <label
+      nz-checkbox
+      [nzChecked]="store.loadedSelection() === 'all'"
+      [nzIndeterminate]="store.loadedSelection() === 'some'"
+      (nzCheckedChange)="store.toggleSelectAllLoaded()"
+      nz-tooltip="בחירת כל המוצגים"
+      aria-label="בחירת כל המוצגים"
+    ></label>
+    <span class="count" [class.capped]="store.selectedCount() >= store.maxSelection">נבחרו {{ store.selectedCount() }}</span>
+    @if (store.selectedNotEditable().length; as locked) {
+      <button type="button" class="locked" nz-popover [nzPopoverContent]="lockedInfo" nzPopoverTrigger="click" [attr.aria-label]="locked + ' ללא הרשאת עריכה'">
+        <span nz-icon nzType="lock"></span> {{ locked }}
+      </button>
+      <ng-template #lockedInfo>
+        <div class="locked-info">
+          <div>{{ locked }} מהנבחרות ללא הרשאת עריכה — לקטים, תיקייה ותגיות ידלגו עליהן.</div>
+          <button nz-button nzSize="small" type="button" (click)="store.deselect(store.selectedNotEditable())">הסרה מהבחירה</button>
+        </div>
+      </ng-template>
+    }
+  </div>
+
+  <span class="divider"></span>
+
+  <!-- Edits: one compact icon group; each tooltip names the action and what part of the selection it applies to. -->
+  <nz-button-group nzSize="small" class="edits">
+    <button nz-button type="button" [disabled]="!collectionScope().ids.length" [nz-tooltip]="tip('לקטים', collectionScope())" aria-label="לקטים" (click)="editCollections()">
+      <span nz-icon nzType="folder-add"></span>
+    </button>
+    <button nz-button type="button" [disabled]="!folderScope().ids.length" [nz-tooltip]="tip('העברה לתיקייה', folderScope())" aria-label="העברה לתיקייה" (click)="moveToFolder()">
+      <span nz-icon nzType="folder"></span>
+    </button>
+    <button nz-button type="button" [disabled]="!labelsScope().ids.length" [nz-tooltip]="tip('תגיות', labelsScope())" aria-label="תגיות" (click)="editLabels()">
+      <span nz-icon nzType="tags"></span>
+    </button>
+    <button
+      nz-button
+      type="button"
+      [disabled]="!store.selectedCount()"
+      nz-tooltip="צבע"
+      aria-label="צבע"
+      nz-popover
+      nzPopoverTrigger="click"
+      [nzPopoverContent]="palette"
+      [(nzPopoverVisible)]="colorOpen"
+    >
+      <span nz-icon nzType="bg-colors"></span>
+    </button>
+    <button nz-button type="button" [disabled]="!store.selectedCount()" nz-tooltip="מועדפים" aria-label="מועדפים" nz-dropdown [nzDropdownMenu]="favMenu" nzTrigger="click">
+      <span nz-icon nzType="star"></span>
+    </button>
+  </nz-button-group>
+  <nz-dropdown-menu #favMenu="nzDropdownMenu">
+    <ul nz-menu>
+      <li nz-menu-item (click)="setFavorite(true)"><span nz-icon nzType="star" nzTheme="fill"></span>&nbsp;הוספה למועדפים</li>
+      <li nz-menu-item (click)="setFavorite(false)"><span nz-icon nzType="star"></span>&nbsp;הסרה מהמועדפים</li>
+    </ul>
+  </nz-dropdown-menu>
+  <ng-template #palette>
+    <div class="palette" role="listbox" aria-label="צבעים">
+      @for (c of colors; track c) {
+        <button type="button" class="swatch" [style.background]="c" (click)="setColor(c)" [attr.aria-label]="c"></button>
+      }
+      <button type="button" class="swatch none" (click)="setColor('')" aria-label="ללא צבע">✕</button>
+    </div>
+  </ng-template>
+
+  <span class="divider"></span>
+
   <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" (click)="timeline()"><span nz-icon nzType="field-time"></span> ציר זמן</button>
-  <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" (click)="addToCollection()"><span nz-icon nzType="folder-add"></span> הוספה ללקט</button>
-  <button nz-button nzSize="small" type="button" [disabled]="!store.selectedCount()" [nzLoading]="exporting()" (click)="export(false)"><span nz-icon nzType="file-excel"></span> ייצוא הנבחרים</button>
-  <button nz-button nzSize="small" type="button" [nzLoading]="exporting()" (click)="export(true)" nz-tooltip="כל תוצאות החיפוש הנוכחי">ייצוא הכל</button>
-  <button nz-button nzSize="small" type="button" (click)="exportWord()" nz-tooltip="טבלת התמציות עם טקסט משלכם"><span nz-icon nzType="file-word"></span> ייצוא ל-Word</button>
+  <button nz-button nzSize="small" type="button" nz-dropdown [nzDropdownMenu]="exportMenu" nzTrigger="click" [nzLoading]="exporting()">
+    <span nz-icon nzType="export"></span> ייצוא <span nz-icon nzType="down"></span>
+  </button>
+  <nz-dropdown-menu #exportMenu="nzDropdownMenu">
+    <ul nz-menu>
+      <li nz-menu-item [nzDisabled]="!store.selectedCount()" (click)="store.selectedCount() && export(false)"><span nz-icon nzType="file-excel"></span>&nbsp;Excel – הנבחרות</li>
+      <li nz-menu-item (click)="exportWord()"><span nz-icon nzType="file-word"></span>&nbsp;Word…</li>
+    </ul>
+  </nz-dropdown-menu>
+  <button nz-button nzSize="small" nzType="text" type="button" nz-dropdown [nzDropdownMenu]="moreMenu" nzTrigger="click" nz-tooltip="פעולות נוספות" aria-label="פעולות נוספות">
+    <span nz-icon nzType="more"></span>
+  </button>
+  <nz-dropdown-menu #moreMenu="nzDropdownMenu">
+    <ul nz-menu>
+      <li nz-menu-item [nzDisabled]="!draftIds().length" (click)="draftIds().length && toDraft()">
+        <span nz-icon nzType="undo"></span>&nbsp;הפיכה לטיוטה
+        @if (draftIds().length && draftIds().length < store.selectedCount()) {
+          <span class="menu-count">({{ draftIds().length }})</span>
+        }
+      </li>
+      <li nz-menu-item nzDanger [nzDisabled]="!mineIds().length" (click)="mineIds().length && deleteMine()">
+        <span nz-icon nzType="delete"></span>&nbsp;מחיקה
+        @if (mineIds().length && mineIds().length < store.selectedCount()) {
+          <span class="menu-count">({{ mineIds().length }})</span>
+        }
+      </li>
+    </ul>
+  </nz-dropdown-menu>
+
+  <span class="divider"></span>
+
   @if (collection(); as c) {
     <button nz-button nzSize="small" nzDanger type="button" [disabled]="!store.selectedCount()" (click)="removeFromCollection(c)"><span nz-icon nzType="minus-circle"></span> הסרה מהלקט</button>
   }
-  <button nz-button nzSize="small" nzType="text" type="button" (click)="store.setSelectMode(false)">ביטול</button>
+  <button nz-button nzSize="small" nzType="text" type="button" class="close" nz-tooltip="יציאה ממצב בחירה" aria-label="יציאה ממצב בחירה" (click)="store.setSelectMode(false)">
+    <span nz-icon nzType="close"></span>
+  </button>
 }

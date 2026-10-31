@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { CRX_URL, ExtensionService } from './extension.service';
 
-/** /extension — what the companion browser extension does. */
+/** /extension — what the companion browser extension does, and the one-click install. */
 @Component({
   selector: 'app-extension-details',
   imports: [RouterLink, NzButtonModule, NzIconModule],
@@ -11,4 +12,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
   templateUrl: './extension.component.html',
   styleUrl: './extension.component.scss',
 })
-export class ExtensionDetailsComponent {}
+export class ExtensionDetailsComponent {
+  readonly crxUrl = CRX_URL;
+  readonly info = inject(ExtensionService).info;
+}

@@ -73,3 +73,35 @@ export function activeFilterCount(s: ISummarySearch): number {
   const lists = [s.searchTypes, s.contentTypes, s.colors, s.users, s.labels, s.collections, s.dates, s.createdDates].filter((v) => v?.length).length;
   return lists + (s.query ? countConditions(s.query) : 0);
 }
+
+/** What a search alert keeps: the filters that select summaries (no paging, sort, buckets or profile scope). Same list as the server. */
+const ALERT_KEYS = ['text', 'searchTypes', 'contentTypes', 'colors', 'users', 'labels', 'collections', 'dates', 'createdDates', 'query'] as const;
+
+export function alertSearch(s: ISummarySearch): ISummarySearch {
+  const out: Record<string, unknown> = {};
+  for (const k of ALERT_KEYS) {
+    const v = s[k];
+    if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) continue;
+    if (k === 'query' && !countConditions(v as IQueryGroup)) continue;
+    out[k] = typeof v === 'string' ? v.trim() : v;
+  }
+  return out as ISummarySearch;
+}
+
+/** Same alert search (key order and empty filters don't matter). */
+export const sameAlertSearch = (a: ISummarySearch, b: ISummarySearch) => {
+  const key = (s: ISummarySearch) => JSON.stringify(Object.entries(alertSearch(s)).sort(([x], [y]) => x.localeCompare(y)));
+  return key(a) === key(b);
+};
+
+/** A search in a few words, for chips and rule lists. */
+export function describeSearch(s: ISummarySearch): string {
+  const conditions = s.query ? countConditions(s.query) : 0;
+  const parts = [
+    s.text,
+    conditions ? `${conditions} תנאים מתקדמים` : '',
+    s.contentTypes?.length ? `${s.contentTypes.length} סוגי תוכן` : '',
+    s.colors?.length ? 'צבעים' : '',
+  ].filter(Boolean);
+  return parts.join(' · ') || 'חיפוש ללא טקסט';
+}

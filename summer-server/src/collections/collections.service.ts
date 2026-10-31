@@ -2,13 +2,13 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { and } from 'drizzle-orm';
 import { z } from 'zod';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiCollection, ApiCollectionRef, ApiSummary, SummaryLengths, toApiPermission, toRef } from '../common/api-types';
+import { ApiBulkResult, ApiCollection, ApiCollectionRef, ApiSummary, SummaryLengths, toApiPermission, toRef } from '../common/api-types';
 import { parse, unique, zBoolString, zId } from '../common/validation';
 import { DatabaseService } from '../database/database.service';
 import { validPermissionSet } from '../permissions/permission-assignment';
 import { PermissionsRepository } from '../permissions/permissions.repository';
 import { SummariesRepository } from '../summaries/summaries.repository';
-import { SummariesService } from '../summaries/summaries.service';
+import { BULK_MAX, SummariesService } from '../summaries/summaries.service';
 import { SummarySearch } from '../summaries/summary-search';
 import { validUserSet } from '../users/user-set';
 import { UsersRepository } from '../users/users.repository';
@@ -36,8 +36,12 @@ const payloadSchema = z.object({
 
 const addSchema = z.object({
   collectionIds: z.array(zId).min(1).max(100),
-  summaryIds: z.array(zId).min(1).max(1000),
+  summaryIds: z.array(zId).min(1).max(BULK_MAX),
+  /** Bulk mode: add every eligible summary and report the rest, instead of rejecting the whole request. */
+  partial: z.boolean().default(false),
 });
+
+const removeSchema = addSchema.omit({ partial: true });
 
 /**
  * Collection rules: viewing is all-of its permissions; managers (collection editors) edit metadata and remove
@@ -118,18 +122,61 @@ export class CollectionsService {
     return (await this.repo.visibleIds(me, [id])).has(id) ? this.get(me, id) : ({} as ApiCollection);
   }
 
-  async addSummaries(me: CurrentUser, body: unknown): Promise<void> {
+  /**
+   * Removing members is the collection managers' right, whatever the summaries' own rights. Applies to the collections
+   * the caller manages and reports the rest — here `applied`/`skipped` are collection ids.
+   */
+  async removeSummaries(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
+    const p = parse(removeSchema, body);
+    const collectionIds = unique(p.collectionIds);
+    const summaryIds = unique(p.summaryIds);
+    const visible = await this.repo.visibleIds(me, collectionIds);
+    const editable = await this.repo.visibleIds(me, collectionIds, 'edit');
+    const applied = collectionIds.filter((id) => editable.has(id));
+    await this.database.transaction(async () => {
+      for (const id of applied) {
+        await this.repo.lockForUpdate(id);
+        await this.repo.removeMemberships(id, summaryIds);
+      }
+      if (applied.length) await this.repo.touch(applied);
+    });
+    return {
+      applied,
+      skipped: collectionIds.filter((id) => !editable.has(id)).map((id) => ({ id, reason: visible.has(id) ? 'not-editor' : 'not-found' })),
+    };
+  }
+
+  /**
+   * Strict (default): every summary must be addable, else 400 (a sumaroon) / 403 (not an editor), and nothing is added.
+   * `partial`: adds the addable ones and reports the rest. Collections must be visible in both modes (else 404).
+   */
+  async addSummaries(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
     const p = parse(addSchema, body);
     const collectionIds = unique(p.collectionIds);
     const summaryIds = unique(p.summaryIds);
     const visible = await this.repo.visibleIds(me, collectionIds);
     if (collectionIds.some((c) => !visible.has(c))) throw new NotFoundException();
-    if ((await this.summaries.onlySumaroons(summaryIds)).length) throw new BadRequestException('a sumaroon lives only inside its running summary');
-    const editable = await this.summaryRepo.visibleIds(me, summaryIds, 'edit');
-    if (summaryIds.some((s) => !editable.has(s))) throw new ForbiddenException('only a summary editor may add it to a collection');
-    await this.database.transaction(async () => {
-      await this.repo.addMemberships(collectionIds.flatMap((collectionId) => summaryIds.map((summaryId) => ({ collectionId, summaryId }))));
-      await this.repo.touch(collectionIds);
+    return this.database.transaction(async () => {
+      const found = await this.summaryRepo.lockManyForUpdate(summaryIds);
+      // Rights are checked under the row locks; kind only for summaries the caller may edit (a hidden one stays not-found).
+      const { editable, skipped } = await this.summaries.partitionEditable(
+        me,
+        summaryIds.filter((id) => found.has(id)),
+      );
+      skipped.push(...summaryIds.filter((id) => !found.has(id)).map((id) => ({ id, reason: 'not-found' as const })));
+      const sumaroons = new Set(await this.summaries.onlySumaroons(editable));
+      skipped.push(...editable.filter((id) => sumaroons.has(id)).map((id) => ({ id, reason: 'sumaroon' as const })));
+      const applied = editable.filter((id) => !sumaroons.has(id));
+
+      if (!p.partial && skipped.length) {
+        if (sumaroons.size) throw new BadRequestException('a sumaroon lives only inside its running summary');
+        throw new ForbiddenException('only a summary editor may add it to a collection');
+      }
+      if (applied.length) {
+        await this.repo.addMemberships(collectionIds.flatMap((collectionId) => applied.map((summaryId) => ({ collectionId, summaryId }))));
+        await this.repo.touch(collectionIds);
+      }
+      return { applied, skipped };
     });
   }
 

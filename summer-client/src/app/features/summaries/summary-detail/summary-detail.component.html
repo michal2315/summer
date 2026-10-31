@@ -5,6 +5,7 @@
         <button nz-button nzType="text" nzShape="circle" (click)="closed.emit()" nz-tooltip="סגירה" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
       }
       <app-color-picker [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
+      <app-match-nav root=".detail" />
       <span class="spacer"></span>
       @if (loading()) {
         <span nz-icon nzType="loading" class="muted"></span>
@@ -130,6 +131,7 @@
 
     @if (s.labels.length) {
       <div class="labels">
+        <app-capsule-catch [summary]="s" [search]="search()" />
         @if (s.parent) {
           <span class="muted">תגיות נוספות:</span>
         }
@@ -139,11 +141,14 @@
       </div>
     }
 
-    @if (s.taggedUsers.length) {
+    @if (s.taggedUsers.length || s.taggedPermissions.length) {
       <div class="tagged">
         <span class="muted">תויגו:</span>
         @for (u of s.taggedUsers; track u._id) {
           <a [routerLink]="['/profile', u._id]">{{ u.fullName }}</a>
+        }
+        @for (p of s.taggedPermissions; track p._id) {
+          <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
         }
       </div>
     }

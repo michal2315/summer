@@ -8,6 +8,8 @@ export const ALT_KEYS = {
   advancedSearch: { key: 'X', label: 'חיפוש מתקדם — פתיחה / סגירה', group: 'חיפוש' },
   pinSearch: { key: 'S', label: 'נעיצת החיפוש הנוכחי', group: 'חיפוש' },
   clearSearch: { key: 'Shift+X', label: 'ניקוי החיפוש', group: 'חיפוש' },
+  alertSearch: { key: 'A', label: 'התראה על תוצאות חדשות לחיפוש', group: 'חיפוש' },
+  shareSearch: { key: 'C', label: 'העתקת קישור לחיפוש', group: 'חיפוש' },
 
   newSummary: { key: 'N', label: 'תמצית חדשה', group: 'תמציות' },
   selectMode: { key: 'M', label: 'בחירה מרובה', group: 'תמציות' },
@@ -23,6 +25,7 @@ export const ALT_KEYS = {
   permissions: { key: '6', label: 'הרשאות', group: 'עמודים' },
   extension: { key: '7', label: 'תוסף', group: 'עמודים' },
   dashboard: { key: '8', label: 'דשבורד', group: 'עמודים' },
+  capsules: { key: '9', label: 'כמוסות', group: 'עמודים' },
 
   help: { key: '/', label: 'כל קיצורי המקלדת', group: 'עזרה' },
   tour: { key: 'Q', label: 'סיור ועזרה', group: 'עזרה' },

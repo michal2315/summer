@@ -1,4 +1,5 @@
 import { CapsuleLookup, NO_CAPSULES, capsuleMatchesText } from '../capsules/capsule';
+import { searchKey } from '../common/sql';
 import { RuleCondition } from '../database/schema';
 
 export const RULE_FUNCTIONS = [
@@ -53,9 +54,9 @@ export function matchCondition(c: RuleCondition, value: string | undefined, caps
   const [a, b] = c.content;
   switch (c.funcName) {
     case 'stringContains':
-      return a !== null && a !== undefined && value.toLowerCase().includes(String(a).toLowerCase());
+      return a !== null && a !== undefined && searchKey(value).includes(searchKey(String(a)));
     case 'stringNotContains':
-      return a !== null && a !== undefined && !value.toLowerCase().includes(String(a).toLowerCase());
+      return a !== null && a !== undefined && !searchKey(value).includes(searchKey(String(a)));
     case 'numberBigger':
     case 'numberSmaller':
     case 'numberEqual':
@@ -93,9 +94,10 @@ export function matchCondition(c: RuleCondition, value: string | undefined, caps
   }
 }
 
-/** A rule matches when every condition matches (AND), like the client's rule description «… וגם …». */
-export function matchRule(conditions: RuleCondition[], values: Map<string, string>, capsules: CapsuleLookup = NO_CAPSULES): boolean {
-  return conditions.length > 0 && conditions.every((c) => matchCondition(c, values.get(c.field._id), capsules));
+/** Every condition matches («… וגם …»), or with `matchAny` at least one («… או …»). No conditions never match. */
+export function matchRule(conditions: RuleCondition[], values: Map<string, string>, capsules: CapsuleLookup = NO_CAPSULES, matchAny = false): boolean {
+  const hit = (c: RuleCondition) => matchCondition(c, values.get(c.field._id), capsules);
+  return conditions.length > 0 && (matchAny ? conditions.some(hit) : conditions.every(hit));
 }
 
 /** Capsule ids the rules' conditions refer to. */

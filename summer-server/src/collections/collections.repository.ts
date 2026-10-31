@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { SQL, and, asc, desc, eq, exists, ilike, inArray, sql } from 'drizzle-orm';
+import { SQL, and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
-import { idsWhere, likePattern } from '../common/sql';
+import { idsWhere, textLike } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
 import {
   collectionEditors,
@@ -33,7 +33,7 @@ export class CollectionsRepository {
   /** One page of visible collections; `prioritizeFor` puts that user's pinned, then favourite collections first. */
   async listIds(opts: { visible: SQL; text: string; managedBy?: string; prioritizeFor?: string; skip: number }): Promise<string[]> {
     const conds: SQL[] = [opts.visible];
-    if (opts.text) conds.push(ilike(collections.name, likePattern(opts.text)));
+    if (opts.text) conds.push(textLike(collections.name, opts.text));
     if (opts.managedBy)
       conds.push(
         exists(
@@ -74,7 +74,7 @@ export class CollectionsRepository {
   }
 
   byNameCondition(text: string): SQL | undefined {
-    return text ? ilike(collections.name, likePattern(text)) : undefined;
+    return text ? textLike(collections.name, text) : undefined;
   }
 
   byIdsCondition(ids: string[]): SQL {

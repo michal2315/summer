@@ -28,3 +28,19 @@ export function treeCapsuleIds(q: IQueryGroup | undefined): string[] {
   if (!q) return [];
   return q.children.flatMap((c) => (c.type === 'group' ? treeCapsuleIds(c) : (c.words ?? []).filter(isCapsuleToken).map(capsuleTokenId)));
 }
+
+/** The capsule's rule over plain text (case-insensitive substring), the same as the server's search applies it. */
+export function capsuleMatchesText(c: ICapsule, text: string): boolean {
+  const hay = text.toLowerCase();
+  const has = (w: string) => hay.includes(w.toLowerCase());
+  const must = wordsOf(c, 'must');
+  const optional = wordsOf(c, 'optional');
+  if (!must.length && !optional.length) return false;
+  return must.every(has) && !wordsOf(c, 'mustNot').some(has) && (must.length > 0 || optional.some(has));
+}
+
+/** The capsule's must / optional words that appear in the text. */
+export const matchedWords = (c: ICapsule, text: string) => {
+  const hay = text.toLowerCase();
+  return positiveWords(c).filter((w) => hay.includes(w.toLowerCase()));
+};

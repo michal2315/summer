@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, map, tap } from 'rxjs';
-import { ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
+import { IBulkResult, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
 import { DOCX_MIME, XLSX_MIME, saveFile } from '../utils/save-file';
 import { toHttpParams } from './http-params';
 
@@ -66,6 +66,24 @@ export class SummaryService {
 
   toDraft(summary: ISummary): Observable<unknown> {
     return this.http.put(`${BASE}/to-draft`, { id: summary._id }).pipe(tap(() => this.changed$.next({ ...summary, isDraft: true })));
+  }
+
+  /** Add/remove labels on many summaries; applies to the ones you may edit and reports the rest. Callers reload their list. */
+  bulkLabels(summaryIds: string[], add: string[], remove: string[]): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/labels`, { summaryIds, add, remove });
+  }
+
+  /** '' clears the colour. Like the other bulk calls, callers reload their list. */
+  bulkColor(summaryIds: string[], color: string): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/color`, { summaryIds, color });
+  }
+
+  bulkToDraft(summaryIds: string[]): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/to-draft`, { summaryIds });
+  }
+
+  bulkDelete(summaryIds: string[]): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/delete`, { summaryIds }).pipe(tap((r) => r.applied.forEach((id) => this.removed$.next(id))));
   }
 
   /** Local-only change notification (e.g. favorite toggled via UserService, comment added). */

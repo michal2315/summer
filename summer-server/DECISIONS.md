@@ -52,7 +52,30 @@ and the code location is noted.
 | L1 | Deletion is **hard**: deleting a summary cascades its comments, fields, labels links, favourites, notifications, memberships and attachments. Soft delete and restore are not implemented. |
 | L2 | Deleting a collection removes the collection and its memberships. The summaries stay. |
 | L3 | Excel import is all-or-nothing in one transaction and does not send follower or rule notifications. |
-| L4 | Notifications are written in the same transaction as the change that caused them (no outbox yet). Triggers: tagged, comment on your summary, mention, a followed user publishes, a rule matches on publish. `isMail` is stored but no e-mail is sent. |
+| L4 | Notifications are written in the same transaction as the change that caused them. Triggers: tagged, comment on your summary, mention, a followed user publishes, a rule matches on publish or edit. Each notification row is also the e-mail outbox (see Mail). |
+
+## Mail
+
+| # | Rule | Status |
+| --- | --- | --- |
+| M1 | Two switches per user, both on by default: `mailActivity` (tags, comments, mentions, followed users publishing) and `mailAlerts` (rule matches). Each rule picks **immediate** (`isMail`) and/or **daily digest** (`isDigest`). `isNotify` means the rule is active; a paused rule raises nothing. | Chosen default |
+| M2 | Whether to mail is decided when the notification is created, from the switches at that moment. The `mail`/`digest` flags on `notifications` are the outbox. `MailWorker` sends them every `MAIL_POLL_SECONDS`, after the transaction commits. A rolled-back change never mails. | Chosen default |
+| M3 | Before sending, the worker re-checks the address and access to the summary (by last-known groups, as for creating notifications). Digest items are also dropped if their rule was deleted, paused or taken off the digest, or alert mails were turned off. | Chosen default |
+| M4 | Delivery is at most once: rows are claimed with `FOR UPDATE SKIP LOCKED` (safe with several instances) and cleared before sending. A failed send is re-queued, up to 5 attempts. A crash between claiming and sending loses those mails. | Chosen default |
+| M5 | The digest goes out once a day after `DIGEST_HOUR` (`APP_TIMEZONE`). It covers matches created before that hour, one mail per user, grouped by rule. Restart-safe: no "last run" state, the flags are the state. | Chosen default |
+| M6 | One notification per person per event still holds. When a followed author's summary also matches your rule, the rule's mail choices are added to the follow notification. | Chosen default |
+| M7 | `MAIL_TRANSPORT=log` (default) only writes mails to the server log. Real mail goes through **Microsoft Graph** (`graph`): an Entra app with the `Mail.Send` application permission sends as the `MAIL_FROM` mailbox, so it works from any network and passes SPF/DKIM. Direct SMTP to Microsoft 365 is refused from residential IPs (Spamhaus). `smtp` + `SMTP_URL` remains for other providers. `APP_URL` sets links. `npm run mail:test` sends one sample. | Ops |
+| M8 | Every mail uses one layout, `mail/layout.html` (`{{x}}` escaped, `{{{x}}}` HTML), with `mail/summer-logo.png` attached inline as `cid:summer-logo`. The `mail/` folder must ship next to `dist/`, like `drizzle/`. `MAIL_REDIRECT_TO` sends every mail to one address (subject keeps the intended recipient). `MAIL_PREVIEW_DIR` (log transport) writes each mail as an .html file. | Ops |
+
+## Bulk actions
+
+| # | Rule | Status |
+| --- | --- | --- |
+| B1 | Bulk actions apply to every eligible summary and return `{ applied, skipped: [{ id, reason }] }` instead of failing the whole batch. Rights are re-checked under row locks, taken in id order. Hidden and nonexistent ids are both reported as `not-found` (A7). | Chosen default |
+| B2 | Bulk labels (`POST /summary/bulk/labels`) require edit rights. Added labels go after the existing ones, and a summary that would exceed 100 labels is skipped. | Chosen default |
+| B3 | Bulk add to a collection (`POST /collection/add` with `partial: true`) keeps A10: you need edit rights on each summary. Without `partial`, the endpoint stays all-or-nothing. | Confirmed + chosen default |
+| B4 | Like Excel import (L3), bulk edits send no follower or rule notifications. | Chosen default |
+| B5 | Every summary response carries `canEdit` for the caller. The client uses it only to decide what to show. | Chosen default |
 
 ## Concurrency
 

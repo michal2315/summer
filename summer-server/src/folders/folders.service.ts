@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { z } from 'zod';
 import { CurrentUser } from '../auth/identity-provider';
 import { collectionVisible } from '../collections/collection.access';
-import { toApiPermission, toRef } from '../common/api-types';
+import { ApiBulkResult, toApiPermission, toRef } from '../common/api-types';
 import { parse, unique, zId } from '../common/validation';
 import { DatabaseService } from '../database/database.service';
 import { validPermissionSet } from '../permissions/permission-assignment';
@@ -46,6 +46,8 @@ const itemsSchema = z.object({
     .array(z.object({ type: z.enum(['collection', 'summary']), _id: zId }))
     .min(1)
     .max(500),
+  /** Bulk mode: place every eligible item and report the rest, instead of rejecting the whole request. */
+  partial: z.boolean().default(false),
 });
 
 /**
@@ -113,25 +115,39 @@ export class FoldersService {
   }
 
   /** Move items into the folder (out of any previous folder). Needs folder management AND edit rights on each item. */
-  async addItems(me: CurrentUser, id: string, body: unknown): Promise<void> {
-    const { summaryIds, collectionIds } = this.split(parse(itemsSchema, body));
+  /**
+   * Strict (default): every item must be placeable, else 403 (not its editor) / 400 (a draft or a sumaroon), and nothing
+   * is placed. `partial`: places the placeable ones and reports the rest.
+   */
+  async addItems(me: CurrentUser, id: string, body: unknown): Promise<ApiBulkResult> {
+    const input = parse(itemsSchema, body);
+    const { summaryIds, collectionIds } = this.split(input);
     await this.assertEditable(me, id);
 
     const editableSummaries = await this.summaries.visibleIds(me, summaryIds, 'edit');
     const editableCollections = await this.repo.editableCollectionIds(me, collectionIds);
-    if (summaryIds.some((s) => !editableSummaries.has(s)) || collectionIds.some((c) => !editableCollections.has(c)))
-      throw new ForbiddenException('only an item’s editors may place it in a folder');
-    for (const sid of summaryIds) {
+    const skipped: ApiBulkResult['skipped'] = [...summaryIds, ...collectionIds]
+      .filter((i) => !editableSummaries.has(i) && !editableCollections.has(i))
+      .map((i) => ({ id: i, reason: 'not-editor' }));
+    if (!input.partial && skipped.length) throw new ForbiddenException('only an item’s editors may place it in a folder');
+
+    const placeable: string[] = [];
+    for (const sid of summaryIds.filter((s) => editableSummaries.has(s))) {
       const row = await this.summaries.findById(sid);
-      if (row?.isDraft) throw new BadRequestException('drafts cannot be placed in a folder');
-      if (row?.kind === 'sumaroon') throw new BadRequestException('a sumaroon lives only inside its running summary');
+      const reason = row?.isDraft ? 'draft' : row?.kind === 'sumaroon' ? 'sumaroon' : null;
+      if (reason && !input.partial)
+        throw new BadRequestException(reason === 'draft' ? 'drafts cannot be placed in a folder' : 'a sumaroon lives only inside its running summary');
+      if (reason) skipped.push({ id: sid, reason });
+      else placeable.push(sid);
     }
+    const collections = collectionIds.filter((c) => editableCollections.has(c));
 
     await this.database.transaction(async () => {
       if (!(await this.repo.lockForUpdate(id))) throw new NotFoundException();
-      await this.repo.place(id, summaryIds, collectionIds);
+      await this.repo.place(id, placeable, collections);
       await this.repo.touch(id);
     });
+    return { applied: [...placeable, ...collections], skipped };
   }
 
   async removeItems(me: CurrentUser, id: string, body: unknown): Promise<void> {

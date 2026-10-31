@@ -8,8 +8,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
  * locked — holding a padlock (no permission)
  * soldier — helmet on, holding a Tavor (the "tavor" search)
  * target — winking through a red-dot reticle (a search with exactly one hit)
+ * pm — ginger curls, big grin, ticking off a clipboard (the "tomer" search)
  */
-export type SummyMood = 'search' | 'empty' | 'error' | 'lost' | 'locked' | 'soldier' | 'target';
+export type SummyMood = 'search' | 'empty' | 'error' | 'lost' | 'locked' | 'soldier' | 'target' | 'pm';
 
 /** Summy, Summer's sun mascot — an animated SVG for empty and error states. */
 @Component({

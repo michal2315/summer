@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, map, of, tap } from 'rxjs';
-import { CollectionPayload, ICollection, ICollectionRef, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch } from '../models';
+import { CollectionPayload, IBulkResult, ICollection, ICollectionRef, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch } from '../models';
 import { toHttpParams } from './http-params';
 
 const BASE = '/api/collection';
@@ -62,8 +62,14 @@ export class CollectionService {
     return this.http.post<ICollection>(`${BASE}/edit/${id}`, payload).pipe(tap(() => this.changed$.next()));
   }
 
-  addSummaries(collectionIds: string[], summaryIds: string[]): Observable<unknown> {
-    return this.http.post(`${BASE}/add`, { collectionIds, summaryIds }).pipe(tap(() => this.changed$.next()));
+  /** `partial`: add the summaries you may edit and report the rest, instead of failing the whole request. */
+  addSummaries(collectionIds: string[], summaryIds: string[], partial = false): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/add`, { collectionIds, summaryIds, partial }).pipe(tap(() => this.changed$.next()));
+  }
+
+  /** Remove the summaries from every collection you manage; `applied`/`skipped` are collection ids. */
+  removeSummaries(collectionIds: string[], summaryIds: string[]): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/remove`, { collectionIds, summaryIds }).pipe(tap(() => this.changed$.next()));
   }
 
   delete(id: string): Observable<unknown> {

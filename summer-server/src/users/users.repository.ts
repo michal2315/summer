@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { ApiUser, UserRef, toRef } from '../common/api-types';
 import { DatabaseService } from '../database/database.service';
@@ -15,7 +15,7 @@ import {
   users,
 } from '../database/schema';
 import { VerifiedIdentity } from '../auth/identity-provider';
-import { likePattern } from '../common/sql';
+import { textLike } from '../common/sql';
 
 export type UserRow = typeof users.$inferSelect;
 
@@ -91,7 +91,7 @@ export class UsersRepository {
 
   /** Mention / tag autocomplete: username prefix or name substring. */
   async search(text: string, usernamePrefix: boolean): Promise<UserRef[]> {
-    const nameMatch = ilike(users.fullName, likePattern(text));
+    const nameMatch = textLike(users.fullName, text);
     const rows = await this.db
       .select(refColumns)
       .from(users)
@@ -99,7 +99,7 @@ export class UsersRepository {
         and(
           eq(users.isActive, true),
           eq(users.isSystem, false),
-          usernamePrefix ? or(ilike(users.username, likePattern(text, 'prefix')), nameMatch) : nameMatch,
+          usernamePrefix ? or(textLike(users.username, text, 'prefix'), nameMatch) : nameMatch,
         ),
       )
       .orderBy(asc(users.fullName))

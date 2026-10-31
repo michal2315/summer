@@ -1,17 +1,17 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { SQL, and } from 'drizzle-orm';
+import { SQL, and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { AuthService } from '../auth/auth.service';
-import { CapsulesService } from '../capsules/capsules.service';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiSummary, SummaryLengths } from '../common/api-types';
+import { CapsulesService } from '../capsules/capsules.service';
+import { ApiBulkResult, ApiSummary, SummaryLengths } from '../common/api-types';
 import { htmlToText, sanitizeQuill } from '../common/html';
 import { calendarDayRange, parseEventDate } from '../common/time';
 import { parse, unique, zId } from '../common/validation';
 import { APP_CONFIG, AppConfig } from '../config/app-config';
 import { ContentTypesRepository, FieldRow } from '../content-types/content-types.repository';
 import { DatabaseService } from '../database/database.service';
-import { FieldType, SUMMARY_KINDS } from '../database/schema';
+import { FieldType, SUMMARY_KINDS, summaries } from '../database/schema';
 import { LabelsRepository } from '../labels/labels.repository';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SUMMARY_TEXT_FIELD } from '../notifications/rule-matcher';
@@ -24,6 +24,11 @@ import { toApiSummary } from './summary.mapper';
 import { BUCKETS, Bucket, SummarySearch, capsuleRefs, summarySearchSchema } from './summary-search';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** Labels per summary, and characters per label. */
+const MAX_LABELS = 100;
+const MAX_LABEL = 100;
+/** Summaries per bulk action (same cap as adding to a collection). */
+export const BULK_MAX = 1000;
 
 /** SummaryPayload (multipart field `summary`, JSON). */
 const payloadSchema = z.object({
@@ -35,10 +40,12 @@ const payloadSchema = z.object({
   eventDate: z.string().nullish(),
   eventSecTime: z.string().nullish(),
   department: z.string().trim().max(200).default(''),
-  labels: z.array(z.string()).max(100).default([]),
+  labels: z.array(z.string()).max(MAX_LABELS).default([]),
   collectionIds: z.array(zId).max(200).default([]),
   permissions: z.array(zId).max(100).default([]),
   taggedUsers: z.array(zId).max(200).default([]),
+  /** permission groups whose members count as tagged */
+  taggedPermissions: z.array(zId).max(100).default([]),
   summaryFields: z
     .array(z.object({ field: zId, value: z.union([z.string(), z.number()]).transform(String) }))
     .max(200)
@@ -65,8 +72,16 @@ const payloadSchema = z.object({
 });
 type Payload = z.output<typeof payloadSchema>;
 
+const bulkLabelsSchema = z.object({
+  summaryIds: z.array(zId).min(1).max(BULK_MAX),
+  add: z.array(z.string()).max(MAX_LABELS).default([]),
+  remove: z.array(z.string()).max(MAX_LABELS).default([]),
+});
+
 const COLOR_RE = /^(#[0-9a-f]{3,8})?$/i;
-const MAX_LABEL = 100;
+
+const bulkIdsSchema = z.object({ summaryIds: z.array(zId).min(1).max(BULK_MAX) });
+const bulkColorSchema = bulkIdsSchema.extend({ color: z.string().regex(COLOR_RE, 'invalid color') });
 const DASHBOARD_SCAN = 500;
 const DASHBOARD_PER_GROUP = 8;
 
@@ -76,6 +91,7 @@ interface ValidInput {
   labelNames: string[];
   fieldValues: { fieldId: string; value: string }[];
   taggedUserIds: string[];
+  taggedPermissionIds: string[];
   collectionIds: string[];
   keepFiles: string[];
 }
@@ -106,8 +122,9 @@ export class SummariesService {
   async hydrate(me: CurrentUser, ids: string[]): Promise<ApiSummary[]> {
     const rows = await this.repo.loadFull(ids);
     const runningIds = rows.filter((r) => r.kind === 'running').map((r) => r.id);
-    const [favorites, visibleCollections, parents, counts, previews] = await Promise.all([
+    const [favorites, editable, visibleCollections, parents, counts, previews] = await Promise.all([
       this.repo.favoriteIds(me.id, ids),
+      this.repo.visibleIds(me, ids, 'edit'),
       this.repo.visibleCollectionIds(me, unique(rows.flatMap((r) => r.collections.map((c) => c.collectionId)))),
       // A visible sumaroon implies a visible running summary (summary.access.ts).
       this.repo.parents(unique(rows.flatMap((r) => (r.parentId ? [r.parentId] : [])))),
@@ -118,6 +135,7 @@ export class SummariesService {
     return rows.map((r) =>
       toApiSummary(r, {
         isFavorite: favorites.has(r.id),
+        canEdit: editable.has(r.id),
         visibleCollections,
         parent: r.parentId ? parentById.get(r.parentId) : undefined,
         sumaroonCount: counts.get(r.id),
@@ -216,6 +234,30 @@ export class SummariesService {
     if (!(await this.repo.visibleIds(me, [id], 'edit')).has(id)) throw new ForbiddenException();
   }
 
+  /**
+   * Splits `ids` into the ones the caller may edit and the rest, with why. Hidden and nonexistent ids are both
+   * `not-found` (A7). Bulk writers call this under their row locks.
+   */
+  async partitionEditable(me: CurrentUser, ids: string[]): Promise<{ editable: string[]; skipped: ApiBulkResult['skipped'] }> {
+    const visible = await this.repo.visibleIds(me, ids);
+    const editable = await this.repo.visibleIds(me, ids, 'edit');
+    return {
+      editable: ids.filter((id) => editable.has(id)),
+      skipped: ids.filter((id) => !editable.has(id)).map((id) => ({ id, reason: visible.has(id) ? 'not-editor' : 'not-found' })),
+    };
+  }
+
+  /** Locks `ids` and splits them by edit access, re-checked under the locks (access may have changed since listing). */
+  private async lockEditable(me: CurrentUser, ids: string[]): Promise<{ editable: string[]; skipped: ApiBulkResult['skipped'] }> {
+    const found = await this.repo.lockManyForUpdate(ids);
+    const { editable, skipped } = await this.partitionEditable(
+      me,
+      ids.filter((id) => found.has(id)),
+    );
+    skipped.push(...ids.filter((id) => !found.has(id)).map((id) => ({ id, reason: 'not-found' as const })));
+    return { editable, skipped };
+  }
+
   // ---------------------------------------------------------------- writes
 
   async create(me: CurrentUser, rawPayload: unknown, uploads: UploadedFile[]): Promise<ApiSummary> {
@@ -237,8 +279,8 @@ export class SummariesService {
         await this.repo.addCollections(id, input.collectionIds);
         await this.repo.addFiles(id, await this.files.store(id, uploads));
         if (!input.values.isDraft) {
-          await this.notifyTagged(me, id, input.values.title, input.taggedUserIds);
-          await this.notifications.onPublished({ id, title: input.values.title, fieldValues: this.fieldMap(input) }, me);
+          await this.notifyTagged(me, id, input.values.title, input.taggedUserIds, input.taggedPermissionIds);
+          await this.notifications.onPublished(this.published(id, input), me);
         }
       });
     } catch (e) {
@@ -264,6 +306,7 @@ export class SummariesService {
         // Re-check under the row lock: access may have changed since the pre-check.
         await this.assertEditable(me, id);
         const previousTagged = await this.repo.taggedUserIds(id);
+        const previousTaggedGroups = await this.repo.taggedPermissionIds(id);
         if (current.kind === 'running') await this.assertSumaroonsStillFit(current, input.values);
 
         if (!(await this.repo.update(id, input.values, payload.version))) throw new ConflictException('summary was changed by someone else');
@@ -279,8 +322,10 @@ export class SummariesService {
 
         if (!input.values.isDraft) {
           const newlyTagged = input.taggedUserIds.filter((u) => current.isDraft || !previousTagged.includes(u));
-          await this.notifyTagged(me, id, input.values.title, newlyTagged);
-          if (current.isDraft) await this.notifications.onPublished({ id, title: input.values.title, fieldValues: this.fieldMap(input) }, me);
+          const newlyTaggedGroups = input.taggedPermissionIds.filter((p) => current.isDraft || !previousTaggedGroups.includes(p));
+          await this.notifyTagged(me, id, input.values.title, newlyTagged, newlyTaggedGroups);
+          if (current.isDraft) await this.notifications.onPublished(this.published(id, input), me);
+          else await this.notifications.onUpdated(this.published(id, input), me);
         }
       });
     } catch (e) {
@@ -329,7 +374,82 @@ export class SummariesService {
     });
   }
 
+  /**
+   * Add and/or remove labels on many summaries. Applies to every summary the caller may edit and reports the rest.
+   * Added labels go after the existing ones, so a summary's first label (dashboard group) only changes if it is removed.
+   * Like Excel import, bulk edits do not fan out follower/rule notifications.
+   */
+  async bulkLabels(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
+    const p = parse(bulkLabelsSchema, body);
+    const add = cleanLabels(p.add);
+    const remove = new Set(cleanLabels(p.remove));
+    if (!add.length && !remove.size) throw new BadRequestException('add or remove at least one label');
+    if (add.some((l) => remove.has(l))) throw new BadRequestException('a label cannot be both added and removed');
+    const ids = unique(p.summaryIds);
+
+    return this.database.transaction(async () => {
+      const { editable, skipped } = await this.lockEditable(me, ids);
+      const current = await this.repo.labelNames(editable);
+      const labelIds = await this.labels.ensure(unique([...add, ...[...current.values()].flat()]));
+      const applied: string[] = [];
+      for (const id of editable) {
+        const before = current.get(id) ?? [];
+        const next = unique([...before.filter((l) => !remove.has(l)), ...add]);
+        if (next.length > MAX_LABELS) {
+          skipped.push({ id, reason: 'too-many-labels' });
+          continue;
+        }
+        applied.push(id);
+        if (next.length === before.length && next.every((l, i) => l === before[i])) continue;
+        await this.repo.replaceLabels(
+          id,
+          next.map((n) => labelIds.get(n)!),
+        );
+        await this.repo.update(id, {});
+      }
+      return { applied, skipped };
+    });
+  }
+
   /** Card colour is a shared marker any viewer may set (the client shows the picker on every card). */
+  /** Like setColor, colour needs only view access: applies to every summary the caller can see. */
+  async bulkColor(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
+    const p = parse(bulkColorSchema, body);
+    const ids = unique(p.summaryIds);
+    return this.database.transaction(async () => {
+      const visible = await this.repo.visibleIds(me, ids);
+      const applied = ids.filter((id) => visible.has(id));
+      for (const id of applied) await this.repo.update(id, { color: p.color });
+      return { applied, skipped: ids.filter((id) => !visible.has(id)).map((id) => ({ id, reason: 'not-found' as const })) };
+    });
+  }
+
+  async bulkToDraft(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
+    const ids = unique(parse(bulkIdsSchema, body).summaryIds);
+    return this.database.transaction(async () => {
+      const { editable, skipped } = await this.lockEditable(me, ids);
+      for (const id of editable) await this.repo.update(id, { isDraft: true });
+      return { applied: editable, skipped };
+    });
+  }
+
+  /** Deletes every summary the caller may edit; a running summary takes its sumaroons with it (as in delete). */
+  async bulkDelete(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
+    const ids = unique(parse(bulkIdsSchema, body).summaryIds);
+    return this.database.transaction(async () => {
+      const { editable, skipped } = await this.lockEditable(me, ids);
+      const gone: string[] = [];
+      for (const id of editable) {
+        gone.push(id, ...(await this.repo.sumaroonIds(id)));
+        await this.repo.delete(id);
+      }
+      await this.database.afterCommit(async () => {
+        for (const sid of unique(gone)) await this.files.removeAll(sid);
+      });
+      return { applied: editable, skipped };
+    });
+  }
+
   async setColor(me: CurrentUser, id: string, color: unknown): Promise<void> {
     if (typeof color !== 'string' || !COLOR_RE.test(color)) throw new BadRequestException('invalid color');
     await this.assertVisible(me, id);
@@ -387,6 +507,7 @@ export class SummariesService {
     );
     await this.repo.replaceFields(id, input.fieldValues);
     await this.repo.replaceTagged(id, input.taggedUserIds);
+    await this.repo.replaceTaggedPermissions(id, input.taggedPermissionIds);
   }
 
   /**
@@ -406,8 +527,24 @@ export class SummariesService {
     );
   }
 
-  private async notifyTagged(me: CurrentUser, id: string, title: string, userIds: string[]): Promise<void> {
-    await this.notifications.notify(userIds, { summaryId: id, text: `${me.fullName} תייג/ה אותך בתמצית "${title}"`, createdBy: me.id });
+  /** Tagged users, then members of tagged groups who weren't tagged by name: one notification each. */
+  private async notifyTagged(me: CurrentUser, id: string, title: string, userIds: string[], permissionIds: string[]): Promise<void> {
+    const n = { summaryId: id, createdBy: me.id };
+    await this.notifications.notify(userIds, { ...n, text: `${me.fullName} תייג/ה אותך בתמצית "${title}"` });
+    await this.notifications.notifyGroups(permissionIds, n, (group) => `${me.fullName} תייג/ה את "${group}" בתמצית "${title}"`, userIds);
+  }
+
+  /** What notification rules are checked against (inside the write's transaction, so the saved row is what matches). */
+  private published(id: string, input: ValidInput) {
+    return {
+      id,
+      title: input.values.title,
+      fieldValues: this.fieldMap(input),
+      matchesSearch: async (search: Record<string, unknown>) => {
+        const f = summarySearchSchema.safeParse(search);
+        return f.success && (await this.repo.count(and(eq(summaries.id, id), ...(await this.filters(f.data)))!)) > 0;
+      },
+    };
   }
 
   /** Field values for rule matching, plus the summary's own text under SUMMARY_TEXT_FIELD. */
@@ -439,8 +576,7 @@ export class SummariesService {
     // A sumaroon inherits its running summary's permissions, so its own are optional extras; drafts may have none.
     const permissionIds = await validPermissionSet(this.permissions, me, p.permissions, { required: !p.isDraft && !isSumaroon, what: 'a published summary' });
 
-    const labelNames = unique(p.labels.map((l) => l.trim()).filter(Boolean));
-    if (labelNames.some((l) => l.length > MAX_LABEL)) throw new BadRequestException(`labels are limited to ${MAX_LABEL} characters`);
+    const labelNames = cleanLabels(p.labels);
 
     const lastByField = new Map(p.summaryFields.map((f) => [f.field, f.value.trim()]));
     const defs = new Map((await this.contentTypes.fieldsByIds([...lastByField.keys()])).map((f) => [f.id, f]));
@@ -458,6 +594,9 @@ export class SummariesService {
 
     const taggedUserIds = unique(p.taggedUsers);
     if ((await this.users.existingIds(taggedUserIds)).length !== taggedUserIds.length) throw new BadRequestException('unknown tagged user');
+    // Any group may be tagged (unlike viewing permissions); only members who can see the summary are notified.
+    const taggedPermissionIds = unique(p.taggedPermissions);
+    if ((await this.permissions.byIds(taggedPermissionIds)).length !== taggedPermissionIds.length) throw new BadRequestException('unknown tagged group');
 
     const collectionIds = unique(p.collectionIds);
     if (isSumaroon && collectionIds.length) throw new BadRequestException(SUMAROON_ONLY_INSIDE);
@@ -496,10 +635,18 @@ export class SummariesService {
       labelNames,
       fieldValues,
       taggedUserIds,
+      taggedPermissionIds,
       collectionIds,
       keepFiles: unique(p.files),
     };
   }
+}
+
+/** Trimmed, non-empty, distinct label names within the length limit. */
+function cleanLabels(names: string[]): string[] {
+  const out = unique(names.map((l) => l.trim()).filter(Boolean));
+  if (out.some((l) => l.length > MAX_LABEL)) throw new BadRequestException(`labels are limited to ${MAX_LABEL} characters`);
+  return out;
 }
 
 /** Runtime check of a custom-field value against its definition; returns the normalized stored text. */

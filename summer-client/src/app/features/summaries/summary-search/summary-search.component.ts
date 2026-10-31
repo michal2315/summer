@@ -1,8 +1,11 @@
+import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTagModule } from 'ng-zorro-antd/tag';
+import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import { Router } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { CapsuleChipComponent } from '../../../shared/components/capsules/capsule-chip/capsule-chip.component';
@@ -27,7 +30,8 @@ import { EasterEggsService } from '../../../shared/easter-eggs/easter-eggs.servi
 import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { AdvancedSearchComponent } from '../advanced-search/advanced-search.component';
 import { countConditions } from '../advanced-search/query-tree';
-import { activeFilterCount } from '../search-query';
+import { NotificationsSettingsService } from '../../notifications/notification-rules';
+import { activeFilterCount, alertSearch, describeSearch, searchToParams } from '../search-query';
 
 const sameSearch = (a: ISummarySearch, b: ISummarySearch) => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
 const normalize = (s: ISummarySearch) =>
@@ -70,6 +74,10 @@ export class SummarySearchComponent {
   private readonly history = inject(SearchHistoryService);
   private readonly eggs = inject(EasterEggsService);
   private readonly capsules = inject(CapsuleService);
+  private readonly alerts = inject(NotificationsSettingsService);
+  private readonly message = inject(NzMessageService);
+  private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   /** Currently applied search (from the URL). */
   readonly search = input<ISummarySearch>({});
@@ -144,6 +152,9 @@ export class SummarySearchComponent {
   });
 
   constructor() {
+    // The bell shows whether the applied search already has an alert.
+    if (this.alerts.rules() === null) this.alerts.load();
+
     effect(() => {
       const s = this.search();
       untracked(() => {
@@ -275,6 +286,40 @@ export class SummarySearchComponent {
     this.searchChange.emit({ sort: this.search().sort });
   }
 
+  /** The alert rule for the applied search, if one exists. */
+  readonly alert = computed(() => this.alerts.alertFor(this.search()));
+  /** A search that selects something can become an alert. */
+  readonly canAlert = computed(() => Object.keys(alertSearch(this.search())).length > 0);
+  readonly alertBusy = signal(false);
+
+  /** Bell: get notified about summaries published (or edited) later that this search finds — or stop. */
+  toggleAlert() {
+    if (this.alertBusy()) return;
+    const existing = this.alert();
+    this.alertBusy.set(true);
+    const done = () => this.alertBusy.set(false);
+    if (existing?._id) {
+      this.alerts.delete(existing._id).subscribe({ next: () => this.message.success('ההתראה על החיפוש בוטלה'), complete: done, error: done });
+    } else {
+      this.alerts
+        .addAlert(this.search())
+        .subscribe({ next: () => this.message.success('תתקבל התראה על תמציות חדשות שמתאימות לחיפוש'), complete: done, error: done });
+    }
+  }
+
+  /** Copy a link to this page with the applied search (anyone with access to the summaries sees the same results). */
+  async share() {
+    const path = this.router.url.split('?')[0];
+    const params = Object.fromEntries(Object.entries(searchToParams(this.search())).filter(([, v]) => v !== null));
+    const url = this.router.serializeUrl(this.router.createUrlTree([path], { queryParams: params }));
+    try {
+      await navigator.clipboard.writeText(new URL(this.location.prepareExternalUrl(url), window.location.origin).href);
+      this.message.success('הקישור לחיפוש הועתק');
+    } catch {
+      this.message.error('ההעתקה נכשלה');
+    }
+  }
+
   togglePin() {
     this.users.pinSearch(stripPaging(this.search()), !this.isPinned()).subscribe();
   }
@@ -295,16 +340,7 @@ export class SummarySearchComponent {
     this.onInput();
   }
 
-  describe(s: ISummarySearch): string {
-    const conditions = s.query ? countConditions(s.query) : 0;
-    const parts = [
-      s.text,
-      conditions ? `${conditions} תנאים מתקדמים` : '',
-      s.contentTypes?.length ? `${s.contentTypes.length} סוגי תוכן` : '',
-      s.colors?.length ? 'צבעים' : '',
-    ].filter(Boolean);
-    return parts.join(' · ') || 'חיפוש ללא טקסט';
-  }
+  readonly describe = describeSearch;
 
   /** "/" anywhere focuses the search input. */
   onGlobalKey(e: KeyboardEvent) {

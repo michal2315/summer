@@ -160,6 +160,22 @@ export const TOUR_TOPICS: TourTopic[] = [
         prep: (ctx) => ctx.go('/summaries'),
       },
       {
+        id: 's-alert',
+        sel: [altSel('alertSearch'), altSel('search')],
+        title: 'התראה על חיפוש ושיתוף',
+        body: 'אחרי חיפוש, הפעמון שבתיבה שולח התראה בכל פעם שתמצית חדשה (או שנערכה) מתאימה לחיפוש. כפתור השיתוף מעתיק קישור לחיפוש.',
+        kbd: [`${alt('alertSearch')} התראה`, `${alt('shareSearch')} קישור`],
+        added: '2026-10-26',
+      },
+      {
+        id: 's-capsules-page',
+        sel: altSel('capsules'),
+        title: 'עמוד הכמוסות',
+        body: 'כל הכמוסות והמילים שבהן, לפי חובה / רשות / אסור. משם אפשר לחפש עם כמוסה או ליצור עליה התראה.',
+        kbd: [alt('capsules')],
+        added: '2026-10-26',
+      },
+      {
         id: 's-history',
         sel: altSel('search'),
         title: 'חיפושים אחרונים ונעוצים',
@@ -189,9 +205,9 @@ export const TOUR_TOPICS: TourTopic[] = [
     steps: [
       {
         id: 'x-excel',
-        sel: ['app-summary-actions-bar button:has([nztype="upload"])', 'app-summary-actions-bar'],
-        title: 'יבוא מ-Excel',
-        body: 'מורידים תבנית לסוג התוכן, ממלאים בה כמה תמציות ומעלים את כולן בבת אחת.',
+        sel: ['app-summary-actions-bar .excel', 'app-summary-actions-bar'],
+        title: 'Excel',
+        body: 'מורידים תבנית לסוג התוכן, ממלאים בה כמה תמציות ומעלים את כולן בבת אחת. מכאן גם מייצאים את כל תוצאות החיפוש.',
         prep: (ctx) => ctx.go('/summaries'),
       },
       {
@@ -206,8 +222,8 @@ export const TOUR_TOPICS: TourTopic[] = [
         id: 'x-actions',
         sel: 'app-summary-actions-bar',
         title: 'מה עושים עם הנבחרות',
-        body: 'ציר זמן, הוספה ללקט, ייצוא ל-Excel או ל-Word. "ייצוא הכל" מייצא את כל תוצאות החיפוש הנוכחי.',
-        tip: '"בחירת כל המוצגים" בוחרת בבת אחת את כל מה שנטען ברשימה.',
+        body: 'לקטים, תיקייה, תגיות, צבע, ציר זמן וייצוא ל-Excel או ל-Word. מועדפים, טיוטה ומחיקה — בתפריט ⋯.',
+        tip: 'תיבת הסימון שליד המונה בוחרת בבת אחת את כל מה שנטען ברשימה.',
       },
     ],
   },

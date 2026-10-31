@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { SQL, and, asc, eq, exists, gte, ilike, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
+import { SQL, and, asc, eq, exists, gte, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { Capsule, CapsuleLookup, NO_CAPSULES, capsuleTokenId, isCapsuleToken, wordsOf } from '../capsules/capsule';
 import { collectionVisible } from '../collections/collection.access';
-import { idsWhere, likePattern } from '../common/sql';
+import { idsWhere, textLike } from '../common/sql';
 import { dayRange } from '../common/time';
 import { APP_CONFIG, AppConfig } from '../config/app-config';
 import { DatabaseService } from '../database/database.service';
@@ -12,6 +12,7 @@ import {
   comments,
   contentTypes,
   labels,
+  permissions,
   summaries,
   summaryCollections,
   summaryEditors,
@@ -20,6 +21,7 @@ import {
   summaryLabels,
   summaryPermissions,
   summarySeen,
+  summaryTaggedPermissions,
   summaryTaggedUsers,
   userFavSummaries,
   users,
@@ -101,6 +103,13 @@ export class SummariesRepository {
     return row;
   }
 
+  /** Row locks on every existing id in `ids`, taken in id order so concurrent bulk actions cannot deadlock. Returns the ids found. */
+  async lockManyForUpdate(ids: string[]): Promise<Set<string>> {
+    if (!ids.length) return new Set();
+    const rows = await this.db.select({ id: summaries.id }).from(summaries).where(inArray(summaries.id, ids)).orderBy(asc(summaries.id)).for('update');
+    return new Set(rows.map((r) => r.id));
+  }
+
   /** Search filters shared by the feed, collection pages and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
   filterConditions(f: SummarySearch, timeZone: string, capsules: CapsuleLookup = NO_CAPSULES): SQL[] {
     const conds: SQL[] = [];
@@ -151,7 +160,7 @@ export class SummariesRepository {
             .select({ x: sql`1` })
             .from(summaryLabels)
             .innerJoin(labels, eq(labels.id, summaryLabels.labelId))
-            .where(and(this.ownOrParent(summaryLabels.summaryId), inArray(labels.name, f.labels))),
+            .where(and(eq(summaryLabels.summaryId, summaries.id), inArray(labels.name, f.labels))),
         ),
       );
     if (f.collections.length)
@@ -174,12 +183,11 @@ export class SummariesRepository {
 
   /** `term` appears (case-insensitive substring) in any of `fields`; undefined when no field applies. */
   private textMatch(term: string, fields: readonly TextField[]): SQL | undefined {
-    const p = likePattern(term);
     const anyOf: SQL[] = [];
     const has = (f: TextField) => fields.includes('text') || fields.includes(f);
-    if (has('title')) anyOf.push(ilike(summaries.title, p));
-    if (has('content')) anyOf.push(ilike(summaries.contentText, p));
-    if (has('notes')) anyOf.push(ilike(summaries.notesText, p));
+    if (has('title')) anyOf.push(textLike(summaries.title, term));
+    if (has('content')) anyOf.push(textLike(summaries.contentText, term));
+    if (has('notes')) anyOf.push(textLike(summaries.notesText, term));
     if (has('labels'))
       anyOf.push(
         exists(
@@ -187,7 +195,7 @@ export class SummariesRepository {
             .select({ x: sql`1` })
             .from(summaryLabels)
             .innerJoin(labels, eq(labels.id, summaryLabels.labelId))
-            .where(and(this.ownOrParent(summaryLabels.summaryId), ilike(labels.name, p))),
+            .where(and(eq(summaryLabels.summaryId, summaries.id), textLike(labels.name, term))),
         ),
       );
     if (has('comments'))
@@ -196,7 +204,7 @@ export class SummariesRepository {
           this.db
             .select({ x: sql`1` })
             .from(comments)
-            .where(and(eq(comments.summaryId, summaries.id), ilike(comments.content, p))),
+            .where(and(eq(comments.summaryId, summaries.id), textLike(comments.content, term))),
         ),
       );
     return anyOf.length ? or(...anyOf) : undefined;
@@ -275,24 +283,30 @@ export class SummariesRepository {
     }
   }
 
-  /** A sumaroon also carries its running summary's labels. */
-  private ownOrParent(summaryIdColumn: typeof summaryLabels.summaryId): SQL {
-    return or(eq(summaryIdColumn, summaries.id), eq(summaryIdColumn, summaries.parentId))!;
-  }
-
   bucketCondition(bucket: Bucket, { ownerId, isProfile }: BucketOwner): SQL {
     const published = eq(summaries.isDraft, false);
     switch (bucket) {
       case 'DRAFT':
         return and(eq(summaries.isDraft, true), eq(summaries.createdBy, ownerId))!;
       case 'TAGGED':
+        // Tagged by name, or through a tagged group the owner is in (by their last-known groups).
         return and(
           published,
-          exists(
-            this.db
-              .select({ x: sql`1` })
-              .from(summaryTaggedUsers)
-              .where(and(eq(summaryTaggedUsers.summaryId, summaries.id), eq(summaryTaggedUsers.userId, ownerId))),
+          or(
+            exists(
+              this.db
+                .select({ x: sql`1` })
+                .from(summaryTaggedUsers)
+                .where(and(eq(summaryTaggedUsers.summaryId, summaries.id), eq(summaryTaggedUsers.userId, ownerId))),
+            ),
+            exists(
+              this.db
+                .select({ x: sql`1` })
+                .from(summaryTaggedPermissions)
+                .innerJoin(permissions, eq(permissions.id, summaryTaggedPermissions.permissionId))
+                .innerJoin(users, eq(users.id, ownerId))
+                .where(and(eq(summaryTaggedPermissions.summaryId, summaries.id), sql`${permissions.groupName} = any(${users.lastGroupKeys})`)),
+            ),
           ),
         )!;
       case 'FAVORITE':
@@ -365,6 +379,7 @@ export class SummariesRepository {
         labels: { orderBy: (l, { asc }) => [asc(l.position)], with: { label: { columns: { name: true } } } },
         fields: { with: { field: true } },
         taggedUsers: { with: { user: { columns: refColumns } } },
+        taggedPermissions: { with: { permission: true } },
         seen: { columns: { userId: true } },
         files: { columns: { fileName: true }, orderBy: (f, { asc }) => [asc(f.createdAt), asc(f.fileName)] },
         comments: { orderBy: (c, { asc }) => [asc(c.createdAt)], with: { author: { columns: refColumns } } },
@@ -452,6 +467,28 @@ export class SummariesRepository {
     return rows.map((r) => r.id);
   }
 
+  async taggedPermissionIds(id: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: summaryTaggedPermissions.permissionId })
+      .from(summaryTaggedPermissions)
+      .where(eq(summaryTaggedPermissions.summaryId, id));
+    return rows.map((r) => r.id);
+  }
+
+  /** summary id → its label names in position order (ids without labels are absent). */
+  async labelNames(ids: string[]): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (!ids.length) return result;
+    const rows = await this.db
+      .select({ summaryId: summaryLabels.summaryId, name: labels.name })
+      .from(summaryLabels)
+      .innerJoin(labels, eq(labels.id, summaryLabels.labelId))
+      .where(inArray(summaryLabels.summaryId, ids))
+      .orderBy(asc(summaryLabels.position));
+    for (const r of rows) result.set(r.summaryId, [...(result.get(r.summaryId) ?? []), r.name]);
+    return result;
+  }
+
   async collectionIds(id: string): Promise<string[]> {
     const rows = await this.db.select({ id: summaryCollections.collectionId }).from(summaryCollections).where(eq(summaryCollections.summaryId, id));
     return rows.map((r) => r.id);
@@ -513,6 +550,11 @@ export class SummariesRepository {
   async replaceTagged(id: string, userIds: string[]): Promise<void> {
     await this.db.delete(summaryTaggedUsers).where(eq(summaryTaggedUsers.summaryId, id));
     if (userIds.length) await this.db.insert(summaryTaggedUsers).values(userIds.map((userId) => ({ summaryId: id, userId })));
+  }
+
+  async replaceTaggedPermissions(id: string, permissionIds: string[]): Promise<void> {
+    await this.db.delete(summaryTaggedPermissions).where(eq(summaryTaggedPermissions.summaryId, id));
+    if (permissionIds.length) await this.db.insert(summaryTaggedPermissions).values(permissionIds.map((permissionId) => ({ summaryId: id, permissionId })));
   }
 
   async addCollections(id: string, collectionIds: string[]): Promise<void> {

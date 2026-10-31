@@ -10,6 +10,7 @@ export function toApiSummary(
   s: FullSummary,
   ctx: {
     isFavorite: boolean;
+    canEdit: boolean;
     visibleCollections: Set<string>;
     parent?: ParentSummary;
     sumaroonCount?: number;
@@ -41,11 +42,13 @@ export function toApiSummary(
     summaryFields: s.fields.map((f) => ({ _id: f.fieldId, field: toApiField(f.field), value: f.value })),
     files: s.files.map((f) => f.fileName),
     taggedUsers: s.taggedUsers.map((t) => toRef(t.user)),
+    taggedPermissions: sortedPermissions(s.taggedPermissions),
     collectionIds: s.collections.filter((c) => ctx.visibleCollections.has(c.collectionId)).map((c) => ({ _id: c.collection.id, name: c.collection.name })),
     permissions: sortedPermissions(s.permissions),
     seenBy: s.seen.map((x) => x.userId),
     color: s.color,
     isFavorite: ctx.isFavorite,
+    canEdit: ctx.canEdit,
     timelineTitle: s.timelineTitle ?? undefined,
     kind: s.kind,
     parentId: s.parentId ?? undefined,

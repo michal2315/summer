@@ -200,6 +200,39 @@ describe('summaries, collections, comments, personal state', () => {
     expect((await h.as('dlevi').delete(`/user/remove-follow/${l.user('aperetz')}`)).body.following).not.toContain(l.user('aperetz'));
   });
 
+  it('summary templates: personal, saved by name, and drop what the owner can no longer see', async () => {
+    const math = (await h.as('mgolan').post('/collection/create').send({ name: 'תבנית מתמטיקה', permissions: [l.perm('math-faculty')], managers: [] })).body;
+    const cs = (await h.as('mgolan').post('/collection/create').send({ name: 'תבנית מדמ"ח', permissions: [l.perm('cs-faculty')], managers: [] })).body;
+    const template = {
+      name: 'הקורס שלי',
+      permissions: [l.perm('cs-faculty')],
+      taggedUsers: [l.user('aperetz'), l.user('aperetz')],
+      labels: ['שבוע 1'],
+      collections: [cs._id, math._id],
+    };
+
+    // dlevi cannot see the math collection, so it is left out.
+    const [saved] = (await h.as('dlevi').post('/user/templates').send(template).expect(201)).body;
+    expect(saved).toMatchObject({
+      name: 'הקורס שלי',
+      permissions: [l.perm('cs-faculty')],
+      taggedUsers: [{ username: 'aperetz' }],
+      labels: ['שבוע 1'],
+      collections: [{ _id: cs._id, name: 'תבנית מדמ"ח' }],
+      folder: null,
+    });
+
+    // Same name replaces; templates are per user.
+    const list = (await h.as('dlevi').post('/user/templates').send({ ...template, labels: ['שבוע 2'] }).expect(201)).body;
+    expect(list).toHaveLength(1);
+    expect(list[0].labels).toEqual(['שבוע 2']);
+    expect((await h.as('mgolan').get('/user/templates').expect(200)).body).toEqual([]);
+
+    await h.as('dlevi').post('/user/templates').send({ ...template, name: ' ' }).expect(400);
+    await h.as('mgolan').delete(`/user/templates/${saved._id}`).expect(404);
+    expect((await h.as('dlevi').delete(`/user/templates/${saved._id}`).expect(200)).body).toEqual([]);
+  });
+
   it('attachments: Hebrew file names round-trip; kept/removed on edit; download checks access', async () => {
     const payload = summaryPayload(l);
     const created = await h
@@ -273,6 +306,46 @@ describe('summaries, collections, comments, personal state', () => {
     await createSummary(h, 'mgolan', summaryPayload(l, { title: 'סיבובים', contentHtml: '<p>עצי AVL</p>' }));
     expect(await notified()).toBe(1);
     await h.as('dlevi').delete(`/notifications/${saved._id}`).expect(200);
+  });
+
+  it('notification rules: an edit that starts matching notifies, once; any-of rules; saved-search alerts', async () => {
+    const inbox = async (name: string) => (await h.as('dlevi').get('/notifications')).body.filter((n: { text: string }) => n.text.includes(name)).length;
+    const update = (id: string, over: object) =>
+      h
+        .as('mgolan')
+        .put('/summary')
+        .field('summary', JSON.stringify(summaryPayload(l, { id, ...over })))
+        .expect(200);
+    const text = (word: string) => ({ field: { _id: 'summary-text' }, funcName: 'stringContains', content: [word] });
+
+    // all-of by default; any-of with matchAny
+    const both = (await h.as('dlevi').post('/notifications').send({ name: 'שניהם', conditions: [text('ינשוף'), text('תנשמת')] }).expect(201)).body;
+    const either = (await h.as('dlevi').post('/notifications').send({ name: 'אחד מהם', conditions: [text('ינשוף'), text('תנשמת')], matchAny: true }).expect(201)).body;
+    expect(either.matchAny).toBe(true);
+    await h.as('dlevi').post('/notifications').send({ name: 'ריק', conditions: [] }).expect(400);
+
+    const { body: s } = await createSummary(h, 'mgolan', summaryPayload(l, { title: 'עופות' }));
+    expect([await inbox('שניהם'), await inbox('אחד מהם')]).toEqual([0, 0]);
+
+    await update(s._id, { title: 'עופות', contentHtml: '<p>ינשוף</p>' });
+    expect([await inbox('שניהם'), await inbox('אחד מהם')]).toEqual([0, 1]);
+    expect((await h.as('dlevi').get('/notifications')).body.some((n: { text: string }) => n.text.includes('שעודכנה'))).toBe(true);
+
+    // matching again on the next edit doesn't notify again; a rule that starts matching does
+    await update(s._id, { title: 'עופות', contentHtml: '<p>ינשוף ותנשמת</p>' });
+    expect([await inbox('שניהם'), await inbox('אחד מהם')]).toEqual([1, 1]);
+    for (const r of [both, either]) await h.as('dlevi').delete(`/notifications/${r._id}`).expect(200);
+
+    // a saved search, matched with the feed's own filters (text + a content type); paging and sort are dropped
+    const alert = (await h.as('dlevi').post('/notifications').send({ name: 'ינשופים כלליים', search: { text: 'ינשוף', contentTypes: ['generic'], sort: 'title', skip: 40 } }).expect(201)).body;
+    expect(alert.search).toEqual({ text: 'ינשוף', contentTypes: ['generic'] });
+    expect(alert.conditions).toEqual([]);
+    await h.as('dlevi').post('/notifications').send({ name: 'רע', search: { query: '{nope' } }).expect(400);
+    await createSummary(h, 'mgolan', summaryPayload(l, { title: 'ינשוף', contentType: l.type('lecture'), summaryFields: [{ field: (await h.sql<{ id: string }>(`select id from fields where name = 'שם הקורס'`))[0].id, value: 'קורס' }] }));
+    expect(await inbox('ינשופים כלליים')).toBe(0); // not generic
+    await createSummary(h, 'mgolan', summaryPayload(l, { title: 'ינשוף לבן' }));
+    expect(await inbox('ינשופים כלליים')).toBe(1);
+    await h.as('dlevi').delete(`/notifications/${alert._id}`).expect(200);
   });
 
   it('notification rules: CRUD per user, and a matching new summary notifies the rule owner', async () => {

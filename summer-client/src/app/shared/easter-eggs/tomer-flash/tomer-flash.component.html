@@ -1,0 +1,31 @@
+@if (eggs.flash() === 'tomer') {
+  <div class="flash" aria-hidden="true">
+    @for (t of things; track $index) {
+      <div
+        [class]="'thing ' + t.kind + (t.color ? ' ' + t.color : '')"
+        [style.left.%]="t.left"
+        [style.--spin.deg]="t.spin"
+        [style.--scale]="t.scale"
+        [style.animation-delay.s]="t.delay"
+      >
+        @switch (t.kind) {
+          @case ('screw') {
+            <svg viewBox="0 0 16 44">
+              <rect class="head" x="1" y="0" width="14" height="6" rx="2" />
+              <path class="slot" d="M4 3 h8" />
+              <path class="shank" d="M5 6 h6 v28 l-3 9 l-3 -9 z" />
+              <path class="thread" d="M4.5 10 l7 3 M4.5 15 l7 3 M4.5 20 l7 3 M4.5 25 l7 3 M4.5 30 l7 3" />
+            </svg>
+          }
+          @case ('nail') {
+            <svg viewBox="0 0 14 48">
+              <rect class="head" x="0" y="0" width="14" height="4" rx="1.5" />
+              <path class="shank" d="M5 4 h4 v36 l-2 7 l-2 -7 z" />
+            </svg>
+          }
+        }
+      </div>
+    }
+    <div class="summy"><app-summy mood="pm" [size]="180" /></div>
+  </div>
+}

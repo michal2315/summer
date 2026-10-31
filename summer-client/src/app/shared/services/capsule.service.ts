@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Observable, catchError, debounceTime, distinctUntilChanged, finalize, of, shareReplay, switchMap, tap } from 'rxjs';
+import { Observable, catchError, debounceTime, distinctUntilChanged, finalize, map, of, shareReplay, switchMap, tap } from 'rxjs';
 import { SILENT_ERRORS } from '../../core/http/http-context';
 import { ICapsule } from '../models';
 import { normalizeCapsuleName } from '../utils/capsules';
@@ -46,6 +46,21 @@ export class CapsuleService {
       this.searches.set(key, req);
     }
     return req;
+  }
+
+  /** One capsule by id, from memory when it has been seen. */
+  get(id: string): Observable<ICapsule | undefined> {
+    const known = this.byId(id);
+    if (known) return of(known);
+    return this.http.get<ICapsule[]>('/api/capsules', { params: { ids: id } }).pipe(
+      tap((list) => this.remember(list)),
+      map((list) => list.find((c) => c._id === id)),
+    );
+  }
+
+  /** Every capsule whose name matches `q` (up to the API's page of 100), for the capsules page. */
+  list(q: string): Observable<ICapsule[]> {
+    return this.http.get<ICapsule[]>('/api/capsules', { params: { q: normalizeCapsuleName(q), limit: 100 } }).pipe(tap((list) => this.remember(list)));
   }
 
   /** Answered from memory when the query was searched before (so the list doesn't flash a loading state). */

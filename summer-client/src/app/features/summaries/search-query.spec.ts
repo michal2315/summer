@@ -1,5 +1,5 @@
 import { ISummarySearch, SearchType } from '../../shared/models';
-import { activeFilterCount, searchFromParams, searchToParams } from './search-query';
+import { activeFilterCount, searchFromParams, searchToParams, alertSearch, sameAlertSearch } from './search-query';
 
 describe('search query params', () => {
   it('round-trips a full search through the URL', () => {
@@ -30,5 +30,16 @@ describe('search query params', () => {
   it('counts active advanced filters', () => {
     expect(activeFilterCount({ text: 'x' })).toBe(0);
     expect(activeFilterCount({ colors: ['#ff0000'], users: ['u1'], dates: [] })).toBe(2);
+  });
+});
+
+describe('search alerts', () => {
+  it('keep only the filters that select summaries', () => {
+    expect(alertSearch({ text: ' exam ', sort: 'title', skip: 20, isProfile: true, colors: [], labels: ['x'] })).toEqual({ text: 'exam', labels: ['x'] });
+  });
+
+  it('compare by those filters only', () => {
+    expect(sameAlertSearch({ text: 'a', labels: ['x'], sort: 'title' }, { labels: ['x'], text: 'a ', skip: 40 })).toBe(true);
+    expect(sameAlertSearch({ text: 'a' }, { text: 'b' })).toBe(false);
   });
 });

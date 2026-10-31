@@ -8,6 +8,7 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { ConfigModule } from './config/config.module';
 import { ContentTypesModule } from './content-types/content-types.module';
 import { DatabaseModule } from './database/database.module';
+import { ExtensionModule } from './extension/extension.module';
 import { FoldersModule } from './folders/folders.module';
 import { HealthController } from './health.controller';
 import { LabelsModule } from './labels/labels.module';
@@ -35,6 +36,7 @@ import { WhatsNewModule } from './whats-new/whats-new.module';
     FoldersModule,
     NotificationsModule,
     WhatsNewModule,
+    ExtensionModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

@@ -1,3 +1,5 @@
+import { searchKey } from '../common/sql';
+
 /**
  * Capsules (כמוסות): named word lists kept by an external service, used in searches and notification rules
  * instead of typing the words each time. Each word carries a condition:
@@ -54,8 +56,8 @@ export const wordsOf = (c: Capsule, condition: CapsuleCondition) => c.words.filt
 
 /** The capsule's rule over plain text (case-insensitive substring), as the SQL search applies it. */
 export function capsuleMatchesText(c: Capsule, text: string): boolean {
-  const hay = text.toLowerCase();
-  const has = (w: string) => hay.includes(w.toLowerCase());
+  const hay = searchKey(text);
+  const has = (w: string) => hay.includes(searchKey(w));
   const must = wordsOf(c, 'must');
   const optional = wordsOf(c, 'optional');
   if (!must.length && !optional.length) return false;

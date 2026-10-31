@@ -2,10 +2,15 @@
   <span nz-icon nzType="appstore-add" class="big"></span>
   <div class="title" role="heading" aria-level="1">שלחו לסאמר מכל אתר</div>
   <div class="intro">התוסף לדפדפן מאפשר לסמן טקסט בכל דף — מאמר, הרצאה מוקלטת, ספר דיגיטלי — ולשלוח אותו ישירות כטיוטת תמצית, כולל הקישור למקור.</div>
-  <a nz-button nzType="primary" routerLink="install"><span nz-icon nzType="download"></span> להתקנת התוסף</a>
+  @if (info(); as info) {
+    <a nz-button nzType="primary" nzSize="large" [href]="crxUrl"><span nz-icon nzType="plus"></span> הוספה לדפדפן</a>
+    <div class="version">גרסה {{ info.version }} · <a routerLink="install">בעיות בהתקנה?</a></div>
+  } @else {
+    <div class="version">התוסף עדיין לא פורסם בשרת הזה.</div>
+  }
 </div>
 <ul class="features">
   <li><span nz-icon nzType="highlight"></span><span class="feature-name">סימון ושליחה</span><span>מסמנים טקסט ולוחצים "שליחה לסאמר" בתפריט הקליק הימני.</span></li>
-  <li><span nz-icon nzType="link"></span><span class="feature-name">שמירת המקור</span><span>כתובת הדף נשמרת בשדה "קישור" של הטיוטה.</span></li>
+  <li><span nz-icon nzType="link"></span><span class="feature-name">שמירת המקור</span><span>כתובת הדף נשמרת בסוף הטקסט של הטיוטה.</span></li>
   <li><span nz-icon nzType="file-text"></span><span class="feature-name">המשך עריכה כאן</span><span>הטיוטה מחכה לכם בלשונית "טיוטות" בפרופיל.</span></li>
 </ul>

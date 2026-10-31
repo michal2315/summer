@@ -1,0 +1,20 @@
+<div class="muted count">{{ data.summaryIds.length }} תמציות</div>
+@if (data.note) {
+  <div class="note">{{ data.note }}</div>
+}
+@if (options(); as list) {
+  @if (list.length) {
+    <nz-select nzShowSearch nzPlaceHolder="חיפוש תיקייה" [ngModel]="folder()" (ngModelChange)="folder.set($event)" aria-label="תיקייה">
+      @for (f of list; track f._id) {
+        <nz-option [nzValue]="f._id" [nzLabel]="f.path" />
+      }
+    </nz-select>
+    <div class="muted hint">תמצית שכבר נמצאת בתיקייה אחרת תועבר לתיקייה שנבחרה.</div>
+  } @else {
+    <div class="muted empty">אין תיקיות שאתם מנהלים. אפשר ליצור תיקייה בעמוד ההיררכיה.</div>
+  }
+}
+<div class="footer">
+  <button nz-button type="button" (click)="modal.close(false)">ביטול</button>
+  <button nz-button nzType="primary" type="button" [disabled]="!folder()" [nzLoading]="busy()" (click)="move()">העברה</button>
+</div>

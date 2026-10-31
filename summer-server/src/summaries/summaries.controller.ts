@@ -17,7 +17,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiSummary, SummaryLengths } from '../common/api-types';
+import { ApiBulkResult, ApiSummary, SummaryLengths } from '../common/api-types';
 import { IdPipe, parse, zId } from '../common/validation';
 import { ExcelService } from './excel.service';
 import { UploadedFile as Upload } from './files.service';
@@ -116,6 +116,28 @@ export class SummariesController {
   async toDraft(@Me() me: CurrentUser, @Body() body: unknown): Promise<object> {
     await this.summaries.toDraft(me, bodyId(body));
     return {};
+  }
+
+  /** `{ summaryIds, add, remove }` → which summaries changed and which were skipped (and why). */
+  @Post('bulk/labels')
+  bulkLabels(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.summaries.bulkLabels(me, body);
+  }
+
+  /** `{ summaryIds, color }` ('' clears it). */
+  @Post('bulk/color')
+  bulkColor(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.summaries.bulkColor(me, body);
+  }
+
+  @Post('bulk/to-draft')
+  bulkToDraft(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.summaries.bulkToDraft(me, body);
+  }
+
+  @Post('bulk/delete')
+  bulkDelete(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.summaries.bulkDelete(me, body);
   }
 
   @Put('updateTimelineTitle')

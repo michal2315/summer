@@ -1,5 +1,6 @@
 import { ICapsule, IQueryGroup, ISummarySearch, QueryTextField, SearchType } from '../models';
 import { capsuleTokenId, isCapsuleToken, positiveWords } from '../utils/capsules';
+import { foldPattern } from '../utils/fold';
 import { QueryTerm, parseQuery } from '../utils/search-syntax';
 
 /** Capsules already fetched (CapsuleService); an unknown #name highlights as the plain word, like the server searches it. */
@@ -10,7 +11,8 @@ export interface CapsuleResolver {
 
 const capsuleTerms = (c: ICapsule): QueryTerm[] => positiveWords(c).map((term) => ({ term, neg: false, exact: false }));
 
-const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** A term as regex source: literal, with foldable characters widened (utils/fold.ts). */
+const termPattern = (s: string) => foldPattern(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -30,7 +32,7 @@ export function searchRegex(text: string | undefined, extra: QueryTerm[] = [], c
   ];
   const parts = terms
     .filter((t) => !t.neg)
-    .map((t) => (t.exact ? `(?<![\\p{L}\\p{N}])${escapeRegex(t.term)}(?![\\p{L}\\p{N}])` : escapeRegex(t.term)));
+    .map((t) => (t.exact ? `(?<![\\p{L}\\p{N}])${termPattern(t.term)}(?![\\p{L}\\p{N}])` : termPattern(t.term)));
   if (!parts.length) return null;
   // Longest first so overlapping terms prefer the longer match.
   parts.sort((a, b) => b.length - a.length);
@@ -106,4 +108,22 @@ export function highlightHtml(html: string, re: RegExp | null): string {
     node.replaceWith(frag);
   }
   return doc.body.innerHTML;
+}
+
+/**
+ * The first hit in `text` with some words around it, as escaped HTML with the hits wrapped; null when nothing matches.
+ * `before` / `after`: about how many characters of context to keep (cut at a space).
+ */
+export function matchSnippet(text: string, re: RegExp | null, before = 40, after = 70): string | null {
+  if (!text || !re) return null;
+  re.lastIndex = 0;
+  const m = re.exec(text);
+  re.lastIndex = 0;
+  if (!m || !m[0]) return null;
+  let start = Math.max(0, m.index - before);
+  let end = Math.min(text.length, m.index + m[0].length + after);
+  if (start > 0) start = text.indexOf(' ', start) + 1 || start;
+  if (start > m.index) start = m.index;
+  if (end < text.length) end = Math.max(text.lastIndexOf(' ', end), m.index + m[0].length);
+  return (start > 0 ? '…' : '') + highlightText(text.slice(start, end).trim(), re) + (end < text.length ? '…' : '');
 }

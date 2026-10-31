@@ -29,7 +29,14 @@
         @if (store.selectMode()) {
           <td [nzChecked]="store.selected().has(s._id)" (nzCheckedChange)="store.toggleSelected(s._id)" (click)="$event.stopPropagation()"></td>
         }
-        <td (click)="$event.stopPropagation()"><app-color-picker [color]="s.color" (colorChange)="actions.setColor(s, $event)" /></td>
+        <td (click)="$event.stopPropagation()">
+          <div class="mark">
+            <app-color-picker [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
+            @if (store.selectMode() && !s.canEdit) {
+              <span class="no-edit" nz-icon nzType="lock" nz-tooltip="אין לך הרשאת עריכה — פעולות עריכה ידלגו עליה" aria-label="ללא הרשאת עריכה"></span>
+            }
+          </div>
+        </td>
         @for (col of columns; track col.name) {
           <td>
             @if (col.type === 'date') {

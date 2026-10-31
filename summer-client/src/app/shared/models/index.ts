@@ -68,7 +68,7 @@ export interface ILabel {
 
 export interface IMention {
   _id: string;
-  type: 'user' | 'label';
+  type: 'user' | 'label' | 'permission';
   value: string;
   icon?: string;
 }
@@ -91,6 +91,20 @@ export interface ICollectionRef {
   _id: string;
   name: string;
 }
+
+/** A personal preset for the summary form's sharing section. The server leaves out users and collections the owner can no longer see. */
+export interface ISummaryTemplate {
+  _id: string;
+  name: string;
+  permissions: string[];
+  taggedUsers: UserRef[];
+  taggedPermissions: string[];
+  labels: string[];
+  collections: ICollectionRef[];
+  folder: string | null;
+}
+
+export type SummaryTemplatePayload = Omit<ISummaryTemplate, '_id' | 'taggedUsers' | 'collections'> & { taggedUsers: string[]; collections: string[] };
 
 export interface ICollection extends ICollectionRef {
   permissions: IPermission[];
@@ -145,11 +159,15 @@ export interface ISummary {
   summaryFields?: ISummaryField[];
   files: string[];
   taggedUsers: UserRef[];
+  /** permission groups whose members count as tagged */
+  taggedPermissions: IPermission[];
   collectionIds: ICollectionRef[];
   permissions: IPermission[];
   seenBy: string[];
   color: string;
   isFavorite: boolean;
+  /** The viewer is an editor (bulk edit actions apply only to these; the server re-checks). */
+  canEdit: boolean;
   timelineTitle?: string;
   kind: SummaryKind;
   /** sumaroon only */
@@ -163,6 +181,14 @@ export interface ISummary {
   sumaroonCount?: number;
   /** running only: the first few of those sumaroons by event date (card preview) */
   sumaroonPreview?: { _id: string; title: string }[];
+}
+
+/** Why a bulk action left a summary out (hidden and deleted summaries are both 'not-found'). */
+export type BulkSkipReason = 'not-found' | 'not-editor' | 'sumaroon' | 'too-many-labels' | 'draft';
+
+export interface IBulkResult {
+  applied: string[];
+  skipped: { id: string; reason: BulkSkipReason }[];
 }
 
 export interface ISummariesLength {
@@ -338,12 +364,29 @@ export interface INotificationSettingsCondition {
 export interface INotificationSettings {
   _id?: string;
   name: string;
+  /** empty for a search alert */
   conditions: INotificationSettingsCondition[];
-  /** also send e-mail */
+  /** any one condition is enough, instead of all of them */
+  matchAny?: boolean;
+  /** a saved search: notify about published summaries it finds (instead of conditions) */
+  search?: ISummarySearch;
+  /** also e-mail each match right away */
   isMail: boolean;
-  /** show in-app bell notification */
+  /** also list matches in the daily digest e-mail */
+  isDigest: boolean;
+  /** the rule is active (matches reach the bell, and the e-mails); off pauses it */
   isNotify: boolean;
   creationDate?: string;
+}
+
+/** The user's e-mail switches (GET/PUT /notifications/preferences). */
+export interface IMailPreferences {
+  /** null when the identity provider has no address: nothing can be mailed */
+  email: string | null;
+  /** rule matches (each rule also picks immediate and/or digest) */
+  mailAlerts: boolean;
+  /** tags, comments, mentions, followed users publishing */
+  mailActivity: boolean;
 }
 
 export interface IWhatsNew {
@@ -365,6 +408,7 @@ export interface SummaryPayload {
   collectionIds: string[];
   permissions: string[];
   taggedUsers: string[];
+  taggedPermissions: string[];
   summaryFields: { field: string; value: string }[];
   /** existing attachment names to keep (edit) */
   files: string[];

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiCollection, ApiCollectionRef, ApiSummary, SummaryLengths } from '../common/api-types';
+import { ApiBulkResult, ApiCollection, ApiCollectionRef, ApiSummary, SummaryLengths } from '../common/api-types';
 import { IdPipe, isUuid } from '../common/validation';
 import { SummariesService } from '../summaries/summaries.service';
 import { CollectionsService } from './collections.service';
@@ -52,9 +52,14 @@ export class CollectionsController {
   }
 
   @Post('add')
-  async add(@Me() me: CurrentUser, @Body() body: unknown): Promise<object> {
-    await this.collections.addSummaries(me, body);
-    return {};
+  add(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.collections.addSummaries(me, body);
+  }
+
+  /** `{ collectionIds, summaryIds }` → which collections changed and which were skipped. */
+  @Post('remove')
+  removeSummaries(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.collections.removeSummaries(me, body);
   }
 
   @Delete(':id')

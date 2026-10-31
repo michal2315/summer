@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { SummyComponent } from '../summy/summy.component';
-import { LOADING_QUIPS } from './loading-quips';
+import { LOADING_QUIPS, RARE_ODDS, RARE_QUIPS } from './loading-quips';
 
 const INTERVAL_MS = 1800;
 
@@ -15,7 +15,7 @@ const INTERVAL_MS = 1800;
   styleUrl: './loading-quip.component.scss',
 })
 export class LoadingQuipComponent {
-  readonly quip = signal(pick());
+  readonly quip = signal(Math.random() < 1 / RARE_ODDS ? RARE_QUIPS[Math.floor(Math.random() * RARE_QUIPS.length)] : pick());
 
   constructor() {
     const timer = setInterval(() => this.quip.set(pick(this.quip())), INTERVAL_MS);

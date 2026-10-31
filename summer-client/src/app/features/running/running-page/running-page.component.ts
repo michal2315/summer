@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
@@ -10,9 +10,12 @@ import { UserService } from '../../../core/auth/user.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { ISummary, SearchType, SummaryKind } from '../../../shared/models';
-import { DateFormatPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
+import { regexFor } from '../../../shared/pipes/highlight';
+import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
+import { CapsuleService } from '../../../shared/services/capsule.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { SummaryActionsService } from '../../summaries/summary-actions.service';
+import { searchFromParams } from '../../summaries/search-query';
 import { SummaryBrowserComponent } from '../../summaries/summary-browser/summary-browser.component';
 import { RunningBackService } from '../running-back';
 
@@ -31,6 +34,7 @@ import { EmptyState } from '../../summaries/summary-list/summary-list.component'
     AvatarComponent,
     ContentTypeIconComponent,
     DateFormatPipe,
+    HighlightPipe,
     RichHtmlPipe,
     SummaryBrowserComponent,
   ],
@@ -44,6 +48,7 @@ export class RunningPageComponent {
   private readonly users = inject(UserService);
   private readonly router = inject(Router);
   private readonly backs = inject(RunningBackService);
+  private readonly capsules = inject(CapsuleService);
   readonly actions = inject(SummaryActionsService);
 
   readonly id = input.required<string>();
@@ -55,6 +60,24 @@ export class RunningPageComponent {
   readonly isMine = computed(() => this.running()?.user._id === this.users.userId());
   readonly hasContent = computed(() => !!this.running()?.content.replace(/<[^>]+>/g, '').trim());
   readonly T = SearchType;
+  /** The search applied to the sumaroons (from the URL), so the header highlights what it matches too. */
+  readonly search = toSignal(inject(ActivatedRoute).queryParams, { initialValue: {} as Record<string, string> });
+  readonly appliedSearch = computed(() => searchFromParams(this.search()));
+  /** The search also matches the running summary itself, behind the closed "פרטים": its labels or content. */
+  readonly detailsHit = computed(() => {
+    const r = this.running();
+    if (!r) return false;
+    const hit = (re: RegExp | null, text: string) => {
+      if (!re) return false;
+      re.lastIndex = 0;
+      return re.test(text);
+    };
+    const s = this.appliedSearch();
+    return (
+      r.labels.some((l) => hit(regexFor(s, SearchType.Label, this.capsules), l.name)) ||
+      hit(regexFor(s, SearchType.Content, this.capsules), r.content.replace(/<[^>]+>/g, ' '))
+    );
+  });
 
   constructor() {
     effect(() => {

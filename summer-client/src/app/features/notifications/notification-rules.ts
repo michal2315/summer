@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Pipe, PipeTransform, inject, signal } from '@angular/core';
 import { Observable, map, tap } from 'rxjs';
-import { FieldsType, IField, INotificationSettings, INotificationSettingsCondition, NotificationsFunctionsOptions as F } from '../../shared/models';
+import { FieldsType, IField, IMailPreferences, INotificationSettings, INotificationSettingsCondition, ISummarySearch, NotificationsFunctionsOptions as F } from '../../shared/models';
+import { alertSearch, describeSearch, sameAlertSearch } from '../summaries/search-query';
 
 export interface NotificationOption {
   label: string;
@@ -46,9 +47,10 @@ export const isBetween = (f: F | null | undefined) => f === F.NumberBetween || f
 /** content: [capsule id, capsule name] */
 export const isCapsuleFunc = (f: F | null | undefined) => f === F.CapsuleMatches || f === F.CapsuleNotMatches;
 
-/** Rule → readable Hebrew, e.g. «שם הקורס מכיל "אלגוריתמים" וגם מספר הרצאה בין 3 ל-∞». */
-export function describeRule(rule: Pick<INotificationSettings, 'conditions'>): string {
-  return rule.conditions.map(describeCondition).join(' וגם ');
+/** Rule → readable Hebrew, e.g. «שם הקורס מכיל "אלגוריתמים" וגם מספר הרצאה בין 3 ל-∞», or «חיפוש: …» for a search alert. */
+export function describeRule(rule: Pick<INotificationSettings, 'conditions' | 'matchAny' | 'search'>): string {
+  if (rule.search) return `תמציות שמתאימות לחיפוש: ${describeSearch(rule.search)}`;
+  return rule.conditions.map(describeCondition).join(rule.matchAny ? ' או ' : ' וגם ');
 }
 
 export function describeCondition(c: INotificationSettingsCondition): string {
@@ -65,20 +67,35 @@ export function describeCondition(c: INotificationSettingsCondition): string {
 
 @Pipe({ name: 'notificationName' })
 export class NotificationNamePipe implements PipeTransform {
-  transform(rule: Pick<INotificationSettings, 'conditions'>): string {
+  transform(rule: Pick<INotificationSettings, 'conditions' | 'matchAny' | 'search'>): string {
     return describeRule(rule);
   }
 }
 
-/** Notification-rule admin state (spec §11.2): rules + a text filter. */
+/** Notification-rule admin state (spec §11.2): rules + a text filter, and the user's e-mail switches. */
 @Injectable({ providedIn: 'root' })
 export class NotificationsSettingsService {
   private readonly http = inject(HttpClient);
   readonly rules = signal<INotificationSettings[] | null>(null);
   readonly filter = signal('');
+  readonly preferences = signal<IMailPreferences | null>(null);
 
   load(): void {
     this.http.get<INotificationSettings[]>('/api/notifications/settings').subscribe((r) => this.rules.set(r));
+  }
+
+  loadPreferences(): void {
+    this.http.get<IMailPreferences>('/api/notifications/preferences').subscribe((p) => this.preferences.set(p));
+  }
+
+  /** Optimistic; the server's answer replaces the local copy, a failure restores it. */
+  setPreference(key: 'mailAlerts' | 'mailActivity', value: boolean): void {
+    const before = this.preferences();
+    if (before) this.preferences.set({ ...before, [key]: value });
+    this.http.put<IMailPreferences>('/api/notifications/preferences', { [key]: value }).subscribe({
+      next: (p) => this.preferences.set(p),
+      error: () => this.preferences.set(before),
+    });
   }
 
   /** The API has no single-rule endpoint; read the list and pick the rule. */
@@ -96,5 +113,16 @@ export class NotificationsSettingsService {
 
   delete(id: string): Observable<unknown> {
     return this.http.delete(`/api/notifications/${id}`).pipe(tap(() => this.load()));
+  }
+
+  /** The alert rule saved for this search, if any (needs `load()` first). */
+  alertFor(search: ISummarySearch): INotificationSettings | undefined {
+    return this.rules()?.find((r) => r.search && sameAlertSearch(r.search, search));
+  }
+
+  /** "Notify me about new results": a rule holding the search, named after it. */
+  addAlert(search: ISummarySearch): Observable<INotificationSettings> {
+    const s = alertSearch(search);
+    return this.save({ name: describeSearch(s).slice(0, 120), conditions: [], search: s, isNotify: true, isMail: false, isDigest: false });
   }
 }

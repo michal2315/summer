@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, tap } from 'rxjs';
-import { FolderItemType, FolderPayload, IFolder, IFolderItem } from '../models';
+import { FolderItemType, FolderPayload, IBulkResult, IFolder, IFolderItem } from '../models';
 
 const BASE = '/api/folder';
 
@@ -36,9 +36,12 @@ export class FolderService {
     return this.http.delete(`${BASE}/${id}`).pipe(tap(() => this.changed$.next()));
   }
 
-  /** Moves the items into the folder (out of whatever folder held them before). */
-  addItems(folderId: string, items: ItemRef[]): Observable<unknown> {
-    return this.http.post(`${BASE}/${folderId}/items`, { items }).pipe(tap(() => this.changed$.next()));
+  /**
+   * Moves the items into the folder (out of whatever folder held them before). `partial`: move the placeable ones and
+   * report the rest (drafts, sumaroons, not yours), instead of failing the whole request.
+   */
+  addItems(folderId: string, items: ItemRef[], partial = false): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/${folderId}/items`, { items, partial }).pipe(tap(() => this.changed$.next()));
   }
 
   removeItems(folderId: string, items: ItemRef[]): Observable<unknown> {

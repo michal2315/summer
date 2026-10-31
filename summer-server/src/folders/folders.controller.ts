@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
+import { ApiBulkResult } from '../common/api-types';
 import { IdPipe } from '../common/validation';
 import { ApiFolder, ApiFolderItem, FoldersService } from './folders.service';
 
@@ -36,9 +37,8 @@ export class FoldersController {
   }
 
   @Post(':id/items')
-  async addItems(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: unknown): Promise<object> {
-    await this.folders.addItems(me, id, body);
-    return {};
+  addItems(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.folders.addItems(me, id, body);
   }
 
   @Delete(':id')

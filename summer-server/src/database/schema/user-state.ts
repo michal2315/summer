@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
+import { check, index, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { labels, permissions } from './catalog';
 import { collections } from './collections';
-import { createdAt, id } from './columns';
+import { createdAt, id, updatedAt } from './columns';
 import { summaries } from './summaries';
 import { users } from './users';
 
@@ -108,6 +108,31 @@ export const userPinnedSearches = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index().on(t.userId, t.createdAt)],
+);
+
+/** What a summary template fills in: ids as picked in the form; labels by name, since typing a new one creates it. */
+export interface SummaryTemplateData {
+  permissions: string[];
+  taggedUsers: string[];
+  /** absent in templates saved before groups could be tagged */
+  taggedPermissions?: string[];
+  labels: string[];
+  collections: string[];
+  folder: string | null;
+}
+
+/** Personal templates for the summary form's sharing section. References are not FKs: stale ones are dropped on read. */
+export const summaryTemplates = pgTable(
+  'summary_templates',
+  {
+    id: id(),
+    userId: userFk(),
+    name: text().notNull(),
+    data: jsonb().$type<SummaryTemplateData>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex().on(t.userId, t.name)],
 );
 
 /** What's New: one row per user per acknowledged release (the release list lives in code). */

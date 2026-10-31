@@ -1,0 +1,8 @@
+@if (count()) {
+  <div class="nav" role="group" aria-label="התאמות לחיפוש">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="count" aria-live="polite">{{ index() < 0 ? count() + ' התאמות' : index() + 1 + ' / ' + count() }}</span>
+    <button type="button" class="step" (click)="step(-1)" nz-tooltip="ההתאמה הקודמת" aria-label="ההתאמה הקודמת"><span nz-icon nzType="up"></span></button>
+    <button type="button" class="step" (click)="step(1)" nz-tooltip="ההתאמה הבאה" aria-label="ההתאמה הבאה"><span nz-icon nzType="down"></span></button>
+  </div>
+}

@@ -1,8 +1,9 @@
 import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query } from '@nestjs/common';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiUser, UserRef } from '../common/api-types';
+import { ApiBulkResult, ApiSummaryTemplate, ApiUser, UserRef } from '../common/api-types';
 import { IdPipe, isUuid } from '../common/validation';
+import { SummaryTemplatesService } from './summary-templates.service';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
@@ -14,6 +15,7 @@ export class UsersController {
   constructor(
     private readonly users: UsersService,
     private readonly repo: UsersRepository,
+    private readonly templates: SummaryTemplatesService,
   ) {}
 
   @Get()
@@ -85,6 +87,27 @@ export class UsersController {
   @Put('favorite')
   favoriteSummary(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
     return this.users.toggleFavoriteSummary(me, body?.summaryId);
+  }
+
+  /** `{ summaryIds, favorite }` → which summaries changed and which were skipped. */
+  @Post('favorite/bulk')
+  bulkFavorite(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.users.bulkFavorite(me, body);
+  }
+
+  @Get('templates')
+  summaryTemplates(@Me() me: CurrentUser): Promise<ApiSummaryTemplate[]> {
+    return this.templates.list(me);
+  }
+
+  @Post('templates')
+  saveSummaryTemplate(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiSummaryTemplate[]> {
+    return this.templates.save(me, body);
+  }
+
+  @Delete('templates/:id')
+  deleteSummaryTemplate(@Me() me: CurrentUser, @Param('id', IdPipe) id: string): Promise<ApiSummaryTemplate[]> {
+    return this.templates.delete(me, id);
   }
 
   @Put('add-follow/:userId')

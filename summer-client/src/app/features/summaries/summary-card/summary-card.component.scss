@@ -17,6 +17,13 @@
   }
 }
 
+// Selection mode: bulk edits will skip this summary.
+.no-edit {
+  flex: none;
+  color: $gray;
+  font-size: 13px;
+}
+
 // Unread: a small brand dot before the author, instead of marking the read ones.
 .unread {
   flex: none;
@@ -116,6 +123,14 @@ $stack:
 }
 
 .running-banner .banner-title { font-weight: 700; }
+
+// Search hits the preview doesn't show (empty without a search).
+.snippets {
+  margin: 6px 0 2px;
+  &:empty {
+    display: none;
+  }
+}
 
 // Running summary: its first sumaroons as a numbered list, so it reads as a series without relying on colour.
 .sumaroon-preview {

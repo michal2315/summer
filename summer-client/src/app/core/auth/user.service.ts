@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, shareReplay, tap } from 'rxjs';
-import { ISummarySearch, IUser, UserRef } from '../../shared/models';
+import { IBulkResult, ISummarySearch, IUser, UserRef } from '../../shared/models';
 import { SILENT_ERRORS } from '../http/http-context';
 
 const BASE = '/api/user';
@@ -68,6 +68,10 @@ export class UserService {
   }
   favoriteSummary(summaryId: string) {
     return this.update(this.http.put<IUser>(`${BASE}/favorite`, { summaryId }));
+  }
+  /** Add (summaries you can see) or remove many favourites; the user object doesn't change, so callers reload their list. */
+  bulkFavorite(summaryIds: string[], favorite: boolean): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/favorite/bulk`, { summaryIds, favorite });
   }
   follow(userId: string) {
     return this.update(this.http.put<IUser>(`${BASE}/add-follow/${userId}`, {}));

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { collectionVisible } from '../collections/collection.access';
 import { idsWhere } from '../common/sql';
@@ -34,6 +34,10 @@ export class UserStateRepository {
   /** Favourites and pins only target things the caller can see. */
   async canSeeSummary(me: CurrentUser, summaryId: string): Promise<boolean> {
     return (await idsWhere(this.db, summaries, summaries.id, [summaryId], summaryVisible(me, this.config.access))).has(summaryId);
+  }
+
+  async visibleSummaryIds(me: CurrentUser, summaryIds: string[]): Promise<Set<string>> {
+    return idsWhere(this.db, summaries, summaries.id, summaryIds, summaryVisible(me, this.config.access));
   }
 
   async canSeeCollection(me: CurrentUser, collectionId: string): Promise<boolean> {
@@ -79,6 +83,13 @@ export class UserStateRepository {
     if (!(await canAdd())) return false;
     await this.db.insert(t).values({ userId, summaryId }).onConflictDoNothing();
     return true;
+  }
+
+  async setFavoriteSummaries(userId: string, summaryIds: string[], favorite: boolean): Promise<void> {
+    if (!summaryIds.length) return;
+    const t = userFavSummaries;
+    if (favorite) await this.db.insert(t).values(summaryIds.map((summaryId) => ({ userId, summaryId }))).onConflictDoNothing();
+    else await this.db.delete(t).where(and(eq(t.userId, userId), inArray(t.summaryId, summaryIds)));
   }
 
   async follow(followerId: string, followedId: string): Promise<void> {

@@ -15,9 +15,18 @@
           <button type="button" class="back-link" (click)="back(r)"><span nz-icon nzType="arrow-right"></span> חזרה</button>
         }
         <span class="kind" nz-tooltip="תמצית רצף"><span nz-icon nzType="unordered-list"></span></span>
-        <div class="title" role="heading" aria-level="1" [title]="r.title">{{ r.title }}</div>
+        <div class="title" role="heading" aria-level="1" [title]="r.title" [innerHTML]="r.title | highlight: appliedSearch() : T.Title"></div>
         <span class="spacer"></span>
-        <button nz-button nzType="text" nzSize="small" type="button" (click)="detailsOpen.set(!detailsOpen())" [attr.aria-expanded]="detailsOpen()">
+        <button
+          nz-button
+          nzType="text"
+          nzSize="small"
+          type="button"
+          [class.details-hit]="detailsHit() && !detailsOpen()"
+          [nz-tooltip]="detailsHit() && !detailsOpen() ? 'החיפוש מתאים גם לפרטי תמצית הרצף (תגיות או תוכן)' : null"
+          (click)="detailsOpen.set(!detailsOpen())"
+          [attr.aria-expanded]="detailsOpen()"
+        >
           פרטים <span nz-icon [nzType]="detailsOpen() ? 'up' : 'down'"></span>
         </button>
         <button nz-button nzType="text" nzShape="circle" type="button" (click)="actions.toggleFavorite(r)" [nz-tooltip]="r.isFavorite ? 'הסרה ממועדפים' : 'הוספה למועדפים'">
@@ -47,11 +56,11 @@
             </div>
           }
           @if (hasContent()) {
-            <div class="content ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.content | richHtml: null : T.Content"></div></div>
+            <div class="content ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.content | richHtml: appliedSearch() : T.Content"></div></div>
           }
           <div class="chips">
             @for (l of r.labels; track l.name) {
-              <nz-tag class="label-chip">{{ l.name }}</nz-tag>
+              <nz-tag class="label-chip"><span [innerHTML]="l.name | highlight: appliedSearch() : T.Label"></span></nz-tag>
             }
             @for (p of r.permissions; track p._id) {
               <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>

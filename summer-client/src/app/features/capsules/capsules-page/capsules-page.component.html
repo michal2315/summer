@@ -1,0 +1,40 @@
+<div class="page">
+  <div class="header">
+    <div class="page-title" role="heading" aria-level="1"><span nz-icon nzType="experiment"></span> כמוסות</div>
+    @if (list()) {
+      <span class="count">{{ count() }}</span>
+    }
+  </div>
+  <div class="intro">
+    כמוסה היא קבוצת מילים שמורה. בתיבת החיפוש מקלידים <span class="kbd">#</span> ובוחרים כמוסה, והיא נכנסת לחיפוש כיחידה אחת. מילות
+    <span class="cond must">חובה</span> צריכות להופיע כולן, מילות <span class="cond not">אסור</span> לא יכולות להופיע, ומילות
+    <span class="cond optional">רשות</span> מספיקות אחת מהן (כשאין מילות חובה). הכמוסות מנוהלות במערכת חיצונית, וכאן אפשר רק לצפות בהן.
+  </div>
+
+  <nz-input-group [nzPrefix]="searchIcon" class="filter">
+    <input nz-input placeholder="סינון לפי שם" [value]="filter()" (input)="filter.set($any($event.target).value)" aria-label="סינון כמוסות" />
+  </nz-input-group>
+  <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+
+  @if (list(); as capsules) {
+    <div class="grid">
+      @for (c of capsules; track c._id) {
+        <div class="card" role="article" [attr.aria-label]="c.name">
+          <app-capsule-words class="words" [capsule]="c" />
+          <div class="actions">
+            <button nz-button nzType="primary" nzSize="small" type="button" (click)="search(c)"><span nz-icon nzType="search"></span> חיפוש</button>
+            <button nz-button nzSize="small" type="button" (click)="alert(c)"><span nz-icon nzType="bell"></span> התראה</button>
+            <span class="spacer"></span>
+            <button nz-button nzType="text" nzSize="small" type="button" (click)="copy(c)" nz-tooltip="העתקה לתיבת החיפוש" aria-label="העתקה">
+              <span nz-icon nzType="copy"></span>
+            </button>
+          </div>
+        </div>
+      } @empty {
+        <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="filter() ? 'אין כמוסה בשם הזה' : 'אין כמוסות'" />
+      }
+    </div>
+  } @else {
+    <nz-skeleton [nzActive]="true" />
+  }
+</div>

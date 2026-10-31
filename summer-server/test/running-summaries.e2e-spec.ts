@@ -75,7 +75,7 @@ describe('running summaries and sumaroons', () => {
     await h.as('yavraham').get(`/summary/${child._id}/false`).expect(200);
   });
 
-  it('lists a running summary’s sumaroons by event date or creation date, and inherits its labels in search', async () => {
+  it('lists a running summary’s sumaroons by event date or creation date; its labels find it, not its sumaroons', async () => {
     const parent = (await createSummary(h, 'mgolan', running({ labels: ['תווית-רצף-ייחודית'] }))).body;
     const late = (await createSummary(h, 'mgolan', sumaroon(parent._id, { title: 'ראשון שנכתב', eventDate: '2026-01-20' }))).body;
     const early = (await createSummary(h, 'mgolan', sumaroon(parent._id, { title: 'שני שנכתב', eventDate: '2026-01-05' }))).body;
@@ -85,10 +85,10 @@ describe('running summaries and sumaroons', () => {
     const byCreation = await search('mgolan', `parentId=${parent._id}&sort=creationDate`);
     expect(byCreation.summaries.map((s: { _id: string }) => s._id)).toEqual([late._id, early._id]);
 
-    const byLabel = await search('mgolan', `labels=${encodeURIComponent('תווית-רצף-ייחודית')}&kinds=sumaroon`);
-    expect(byLabel.summaries.map((s: { _id: string }) => s._id).sort()).toEqual([late._id, early._id].sort());
-    const runningOnly = await search('mgolan', `labels=${encodeURIComponent('תווית-רצף-ייחודית')}&kinds=running`);
-    expect(runningOnly.summaries.map((s: { _id: string }) => s._id)).toEqual([parent._id]);
+    // The labels filter and label text search both look at a summary's own labels only.
+    const ids = (r: { summaries: { _id: string }[] }) => r.summaries.map((s) => s._id);
+    expect(ids(await search('mgolan', `labels=${encodeURIComponent('תווית-רצף-ייחודית')}`))).toEqual([parent._id]);
+    expect(ids(await search('mgolan', `text=${encodeURIComponent('תווית-רצף')}&searchTypes=LABEL`))).toEqual([parent._id]);
   });
 
   it('kind and parent are fixed; a running summary with sumaroons keeps its content type and must still cover them', async () => {

@@ -10,6 +10,7 @@ import {
   summaryLabels,
   summaryPermissions,
   summarySeen,
+  summaryTaggedPermissions,
   summaryTaggedUsers,
 } from './summaries';
 import { folderEditors, folderPermissions, folders } from './folders';
@@ -25,6 +26,7 @@ export const summariesRelations = relations(summaries, ({ one, many }) => ({
   labels: many(summaryLabels),
   fields: many(summaryFields),
   taggedUsers: many(summaryTaggedUsers),
+  taggedPermissions: many(summaryTaggedPermissions),
   seen: many(summarySeen),
   files: many(summaryFiles),
   comments: many(comments),
@@ -49,6 +51,10 @@ export const summaryFieldsRelations = relations(summaryFields, ({ one }) => ({
 export const summaryTaggedUsersRelations = relations(summaryTaggedUsers, ({ one }) => ({
   summary: one(summaries, { fields: [summaryTaggedUsers.summaryId], references: [summaries.id] }),
   user: one(users, { fields: [summaryTaggedUsers.userId], references: [users.id] }),
+}));
+export const summaryTaggedPermissionsRelations = relations(summaryTaggedPermissions, ({ one }) => ({
+  summary: one(summaries, { fields: [summaryTaggedPermissions.summaryId], references: [summaries.id] }),
+  permission: one(permissions, { fields: [summaryTaggedPermissions.permissionId], references: [permissions.id] }),
 }));
 export const summarySeenRelations = relations(summarySeen, ({ one }) => ({
   summary: one(summaries, { fields: [summarySeen.summaryId], references: [summaries.id] }),
