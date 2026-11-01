@@ -37,7 +37,7 @@
       </button>
       <ng-template #lockedInfo>
         <div class="locked-info">
-          <div>{{ locked }} מהנבחרות ללא הרשאת עריכה — לקטים, תיקייה ותגיות ידלגו עליהן.</div>
+          <div>{{ locked }} מהנבחרות ללא הרשאת עריכה — תיקייה ותגיות ידלגו עליהן.</div>
           <button nz-button nzSize="small" type="button" (click)="store.deselect(store.selectedNotEditable())">הסרה מהבחירה</button>
         </div>
       </ng-template>
@@ -48,9 +48,6 @@
 
   <!-- Edits: one compact icon group; each tooltip names the action and what part of the selection it applies to. -->
   <nz-button-group nzSize="small" class="edits">
-    <button nz-button type="button" [disabled]="!collectionScope().ids.length" [nz-tooltip]="tip('לקטים', collectionScope())" aria-label="לקטים" (click)="editCollections()">
-      <span nz-icon nzType="folder-add"></span>
-    </button>
     <button nz-button type="button" [disabled]="!folderScope().ids.length" [nz-tooltip]="tip('העברה לתיקייה', folderScope())" aria-label="העברה לתיקייה" (click)="moveToFolder()">
       <span nz-icon nzType="folder"></span>
     </button>
@@ -123,9 +120,6 @@
 
   <span class="divider"></span>
 
-  @if (collection(); as c) {
-    <button nz-button nzSize="small" nzDanger type="button" [disabled]="!store.selectedCount()" (click)="removeFromCollection(c)"><span nz-icon nzType="minus-circle"></span> הסרה מהלקט</button>
-  }
   <button nz-button nzSize="small" nzType="text" type="button" class="close" nz-tooltip="יציאה ממצב בחירה" aria-label="יציאה ממצב בחירה" (click)="store.setSelectMode(false)">
     <span nz-icon nzType="close"></span>
   </button>

@@ -5,6 +5,7 @@ import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { APP_CONFIG } from '../../../core/config/app-config';
 import { ColorPickerComponent } from '../../../shared/components/color-picker/color-picker.component';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { ISummary, ISummarySearch, SearchType } from '../../../shared/models';
 import { DateFormatPipe, HighlightPipe, PlainTextPipe } from '../../../shared/pipes/pipes';
 import { SummaryActionsService } from '../summary-actions.service';
@@ -15,7 +16,8 @@ const SEARCH_TYPE_BY_FIELD: Record<string, SearchType> = { title: SearchType.Tit
 /** Columns come from config (summariesTableFields). Server-side paging over the same search endpoint. */
 @Component({
   selector: 'app-summaries-table',
-  imports: [NzTableModule, NzButtonModule, NzIconModule, NzToolTipModule, ColorPickerComponent, DateFormatPipe, HighlightPipe, PlainTextPipe],
+  host: { '[class.loading]': 'store.loading()' },
+  imports: [NzTableModule, NzButtonModule, NzIconModule, NzToolTipModule, ColorPickerComponent, SkeletonComponent, DateFormatPipe, HighlightPipe, PlainTextPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summaries-table.component.html',
   styleUrl: './summaries-table.component.scss',
@@ -24,6 +26,8 @@ export class SummariesTableComponent {
   readonly store = inject(SummaryListStore);
   readonly actions = inject(SummaryActionsService);
   readonly columns = inject(APP_CONFIG).summariesTableFields;
+  /** Placeholder rows while a page loads. */
+  readonly skeletonRows = Array.from({ length: 8 }, (_, i) => i);
   readonly allChecked = computed(() => this.store.summaries().length > 0 && this.store.summaries().every((s) => this.store.selected().has(s._id)));
   readonly someChecked = computed(() => !this.allChecked() && this.store.summaries().some((s) => this.store.selected().has(s._id)));
 

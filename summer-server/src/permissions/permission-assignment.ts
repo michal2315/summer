@@ -4,7 +4,7 @@ import { unique } from '../common/validation';
 import { PermissionsRepository } from './permissions.repository';
 
 /**
- * Validates a permission set someone is assigning to a summary, collection or folder: ids exist, at least one
+ * Validates a permission set someone is assigning to a summary or folder: ids exist, at least one
  * when `required`, and only groups the caller holds (decision A6 — otherwise you would create something you
  * cannot see yourself under the all-of rule).
  */

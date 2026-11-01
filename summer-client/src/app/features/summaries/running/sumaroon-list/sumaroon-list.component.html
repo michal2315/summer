@@ -15,7 +15,7 @@
   </div>
 
   @if (loading() && !items().length) {
-    <div class="loader"><nz-spin nzSimple nzSize="small" /></div>
+    <app-skeleton class="loader" variant="tree" [count]="4" />
   } @else {
     <ol class="list">
       @for (s of items(); track s._id; let i = $index) {
@@ -43,5 +43,11 @@
         <li class="empty muted">עדיין אין תמציתוניות בתמצית הרצף הזו</li>
       }
     </ol>
+    @if (hasMore()) {
+      @if (loading()) {
+        <app-skeleton class="loader" variant="tree" [count]="2" />
+      }
+      <div class="sentinel" (appInView)="loadMore()" [appInViewKey]="items().length"></div>
+    }
   }
 </div>

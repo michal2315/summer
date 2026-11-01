@@ -3,15 +3,15 @@ import { toApiContentType, toApiField } from '../content-types/content-types.rep
 import { FullSummary, ParentSummary } from './summaries.repository';
 
 /**
- * DB aggregate → client ISummary. `visibleCollections` hides memberships in collections the viewer cannot see
- * (a collection's name is protected by its own permissions).
+ * DB aggregate → client ISummary. `visibleFolders` hides the summary's folder when the viewer cannot see it
+ * (a folder's name is protected by its own permissions).
  */
 export function toApiSummary(
   s: FullSummary,
   ctx: {
     isFavorite: boolean;
     canEdit: boolean;
-    visibleCollections: Set<string>;
+    visibleFolders: Set<string>;
     parent?: ParentSummary;
     sumaroonCount?: number;
     sumaroonPreview?: { id: string; title: string }[];
@@ -43,7 +43,7 @@ export function toApiSummary(
     files: s.files.map((f) => f.fileName),
     taggedUsers: s.taggedUsers.map((t) => toRef(t.user)),
     taggedPermissions: sortedPermissions(s.taggedPermissions),
-    collectionIds: s.collections.filter((c) => ctx.visibleCollections.has(c.collectionId)).map((c) => ({ _id: c.collection.id, name: c.collection.name })),
+    folder: s.folder && ctx.visibleFolders.has(s.folder.folderId) ? { _id: s.folder.folder.id, name: s.folder.folder.name } : null,
     permissions: sortedPermissions(s.permissions),
     seenBy: s.seen.map((x) => x.userId),
     color: s.color,

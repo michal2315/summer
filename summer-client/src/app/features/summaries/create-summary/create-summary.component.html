@@ -35,7 +35,7 @@
               חלק אחד מתוך תמצית רצף — יורש ממנה את סוג התוכן, התגיות וההרשאות.
             }
             @default {
-              תמצית רגילה, שאפשר להוסיף ללקטים.
+              תמצית רגילה, שאפשר לסדר בתיקייה.
             }
           }
         </div>
@@ -200,7 +200,7 @@
     </nz-form-item>
   </div>
 
-  <!-- 4. Sharing & organizing: permissions, tagged users, labels, collections, folder -->
+  <!-- 4. Sharing & organizing: permissions, tagged users, labels, folder -->
   <div class="section">
     <div class="section-head">
       <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="team"></span> שיתוף ושיוך</div>
@@ -328,33 +328,11 @@
         </nz-form-control>
       </nz-form-item>
 
-      <!-- A sumaroon lives only inside its running summary: no collections or folder. -->
-      <nz-form-item [hidden]="kind() === K.Sumaroon">
-        <nz-form-label [nzRequired]="collectionsRequired()">לקטים</nz-form-label>
-        <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור לקט" [nzExtra]="collectionsRequired() ? collectionsHint : undefined">
-          <nz-select formControlName="collections" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="הוספה ללקטים" (nzOnSearch)="onCollectionSearch($event)">
-            @for (col of sortedCollections(); track col._id) {
-              <nz-option nzCustomContent [nzValue]="col._id" [nzLabel]="col.name">
-                <span class="opt">
-                  <span nz-icon nzType="folder"></span>
-                  <span class="opt-label">{{ col.name }}</span>
-                  <button type="button" class="opt-btn" (mousedown)="optionAction($event, favoriteCollection.bind(this, col._id))" aria-label="מועדף">
-                    <span nz-icon nzType="star" [nzTheme]="isFavorite('favoriteCollections', col._id) ? 'fill' : 'outline'"></span>
-                  </button>
-                  <button type="button" class="opt-btn" (mousedown)="optionAction($event, pinCollection.bind(this, col._id))" aria-label="נעיצה">
-                    <span nz-icon nzType="pushpin" [nzTheme]="isPinned('pinnedCollections', col._id) ? 'fill' : 'outline'"></span>
-                  </button>
-                </span>
-              </nz-option>
-            }
-          </nz-select>
-        </nz-form-control>
-      </nz-form-item>
-
-      @if (!isEdit() && kind() !== K.Sumaroon) {
+      <!-- A sumaroon lives only inside its running summary: no folder. -->
+      @if (kind() !== K.Sumaroon) {
         <nz-form-item>
-          <nz-form-label nzFor="folder">תיקייה</nz-form-label>
-          <nz-form-control nzExtra="אופציונלי — מיקום בהיררכיה">
+          <nz-form-label nzFor="folder" [nzRequired]="folderRequired()">תיקייה</nz-form-label>
+          <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור תיקייה" [nzExtra]="folderHint()">
             <nz-select nzId="folder" formControlName="folder" nzShowSearch nzAllowClear nzPlaceHolder="חיפוש תיקייה">
               @for (f of folderOptions(); track f._id) {
                 <nz-option [nzValue]="f._id" [nzLabel]="f.path" />
@@ -450,7 +428,6 @@
   </div>
 </form>
 
-<ng-template #collectionsHint>לסוג "כללי" חובה לבחור לקט</ng-template>
 <ng-template #noTemplates><div class="muted no-templates">אין עדיין תבניות. מלאו את השדות ולחצו "שמירה כתבנית".</div></ng-template>
 <ng-template #saveTemplateTpl>
   <div class="template-save">
@@ -464,11 +441,11 @@
       (keydown.enter)="$event.preventDefault(); saveTemplate()"
     />
     <div class="muted template-save-hint">
-      {{ templateNameTaken() ? 'תבנית בשם הזה קיימת — היא תוחלף בערכים הנוכחיים.' : 'נשמרים: הרשאות, משתמשים מתויגים, תגיות, לקטים ותיקייה.' }}
+      {{ templateNameTaken() ? 'תבנית בשם הזה קיימת — היא תוחלף בערכים הנוכחיים.' : 'נשמרים: הרשאות, משתמשים מתויגים, תגיות ותיקייה.' }}
     </div>
     <button nz-button nzType="primary" type="button" [disabled]="!templateName().trim()" (click)="saveTemplate()">
       {{ templateNameTaken() ? 'עדכון התבנית' : 'שמירה' }}
     </button>
   </div>
 </ng-template>
-<ng-template #loadingTpl><div class="loading-more"><span nz-icon nzType="loading"></span></div></ng-template>
+<ng-template #loadingTpl><app-skeleton class="loading-more" variant="tree" [count]="2" /></ng-template>

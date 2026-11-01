@@ -1,18 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
-import { collectionVisible } from '../collections/collection.access';
 import { idsWhere } from '../common/sql';
-import { APP_CONFIG, AppConfig } from '../config/app-config';
 import { DatabaseService } from '../database/database.service';
 import {
-  collections,
   summaries,
-  userFavCollections,
   userFavLabels,
   userFavSummaries,
   userFollows,
-  userPinnedCollections,
   userPinnedLabels,
   userPinnedPermissions,
   userPinnedSearches,
@@ -22,10 +17,7 @@ import { summaryVisible } from '../summaries/summary.access';
 /** Per-user pins, favourites and follows. Every operation is idempotent under retries (composite primary keys). */
 @Injectable()
 export class UserStateRepository {
-  constructor(
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly database: DatabaseService,
-  ) {}
+  constructor(private readonly database: DatabaseService) {}
 
   private get db() {
     return this.database.db;
@@ -33,15 +25,11 @@ export class UserStateRepository {
 
   /** Favourites and pins only target things the caller can see. */
   async canSeeSummary(me: CurrentUser, summaryId: string): Promise<boolean> {
-    return (await idsWhere(this.db, summaries, summaries.id, [summaryId], summaryVisible(me, this.config.access))).has(summaryId);
+    return (await idsWhere(this.db, summaries, summaries.id, [summaryId], summaryVisible(me))).has(summaryId);
   }
 
   async visibleSummaryIds(me: CurrentUser, summaryIds: string[]): Promise<Set<string>> {
-    return idsWhere(this.db, summaries, summaries.id, summaryIds, summaryVisible(me, this.config.access));
-  }
-
-  async canSeeCollection(me: CurrentUser, collectionId: string): Promise<boolean> {
-    return (await idsWhere(this.db, collections, collections.id, [collectionId], collectionVisible(me))).has(collectionId);
+    return idsWhere(this.db, summaries, summaries.id, summaryIds, summaryVisible(me));
   }
 
   /** Flip membership: remove if present, else add. */
@@ -52,15 +40,6 @@ export class UserStateRepository {
       .where(and(eq(t.userId, userId), eq(t.labelId, labelId)))
       .returning({ id: t.labelId });
     if (!removed.length) await this.db.insert(t).values({ userId, labelId }).onConflictDoNothing();
-  }
-
-  async toggleCollection(kind: 'pinned' | 'favorite', userId: string, collectionId: string): Promise<void> {
-    const t = kind === 'pinned' ? userPinnedCollections : userFavCollections;
-    const removed = await this.db
-      .delete(t)
-      .where(and(eq(t.userId, userId), eq(t.collectionId, collectionId)))
-      .returning({ id: t.collectionId });
-    if (!removed.length) await this.db.insert(t).values({ userId, collectionId }).onConflictDoNothing();
   }
 
   async togglePinnedPermission(userId: string, permissionId: string): Promise<void> {

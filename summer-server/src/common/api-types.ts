@@ -23,8 +23,6 @@ export interface ApiUser extends UserRef {
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
-  pinnedCollections: string[];
-  favoriteCollections: string[];
   following: string[];
   recentExtraField: string[];
 }
@@ -52,7 +50,7 @@ export interface ApiComment {
   creationDate: string;
 }
 
-export interface ApiCollectionRef {
+export interface ApiFolderRef {
   _id: string;
   name: string;
 }
@@ -65,18 +63,7 @@ export interface ApiSummaryTemplate {
   taggedUsers: UserRef[];
   taggedPermissions: string[];
   labels: string[];
-  collections: ApiCollectionRef[];
   folder: string | null;
-}
-
-export interface ApiCollection extends ApiCollectionRef {
-  permissions: ApiPermission[];
-  summaries: string[];
-  managers: string[];
-  createdBy: UserRef;
-  createdAt: string;
-  updatedAt: string;
-  isDeleted: boolean;
 }
 
 /** A sumaroon's running summary: what the sumaroon inherits (labels, permissions) and its date range. */
@@ -108,7 +95,8 @@ export interface ApiSummary {
   files: string[];
   taggedUsers: UserRef[];
   taggedPermissions: ApiPermission[];
-  collectionIds: ApiCollectionRef[];
+  /** null when not in a folder, or in one the caller cannot see */
+  folder: ApiFolderRef | null;
   permissions: ApiPermission[];
   seenBy: string[];
   color: string;
@@ -128,6 +116,17 @@ export interface ApiSummary {
   sumaroonCount?: number;
   /** running only: the first few of those sumaroons by event date (card preview) */
   sumaroonPreview?: { _id: string; title: string }[];
+}
+
+/**
+ * The home page counter: `total` = published summaries the caller can see in the scope (all, a folder with its
+ * subfolders, or no folder); `hidden` = ones in the scope matching the search that permissions hide, and which missing
+ * permissions hide them. A summary missing several permissions counts under each; `only` = hidden by that one alone.
+ */
+export interface ApiAccessStats {
+  total: number;
+  hidden: number;
+  missing: { permission: ApiPermission; blocking: number; only: number }[];
 }
 
 /** Why a bulk action left a summary out. Hidden and nonexistent ids are both `not-found` (A7: non-disclosing). */

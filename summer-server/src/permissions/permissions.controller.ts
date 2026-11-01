@@ -62,11 +62,11 @@ export class PermissionsController {
     return toApiPermission(await this.permissions.insert(values));
   }
 
-  /** Refused while any summary or collection still requires it: dropping a requirement would silently widen access. */
+  /** Refused while any summary or folder still requires it: dropping a requirement would silently widen access. */
   @Delete(':id')
   async remove(@Me() me: CurrentUser, @Param('id', IdPipe) id: string): Promise<object> {
     this.assertAdmin(me);
-    if (await this.permissions.isReferenced(id)) throw new ConflictException('permission is still assigned to summaries or collections');
+    if (await this.permissions.isReferenced(id)) throw new ConflictException('permission is still assigned to summaries or folders');
     if (!(await this.permissions.delete(id))) throw new NotFoundException();
     return {};
   }

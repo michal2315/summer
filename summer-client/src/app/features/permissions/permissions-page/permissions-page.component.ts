@@ -10,8 +10,11 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { catchError, of } from 'rxjs';
+import { InViewDirective } from '../../../shared/components/in-view.directive';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { IPermission } from '../../../shared/models';
 import { PermissionService } from '../../../shared/services/permission.service';
+import { renderPages } from '../../../shared/utils/render-pages';
 
 interface Draft {
   name: string;
@@ -33,6 +36,8 @@ const NEW_ID = '__new__';
     NzInputModule,
     NzPopconfirmModule,
     NzToolTipModule,
+    InViewDirective,
+    SkeletonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './permissions-page.component.html',
@@ -54,6 +59,7 @@ export class PermissionsPageComponent {
     const list = this.permissionGroups.list();
     return this.editingId() === NEW_ID ? [{ _id: NEW_ID, name: '', groupName: '', color: this.draft().color }, ...list] : list;
   });
+  readonly page = renderPages(this.rows, 30);
 
   startNew() {
     this.draft.set({ name: '', groupName: '', color: '#0000c9' });

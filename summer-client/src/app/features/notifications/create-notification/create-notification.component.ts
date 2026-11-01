@@ -9,6 +9,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { HasPendingChanges } from '../../../core/auth/guards';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { INotificationSettings, INotificationSettingsCondition, ISummarySearch, NotificationsFunctionsOptions } from '../../../shared/models';
 import { CapsuleService } from '../../../shared/services/capsule.service';
 import { describeSearch, searchToParams } from '../../summaries/search-query';
@@ -21,7 +22,7 @@ import { NotificationsSettingsService, SUMMARY_TEXT_FIELD, describeRule } from '
  */
 @Component({
   selector: 'app-create-notification',
-  imports: [ReactiveFormsModule, RouterLink, NzButtonModule, NzCheckboxModule, NzFormModule, NzIconModule, NzInputModule, NzRadioModule, CreateNotificationConditionComponent],
+  imports: [ReactiveFormsModule, RouterLink, NzButtonModule, NzCheckboxModule, NzFormModule, NzIconModule, NzInputModule, NzRadioModule, CreateNotificationConditionComponent, SkeletonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-notification.component.html',
   styleUrl: './create-notification.component.scss',
@@ -51,6 +52,8 @@ export class CreateNotificationComponent implements HasPendingChanges {
 
   readonly submitted = signal(false);
   readonly saving = signal(false);
+  /** Editing: the rule is on its way, so the form is not filled in yet. */
+  readonly loadingRule = signal(false);
   readonly preview = signal('');
   /** A search alert's saved search (its conditions are the search, not rows). */
   readonly search = signal<ISummarySearch | undefined>(undefined);
@@ -107,18 +110,23 @@ export class CreateNotificationComponent implements HasPendingChanges {
   }
 
   private loadRule(id: string) {
-    this.service.findById(id).subscribe((rule) => {
-      if (!rule) {
-        this.router.navigate(['/notifications']);
-        return;
-      }
-      this.creationDate = rule.creationDate;
-      const conditions = this.form.controls.conditions;
-      conditions.clear();
-      for (const c of rule.conditions) conditions.push(this.conditionControl(c));
-      this.search.set(rule.search);
-      this.form.patchValue({ name: rule.name, isNotify: rule.isNotify, isMail: rule.isMail, isDigest: rule.isDigest, matchAny: !!rule.matchAny });
-      this.form.markAsPristine();
+    this.loadingRule.set(true);
+    this.service.findById(id).subscribe({
+      next: (rule) => {
+        this.loadingRule.set(false);
+        if (!rule) {
+          this.router.navigate(['/notifications']);
+          return;
+        }
+        this.creationDate = rule.creationDate;
+        const conditions = this.form.controls.conditions;
+        conditions.clear();
+        for (const c of rule.conditions) conditions.push(this.conditionControl(c));
+        this.search.set(rule.search);
+        this.form.patchValue({ name: rule.name, isNotify: rule.isNotify, isMail: rule.isMail, isDigest: rule.isDigest, matchAny: !!rule.matchAny });
+        this.form.markAsPristine();
+      },
+      error: () => this.loadingRule.set(false),
     });
   }
 

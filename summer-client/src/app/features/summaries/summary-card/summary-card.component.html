@@ -53,17 +53,10 @@
 
     <div class="side">
       <span class="type"><app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}</span>
-      @if (s.collectionIds.length) {
-        <button type="button" class="collections" nz-dropdown [nzDropdownMenu]="collectionsMenu" nzTrigger="click" (click)="$event.stopPropagation()" [nz-tooltip]="'לקטים'">
-          <span nz-icon nzType="folder"></span> {{ s.collectionIds.length }}
-        </button>
-        <nz-dropdown-menu #collectionsMenu="nzDropdownMenu">
-          <ul nz-menu>
-            @for (c of s.collectionIds; track c._id) {
-              <li nz-menu-item><a [routerLink]="['/collections', c._id]">{{ c.name }}</a></li>
-            }
-          </ul>
-        </nz-dropdown-menu>
+      @if (s.folder; as f) {
+        <a class="folder" [routerLink]="['/summaries']" [queryParams]="hierarchyParams(s)" (click)="$event.stopPropagation()" [nz-tooltip]="'בתיקייה: ' + f.name">
+          <span nz-icon nzType="folder"></span> <span class="folder-name">{{ f.name }}</span>
+        </a>
       }
       <app-color-picker class="color" [class.unset]="!s.color" [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
       @if (isMine()) {

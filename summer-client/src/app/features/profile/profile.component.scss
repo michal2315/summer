@@ -5,9 +5,8 @@
 .header {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 12px;
   padding: 12px 16px;
   background: $white;
   border: 1px solid $border-color;
@@ -29,7 +28,40 @@
     border-radius: 50%;
     box-shadow: 0 0 0 3px $white, 0 4px 12px -4px rgba($dark-blue, 0.25);
   }
+  // Milestones sit inside the header card here, so drop their own card chrome.
+  app-milestones {
+    padding: 12px 0 0;
+    background: none;
+    border: none;
+    border-top: 1px solid $border-color;
+    border-radius: 0;
+    box-shadow: none;
+    animation: reveal $transition;
+  }
+}
+.top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+// Two icons in one button: ng-zorro treats it as icon-only (fixed width), which wraps the chevron.
+.top .toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  padding-inline: 8px;
+  .anticon { margin: 0; }
+}
+.toggle .chevron {
+  font-size: 12px;
+  transition: transform $transition;
+}
+.expanded .toggle .chevron { transform: rotate(180deg); }
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(-4px); }
 }
 .who { display: flex; flex-direction: column; gap: 2px; }
 .spacer { flex: 1; }
-.loading { padding: 32px; }
+.loading { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; }

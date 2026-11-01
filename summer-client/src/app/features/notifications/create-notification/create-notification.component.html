@@ -4,54 +4,58 @@
     <div class="page-title" role="heading" aria-level="1">{{ id() ? 'עריכת כלל התראה' : 'התראה חדשה' }}</div>
   </div>
 
-  <nz-form-item>
-    <nz-form-label nzRequired nzFor="rule-name">שם הכלל</nz-form-label>
-    <nz-form-control nzErrorTip="חובה למלא שם">
-      <input nz-input id="rule-name" formControlName="name" placeholder="לדוגמה: הרצאות חדשות במבני נתונים" />
-    </nz-form-control>
-  </nz-form-item>
-
-  <div class="channels" role="group" aria-label="משלוח ההתראות">
-    <label nz-checkbox formControlName="isNotify"><span nz-icon nzType="bell"></span> פעיל (התראה במערכת)</label>
-    <label nz-checkbox formControlName="isMail"><span nz-icon nzType="mail"></span> מייל מיידי על כל התאמה</label>
-    <label nz-checkbox formControlName="isDigest"><span nz-icon nzType="schedule"></span> סיכום יומי במייל</label>
-  </div>
-  @if (!form.controls.isNotify.value) {
-    <div class="muted">הכלל מושהה: לא יתקבלו התראות או מיילים עליו עד שיופעל שוב.</div>
-  } @else if ((form.controls.isMail.value || form.controls.isDigest.value) && mailBlocked()) {
-    <div class="mail-warning"><span nz-icon nzType="warning"></span> {{ mailBlocked() }}</div>
-  }
-
-  @if (search(); as s) {
-    <div class="section-title" role="heading" aria-level="2">התראה על חיפוש</div>
-    <div class="search-rule">
-      <span nz-icon nzType="search"></span>
-      <span class="search-desc">{{ describeSearch(s) }}</span>
-      <button nz-button nzType="link" type="button" (click)="openSearch()">פתיחת החיפוש</button>
-    </div>
-    <div class="muted">תתקבל התראה כשתמצית שמתאימה לחיפוש הזה מתפרסמת או נערכת. כדי לשנות את החיפוש, פותחים אותו, משנים ולוחצים על הפעמון שבתיבת החיפוש.</div>
+  @if (loadingRule()) {
+    <app-skeleton variant="form" [count]="4" />
   } @else {
-    <div class="section-title" role="heading" aria-level="2">תנאים</div>
-    <nz-radio-group class="match" formControlName="matchAny" nzButtonStyle="solid" nzSize="small" aria-label="אילו תנאים צריכים להתקיים">
-      <label nz-radio-button [nzValue]="false">כל התנאים</label>
-      <label nz-radio-button [nzValue]="true">אחד מהתנאים</label>
-    </nz-radio-group>
-    <div class="conditions" formArrayName="conditions">
-      @for (c of form.controls.conditions.controls; track c; let i = $index) {
-        <div class="condition" [class.invalid]="submitted() && c.invalid">
-          <span class="and">{{ i === 0 ? 'כאשר' : form.controls.matchAny.value ? 'או' : 'וגם' }}</span>
-          <app-create-notification-condition [formControlName]="i" />
-          <button nz-button nzType="text" type="button" (click)="removeCondition(i)" [disabled]="form.controls.conditions.length === 1" aria-label="הסרת תנאי">
-            <span nz-icon nzType="minus-circle"></span>
-          </button>
-        </div>
-      }
-    </div>
-    <button nz-button nzType="dashed" type="button" (click)="addCondition()" class="add"><span nz-icon nzType="plus"></span> הוספת תנאי</button>
-  }
+    <nz-form-item>
+      <nz-form-label nzRequired nzFor="rule-name">שם הכלל</nz-form-label>
+      <nz-form-control nzErrorTip="חובה למלא שם">
+        <input nz-input id="rule-name" formControlName="name" placeholder="לדוגמה: הרצאות חדשות במבני נתונים" />
+      </nz-form-control>
+    </nz-form-item>
 
-  @if (preview(); as p) {
-    <div class="preview"><span nz-icon nzType="info-circle"></span> {{ p }}</div>
+    <div class="channels" role="group" aria-label="משלוח ההתראות">
+      <label nz-checkbox formControlName="isNotify"><span nz-icon nzType="bell"></span> פעיל (התראה במערכת)</label>
+      <label nz-checkbox formControlName="isMail"><span nz-icon nzType="mail"></span> מייל מיידי על כל התאמה</label>
+      <label nz-checkbox formControlName="isDigest"><span nz-icon nzType="schedule"></span> סיכום יומי במייל</label>
+    </div>
+    @if (!form.controls.isNotify.value) {
+      <div class="muted">הכלל מושהה: לא יתקבלו התראות או מיילים עליו עד שיופעל שוב.</div>
+    } @else if ((form.controls.isMail.value || form.controls.isDigest.value) && mailBlocked()) {
+      <div class="mail-warning"><span nz-icon nzType="warning"></span> {{ mailBlocked() }}</div>
+    }
+
+    @if (search(); as s) {
+      <div class="section-title" role="heading" aria-level="2">התראה על חיפוש</div>
+      <div class="search-rule">
+        <span nz-icon nzType="search"></span>
+        <span class="search-desc">{{ describeSearch(s) }}</span>
+        <button nz-button nzType="link" type="button" (click)="openSearch()">פתיחת החיפוש</button>
+      </div>
+      <div class="muted">תתקבל התראה כשתמצית שמתאימה לחיפוש הזה מתפרסמת או נערכת. כדי לשנות את החיפוש, פותחים אותו, משנים ולוחצים על הפעמון שבתיבת החיפוש.</div>
+    } @else {
+      <div class="section-title" role="heading" aria-level="2">תנאים</div>
+      <nz-radio-group class="match" formControlName="matchAny" nzButtonStyle="solid" nzSize="small" aria-label="אילו תנאים צריכים להתקיים">
+        <label nz-radio-button [nzValue]="false">כל התנאים</label>
+        <label nz-radio-button [nzValue]="true">אחד מהתנאים</label>
+      </nz-radio-group>
+      <div class="conditions" formArrayName="conditions">
+        @for (c of form.controls.conditions.controls; track c; let i = $index) {
+          <div class="condition" [class.invalid]="submitted() && c.invalid">
+            <span class="and">{{ i === 0 ? 'כאשר' : form.controls.matchAny.value ? 'או' : 'וגם' }}</span>
+            <app-create-notification-condition [formControlName]="i" />
+            <button nz-button nzType="text" type="button" (click)="removeCondition(i)" [disabled]="form.controls.conditions.length === 1" aria-label="הסרת תנאי">
+              <span nz-icon nzType="minus-circle"></span>
+            </button>
+          </div>
+        }
+      </div>
+      <button nz-button nzType="dashed" type="button" (click)="addCondition()" class="add"><span nz-icon nzType="plus"></span> הוספת תנאי</button>
+    }
+
+    @if (preview(); as p) {
+      <div class="preview"><span nz-icon nzType="info-circle"></span> {{ p }}</div>
+    }
   }
 
   <div class="actions">

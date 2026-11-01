@@ -4,7 +4,10 @@
   display: block;
 }
 
-// One line runs down the start edge; each step hangs a numbered dot on it.
+// Columns: when | rail | what. One line runs down the rail; each sumaroon hangs a dot on it.
+$when: 84px;
+$rail: 24px;
+
 .timeline {
   list-style: none;
   margin: 0;
@@ -14,7 +17,7 @@
     content: '';
     position: absolute;
     inset-block: 0;
-    inset-inline-start: 17px;
+    inset-inline-start: $when + $rail * 0.5 - 1px;
     width: 2px;
     background: $input-hover-color;
   }
@@ -22,8 +25,8 @@
 
 .month {
   position: relative;
-  padding: 10px 0 6px 0;
-  padding-inline-start: 44px;
+  padding: 14px 0 6px 0;
+  padding-inline-start: $when + $rail + 4px;
   .month-label {
     display: inline-block;
     font-size: 12px;
@@ -38,59 +41,217 @@
 
 .step {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 8px;
-  padding-bottom: 10px;
+  grid-template-columns: $when $rail minmax(0, 1fr);
+  align-items: start;
+}
+
+.when {
+  padding-top: 9px;
+  padding-inline-end: 8px;
+  text-align: end;
+  line-height: 1.3;
+  .day {
+    font-size: 12px;
+    font-weight: 600;
+    color: $dark-gray;
+  }
+  .time {
+    font-size: 11px;
+    color: $gray;
+  }
 }
 
 .rail {
-  position: relative;
   display: flex;
   justify-content: center;
-  padding-top: 20px;
+  padding-top: 12px;
+}
+
+.dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: $white;
+  border: 2px solid var(--dot, #{$gray});
+  transition: transform $transition, background $transition;
+}
+
+.what {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 0;
+  label[nz-checkbox] {
+    padding-top: 8px;
+  }
+}
+
+// A quiet row: no box until hovered or open.
+.content {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: $border-radius;
+  transition: background $transition;
+  &:hover {
+    background: $surface-subtle;
+  }
+  &:focus-visible {
+    outline: 2px solid $dark-blue;
+    outline-offset: -2px;
+  }
 }
 
 .number {
-  position: relative;
-  z-index: 1;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
+  flex: none;
+  min-width: 18px;
+  padding-top: 2px;
+  font-size: 11px;
   font-weight: 700;
-  color: $dark-blue;
-  background: $white;
-  border: 2px solid $gray;
+  color: $gray;
 }
 
-.step.open .number {
-  color: $white;
-  background: $dark-blue;
-  border-color: $dark-blue;
-}
-
-.body {
+.text {
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
-.date {
-  font-size: 12px;
+.title {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview {
+  font-size: 13px;
   color: $dark-gray;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.unread {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: $primary-pink;
+}
+
+.step:hover .dot {
+  transform: scale(1.25);
+}
+
+.step.open {
+  .dot {
+    background: var(--dot, #{$dark-blue});
+    border-color: var(--dot, #{$dark-blue});
+    transform: scale(1.25);
+  }
+  .content {
+    background: $surface-subtle;
+    box-shadow: inset 0 0 0 1px $border-strong;
+  }
+}
+
+.step.selected .content {
+  background: rgba($dark-blue, 0.06);
 }
 
 .loader {
-  display: grid;
-  place-items: center;
-  padding: 16px;
+  margin-top: 10px;
 }
 .empty {
   margin: 32px 0;
 }
 .sentinel {
   height: 1px;
+}
+
+@media (max-width: $bp-mobile) {
+  .step {
+    grid-template-columns: 64px 20px minmax(0, 1fr);
+  }
+  .timeline::before {
+    inset-inline-start: 64px + 10px - 1px;
+  }
+  .month {
+    padding-inline-start: 64px + 20px + 4px;
+  }
+}
+
+// The hover card renders in an overlay outside this component.
+::ng-deep .sumaroon-details-popover {
+  max-width: 320px;
+  .sumaroon-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: $dark-blue;
+  }
+  .d-who {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .d-muted {
+    color: $gray;
+    font-weight: 400;
+  }
+  .d-strong {
+    font-weight: 600;
+  }
+  .d-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: $accent;
+  }
+  .d-url {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .d-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .d-chip {
+    font-size: 11px;
+    background: $surface-subtle;
+    border: 1px solid $border-color;
+    border-radius: 999px;
+    padding: 0 8px;
+  }
+  .d-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: $dark-gray;
+  }
+  .d-draft {
+    font-size: 11px;
+    font-weight: 700;
+    color: $pink-strong;
+  }
 }

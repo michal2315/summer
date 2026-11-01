@@ -118,19 +118,17 @@
                 }
               </nz-select>
             }
-            @case ('collection') {
+            @case ('folder') {
               <nz-select
                 nzMode="multiple"
                 nzSize="small"
                 nzShowSearch
-                nzServerSearch
-                nzPlaceHolder="חיפוש לקטים"
-                (nzOnSearch)="searchCollections($event)"
+                nzPlaceHolder="חיפוש תיקיות (כולל תתי-תיקיות)"
                 [ngModel]="c.values"
                 (ngModelChange)="update(c, { values: $event })"
-                aria-label="לקטים"
+                aria-label="תיקיות"
               >
-                @for (o of collectionOptionsFor(c); track o.id) {
+                @for (o of folderOptionsFor(c); track o.id) {
                   <nz-option [nzValue]="o.id" [nzLabel]="o.name" />
                 }
               </nz-select>

@@ -13,7 +13,7 @@ export const FIELDS: Record<QueryField, { label: string; kind: FieldKind; icon: 
   labels: { label: 'תגיות', kind: 'text', icon: 'highlight' },
   author: { label: 'כותב/ת', kind: 'value', icon: 'team' },
   contentType: { label: 'סוג תוכן', kind: 'value', icon: 'appstore' },
-  collection: { label: 'לקט', kind: 'value', icon: 'book' },
+  folder: { label: 'תיקייה', kind: 'value', icon: 'folder' },
   color: { label: 'צבע', kind: 'value', icon: 'star' },
   eventDate: { label: 'תאריך האירוע', kind: 'date', icon: 'calendar' },
   createdDate: { label: 'תאריך יצירה', kind: 'date', icon: 'field-time' },
@@ -142,7 +142,7 @@ const LEADS: Partial<Record<QueryOp, [string, SentenceClass]>> = {
 const VALUE_LEADS: Record<string, [string, string]> = {
   author: ['נכתבו על ידי', 'לא נכתבו על ידי'],
   contentType: ['מסוג', 'לא מסוג'],
-  collection: ['בלקט', 'לא בלקט'],
+  folder: ['בתיקייה', 'לא בתיקייה'],
   color: ['בצבע', 'לא בצבע'],
 };
 const fmtDate = (iso: string | undefined) => (iso ? new Date(iso).toLocaleDateString('he-IL') : '…');

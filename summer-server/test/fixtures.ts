@@ -20,7 +20,6 @@ export const summaryPayload = (l: Lookups, over: Record<string, unknown> = {}) =
   contentType: l.type('generic'),
   department: 'מדעי המחשב',
   labels: [],
-  collectionIds: [],
   permissions: [l.perm('cs-faculty')],
   taggedUsers: [],
   summaryFields: [],

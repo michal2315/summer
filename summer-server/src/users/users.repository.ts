@@ -5,10 +5,8 @@ import { ApiUser, UserRef, toRef } from '../common/api-types';
 import { DatabaseService } from '../database/database.service';
 import {
   labels,
-  userFavCollections,
   userFavLabels,
   userFollows,
-  userPinnedCollections,
   userPinnedLabels,
   userPinnedPermissions,
   userPinnedSearches,
@@ -123,7 +121,7 @@ export class UsersRepository {
           .orderBy(asc(table.createdAt))
       ).map((r) => r.name);
 
-    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, pinnedCollections, favoriteCollections, following] = await Promise.all([
+    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, following] = await Promise.all([
       this.db
         .select({ search: userPinnedSearches.search })
         .from(userPinnedSearches)
@@ -133,8 +131,6 @@ export class UsersRepository {
       labelNames(userPinnedLabels),
       labelNames(userFavLabels),
       ids(userPinnedPermissions, userPinnedPermissions.permissionId),
-      ids(userPinnedCollections, userPinnedCollections.collectionId),
-      ids(userFavCollections, userFavCollections.collectionId),
       this.db
         .select({ v: userFollows.followedId })
         .from(userFollows)
@@ -149,8 +145,6 @@ export class UsersRepository {
       pinnedLabels,
       favoriteLabels,
       pinnedPermissions,
-      pinnedCollections,
-      favoriteCollections,
       following,
       recentExtraField: [],
     };

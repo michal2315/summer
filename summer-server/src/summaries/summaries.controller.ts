@@ -17,7 +17,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiBulkResult, ApiSummary, SummaryLengths } from '../common/api-types';
+import { ApiAccessStats, ApiBulkResult, ApiSummary, SummaryLengths } from '../common/api-types';
 import { IdPipe, parse, zId } from '../common/validation';
 import { ExcelService } from './excel.service';
 import { UploadedFile as Upload } from './files.service';
@@ -80,6 +80,12 @@ export class SummariesController {
   @Get('count')
   async count(@Me() me: CurrentUser, @Query() query: unknown): Promise<{ count: number }> {
     return { count: await this.summaries.count(me, this.summaries.parseSearch(query)) };
+  }
+
+  /** Visible (in the scope) and hidden (matching the search) counts for the home page counter. */
+  @Get('access-stats')
+  accessStats(@Me() me: CurrentUser, @Query() query: unknown): Promise<ApiAccessStats> {
+    return this.summaries.accessStats(me, this.summaries.parseSearch(query));
   }
 
   /** `isMine` is a legacy path segment; access is decided server-side. */

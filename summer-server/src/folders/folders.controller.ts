@@ -41,6 +41,11 @@ export class FoldersController {
     return this.folders.addItems(me, id, body);
   }
 
+  @Post(':id/move')
+  move(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: unknown): Promise<ApiFolder | object> {
+    return this.folders.move(me, id, body);
+  }
+
   @Delete(':id')
   async remove(@Me() me: CurrentUser, @Param('id', IdPipe) id: string): Promise<object> {
     await this.folders.delete(me, id);

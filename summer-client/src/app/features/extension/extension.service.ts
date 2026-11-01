@@ -18,11 +18,11 @@ export const CRX_URL = '/api/extension/summer-extension.crx';
 
 @Injectable({ providedIn: 'root' })
 export class ExtensionService {
-  /** null while loading or when no package is published. */
-  readonly info = toSignal(
+  /** undefined while loading; null when no package is published. */
+  readonly info = toSignal<ExtensionInfo | null | undefined>(
     inject(HttpClient)
       .get<ExtensionInfo>('/api/extension', { context: new HttpContext().set(SILENT_ERRORS, true) })
       .pipe(catchError(() => of(null))),
-    { initialValue: null },
+    { initialValue: undefined },
   );
 }

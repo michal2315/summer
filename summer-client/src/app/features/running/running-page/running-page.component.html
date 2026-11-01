@@ -1,34 +1,12 @@
 @if (running(); as r) {
-  <app-summary-browser
-    [ownerId]="userId()!"
-    [runningId]="r._id"
-    [fullScreenBase]="embedded() ? null : ['/running', r._id, 's']"
-    [detailAside]="!embedded()"
-    [stickyHeader]="true"
-    [searchPlaceholder]="'חיפוש בתוך ' + r.title"
-    [empty]="empty"
-  >
-    <!-- Compact: one title row and one meta row; content, fields, labels and permissions behind "פרטים". -->
-    <div browser-header class="running">
-      <div class="row">
+  <div class="columns">
+    <!-- The running summary itself, in full: heading, title, metadata, content, labels and permissions. -->
+    <div class="running" role="region" aria-label="תמצית רצף">
+      <div class="top-row">
         @if (!embedded()) {
           <button type="button" class="back-link" (click)="back(r)"><span nz-icon nzType="arrow-right"></span> חזרה</button>
         }
-        <span class="kind" nz-tooltip="תמצית רצף"><span nz-icon nzType="unordered-list"></span></span>
-        <div class="title" role="heading" aria-level="1" [title]="r.title" [innerHTML]="r.title | highlight: appliedSearch() : T.Title"></div>
         <span class="spacer"></span>
-        <button
-          nz-button
-          nzType="text"
-          nzSize="small"
-          type="button"
-          [class.details-hit]="detailsHit() && !detailsOpen()"
-          [nz-tooltip]="detailsHit() && !detailsOpen() ? 'החיפוש מתאים גם לפרטי תמצית הרצף (תגיות או תוכן)' : null"
-          (click)="detailsOpen.set(!detailsOpen())"
-          [attr.aria-expanded]="detailsOpen()"
-        >
-          פרטים <span nz-icon [nzType]="detailsOpen() ? 'up' : 'down'"></span>
-        </button>
         <button nz-button nzType="text" nzShape="circle" type="button" (click)="actions.toggleFavorite(r)" [nz-tooltip]="r.isFavorite ? 'הסרה ממועדפים' : 'הוספה למועדפים'">
           <span nz-icon nzType="star" [nzTheme]="r.isFavorite ? 'fill' : 'outline'"></span>
         </button>
@@ -36,40 +14,52 @@
           <a nz-button nzType="text" nzShape="circle" [routerLink]="['/summaries', r._id, 'edit']" nz-tooltip="עריכה" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
           <button nz-button nzType="text" nzShape="circle" nzDanger type="button" (click)="remove(r)" nz-tooltip="מחיקה" aria-label="מחיקה"><span nz-icon nzType="delete"></span></button>
         }
-        <a nz-button nzType="primary" nzSize="small" routerLink="/summaries/new" [queryParams]="{ parentId: r._id }"><span nz-icon nzType="plus"></span> תמציתונית</a>
       </div>
+
+      <div class="heading" role="heading" aria-level="2"><span nz-icon nzType="unordered-list"></span> תמצית רצף</div>
+      <div class="title" role="heading" aria-level="1" [innerHTML]="r.title | highlight: appliedSearch() : T.Title"></div>
 
       <div class="meta">
-        <span>{{ r.sumaroonCount ?? 0 }} תמציתוניות</span>
-        <span><span nz-icon nzType="calendar"></span> {{ r.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ r.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
-        <span><app-content-type-icon [type]="r.contentType" /> {{ r.contentType.displayName }}</span>
-        <span class="who"><app-avatar [user]="r.user" [size]="18" /> <a [routerLink]="['/profile', r.user._id]">{{ r.user.fullName }}</a></span>
+        <div class="meta-row who"><app-avatar [user]="r.user" [size]="20" /> <a [routerLink]="['/profile', r.user._id]">{{ r.user.fullName }}</a></div>
+        <div class="meta-row"><span nz-icon nzType="calendar"></span> {{ r.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ r.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</div>
+        <div class="meta-row"><app-content-type-icon [type]="r.contentType" /> {{ r.contentType.displayName }}</div>
+        <div class="meta-row"><span nz-icon nzType="ordered-list"></span> {{ r.sumaroonCount ?? 0 }} תמציתוניות</div>
+        @for (f of r.summaryFields ?? []; track f.field._id) {
+          <div class="meta-row"><span class="field-name">{{ f.field.name }}:</span> {{ f.value }}</div>
+        }
       </div>
 
-      @if (detailsOpen()) {
-        <div class="details">
-          @if (r.summaryFields?.length) {
-            <div class="meta">
-              @for (f of r.summaryFields ?? []; track f.field._id) {
-                <span>{{ f.field.name }}: {{ f.value }}</span>
-              }
-            </div>
+      @if (r.labels.length || r.permissions.length) {
+        <div class="chips">
+          @for (l of r.labels; track l.name) {
+            <nz-tag class="label-chip"><span [innerHTML]="l.name | highlight: appliedSearch() : T.Label"></span></nz-tag>
           }
-          @if (hasContent()) {
-            <div class="content ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.content | richHtml: appliedSearch() : T.Content"></div></div>
+          @for (p of r.permissions; track p._id) {
+            <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
           }
-          <div class="chips">
-            @for (l of r.labels; track l.name) {
-              <nz-tag class="label-chip"><span [innerHTML]="l.name | highlight: appliedSearch() : T.Label"></span></nz-tag>
-            }
-            @for (p of r.permissions; track p._id) {
-              <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
-            }
-          </div>
         </div>
       }
+
+      @if (hasContent()) {
+        <div class="content ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.content | richHtml: appliedSearch() : T.Content"></div></div>
+      }
+
+      <a class="add" nz-button nzType="primary" routerLink="/summaries/new" [queryParams]="{ parentId: r._id }"><span nz-icon nzType="plus"></span> תמציתונית</a>
     </div>
-  </app-summary-browser>
+
+    <app-summary-browser
+      class="sumaroons"
+      [ownerId]="userId()!"
+      [runningId]="r._id"
+      [fullScreenBase]="embedded() ? null : ['/running', r._id, 's']"
+      [detailAside]="!embedded()"
+      [searchPlaceholder]="'חיפוש בתוך ' + r.title"
+      [empty]="empty"
+    />
+  </div>
 } @else {
-  <div class="loading"><nz-skeleton [nzActive]="true" /></div>
+  <div class="columns">
+    <div class="running"><app-skeleton variant="detail" /></div>
+    <app-skeleton class="timeline-skeleton" variant="timeline" [count]="5" />
+  </div>
 }

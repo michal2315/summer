@@ -5,6 +5,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { UserService } from '../../../core/auth/user.service';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { FolderService, managedFolderPaths } from '../../../shared/services/folder.service';
 import { bulkResultMessage } from '../bulk-scope';
 
@@ -18,7 +19,7 @@ export interface BulkFolderData {
 /** Move the selected summaries into one of the folders you manage. Closes with true after a change. */
 @Component({
   selector: 'app-bulk-folder-modal',
-  imports: [FormsModule, NzButtonModule, NzSelectModule],
+  imports: [FormsModule, NzButtonModule, NzSelectModule, SkeletonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './bulk-folder-modal.component.html',
   styleUrl: './bulk-folder-modal.component.scss',
@@ -35,7 +36,10 @@ export class BulkFolderModalComponent {
   readonly busy = signal(false);
 
   constructor() {
-    this.folders.tree().subscribe((list) => this.options.set(managedFolderPaths(list, this.users.userId() ?? '')));
+    this.folders.tree().subscribe({
+      next: (list) => this.options.set(managedFolderPaths(list, this.users.userId() ?? '')),
+      error: () => this.options.set([]),
+    });
   }
 
   move() {
@@ -43,11 +47,7 @@ export class BulkFolderModalComponent {
     if (!folderId) return;
     this.busy.set(true);
     this.folders
-      .addItems(
-        folderId,
-        this.data.summaryIds.map((_id) => ({ type: 'summary' as const, _id })),
-        true,
-      )
+      .addItems(folderId, this.data.summaryIds, true)
       .subscribe({
         next: (result) => {
           const text = bulkResultMessage(result, 'תמציות הועברו לתיקייה');

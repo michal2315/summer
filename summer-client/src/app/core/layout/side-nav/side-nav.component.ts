@@ -44,8 +44,6 @@ export class SideNavComponent {
     const items: NavItem[] = [
       { label: 'דף הבית', icon: 'home', link: ['/summaries'], altKey: 'home' },
       { label: 'פרופיל', icon: 'user', link: ['/profile', this.users.userId() ?? ''], altKey: 'profile' },
-      { label: 'לקטים', icon: 'folder', link: ['/collections'], altKey: 'collections' },
-      { label: 'היררכיה', icon: 'apartment', link: ['/hierarchy'], altKey: 'hierarchy' },
       { label: 'התראות', icon: 'notification', link: ['/notifications'], altKey: 'notifications' },
       { label: 'כמוסות', icon: 'experiment', link: ['/capsules'], altKey: 'capsules' },
       { label: 'הרשאות', icon: 'lock', link: ['/permissions'], altKey: 'permissions' },

@@ -3,9 +3,10 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
 import { UserService } from '../../core/auth/user.service';
 import { AvatarComponent } from '../../shared/components/avatar/avatar.component';
+import { CardSkeletonComponent } from '../../shared/components/card-skeleton/card-skeleton.component';
+import { SkeletonComponent } from '../../shared/components/skeleton/skeleton.component';
 import { UserRef } from '../../shared/models';
 import { SummaryBrowserComponent } from '../summaries/summary-browser/summary-browser.component';
 import { EmptyState } from '../summaries/summary-list/summary-list.component';
@@ -13,7 +14,7 @@ import { MilestonesComponent } from '../../shared/easter-eggs/milestones/milesto
 
 @Component({
   selector: 'app-profile',
-  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, NzSkeletonModule, AvatarComponent, MilestonesComponent, SummaryBrowserComponent],
+  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, AvatarComponent, CardSkeletonComponent, SkeletonComponent, MilestonesComponent, SummaryBrowserComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss',
@@ -25,6 +26,7 @@ export class ProfileComponent {
   readonly userId = input.required<string>();
   readonly profile = signal<UserRef | null>(null);
   readonly busy = signal(false);
+  readonly showMilestones = signal(false);
 
   readonly isOwn = computed(() => this.userId() === this.users.userId());
   readonly empty = computed<EmptyState>(() =>

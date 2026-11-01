@@ -18,7 +18,11 @@ const summaryResolver: ResolveFn<ISummary | undefined> = (route) => {
 };
 
 export default [
-  { path: '', loadComponent: () => import('../features/summaries/summary-feed/summary-feed.component').then((m) => m.SummaryFeedComponent), title: 'Summer · תמציות' },
+  {
+    path: '',
+    loadComponent: () => import('../features/hierarchy/hierarchy-page/hierarchy-page.component').then((m) => m.HierarchyPageComponent),
+    title: 'Summer · תמציות',
+  },
   {
     path: 'new',
     loadComponent: () => import('../features/summaries/create-summary/create-summary.component').then((m) => m.CreateSummaryComponent),

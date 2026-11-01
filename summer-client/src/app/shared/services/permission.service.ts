@@ -11,11 +11,14 @@ export class PermissionService {
   // Permission groups are edited in the admin page, so this list is reloadable rather than cached forever.
   private readonly _list = signal<IPermission[]>([]);
   readonly list = this._list.asReadonly();
+  private readonly _loaded = signal(false);
+  /** The catalog has arrived (false until the first fetch answers). */
+  readonly loaded = this._loaded.asReadonly();
   readonly byId = computed(() => new Map(this._list().map((p) => [p._id, p])));
 
   // Viewing requires every assigned group, so the server only lets you assign groups you belong to.
   private readonly _mine = signal<ReadonlySet<string>>(new Set());
-  /** Groups the current user may assign to summaries, collections and folders. */
+  /** Groups the current user may assign to summaries and folders. */
   readonly assignable = computed(() => this._list().filter((p) => this._mine().has(p._id)));
 
   constructor() {
@@ -23,7 +26,13 @@ export class PermissionService {
   }
 
   reload(): void {
-    this.http.get<IPermission[]>('/api/permissions').subscribe((list) => this._list.set(list));
+    this.http.get<IPermission[]>('/api/permissions').subscribe({
+      next: (list) => {
+        this._list.set(list);
+        this._loaded.set(true);
+      },
+      error: () => this._loaded.set(true),
+    });
     this.http.get<IPermission[]>('/api/permissions/user').subscribe((mine) => this._mine.set(new Set(mine.map((p) => p._id))));
   }
 

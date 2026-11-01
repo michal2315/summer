@@ -68,12 +68,6 @@ export class UsersService {
     return this.me(me);
   }
 
-  async toggleCollection(me: CurrentUser, kind: 'pinned' | 'favorite', collectionId: unknown): Promise<ApiUser> {
-    if (!isUuid(collectionId) || !(await this.state.canSeeCollection(me, collectionId))) throw new NotFoundException();
-    await this.state.toggleCollection(kind, me.id, collectionId);
-    return this.me(me);
-  }
-
   async togglePinnedPermission(me: CurrentUser, permissionId: unknown): Promise<ApiUser> {
     if (!isUuid(permissionId) || !(await this.permissions.byIds([permissionId])).length) throw new NotFoundException();
     await this.state.togglePinnedPermission(me.id, permissionId);

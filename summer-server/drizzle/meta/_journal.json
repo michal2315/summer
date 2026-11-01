@@ -92,6 +92,20 @@
       "when": 1793280375188,
       "tag": "0012_tagged_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793478979687,
+      "tag": "0013_drop_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793480188247,
+      "tag": "0014_folder_moves",
+      "breakpoints": true
     }
   ]
 }

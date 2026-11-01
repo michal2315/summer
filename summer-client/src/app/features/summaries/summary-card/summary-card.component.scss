@@ -1,12 +1,11 @@
 @use 'tokens' as *;
 @use 'card';
 
-.collections {
-  all: unset;
-  cursor: pointer;
+.folder {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  max-width: 140px;
   background: $orange-50;
   color: $orange-strong;
   border-radius: 999px;
@@ -14,7 +13,13 @@
   font-weight: 700;
   &:hover {
     background: $orange-100;
+    color: $orange-strong;
   }
+}
+.folder-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 // Selection mode: bulk edits will skip this summary.

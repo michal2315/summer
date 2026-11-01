@@ -7,10 +7,12 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
-import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzTagModule } from 'ng-zorro-antd/tag';
+import { InViewDirective } from '../../../shared/components/in-view.directive';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { INotificationSettings } from '../../../shared/models';
+import { renderPages } from '../../../shared/utils/render-pages';
 import { NotificationNamePipe, NotificationsSettingsService, describeRule } from '../notification-rules';
 
 /** /notifications — the user's e-mail switches, and notification rules admin: list, filter, edit, delete. */
@@ -24,9 +26,10 @@ import { NotificationNamePipe, NotificationsSettingsService, describeRule } from
     NzIconModule,
     NzInputModule,
     NzPopconfirmModule,
-    NzSkeletonModule,
     NzSwitchModule,
     NzTagModule,
+    InViewDirective,
+    SkeletonComponent,
     NotificationNamePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,6 +45,8 @@ export class NotificationsSettingsComponent {
     const rules = this.service.rules() ?? [];
     return q ? rules.filter((r) => r.name.includes(q) || describeRule(r).includes(q)) : rules;
   });
+  /** Rendered a page at a time; a new filter starts over. */
+  readonly page = renderPages(this.filtered, 30, this.service.filter);
 
   constructor() {
     this.service.load();

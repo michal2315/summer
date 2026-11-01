@@ -1,8 +1,0 @@
-@use 'tokens' as *;
-
-nz-select { width: 100%; }
-.count { margin: 0 0 8px; }
-.note { margin: 0 0 8px; padding: 6px 10px; border-radius: $radius-md; background: $orange-50; color: $orange-strong; font-size: 12.5px; }
-.field-label { margin: 12px 0 4px; font-size: 13px; font-weight: 600; color: $dark-gray; }
-.hint { margin-top: 4px; font-size: 12px; }
-.footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

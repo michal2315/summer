@@ -27,16 +27,23 @@
   </div>
 </ng-template>
 <ng-template #list>
-  <ul class="rows">
-    @for (n of service.items(); track n._id) {
-      <li>
-        <button type="button" class="row" [class.unread]="!n.isViewed" (click)="openNotification(n)">
-          <span class="text">{{ n.text }}</span>
-          <span class="time">{{ n.creationDate | relativeTime }}</span>
-        </button>
-      </li>
-    } @empty {
-      <nz-empty nzNotFoundContent="אין התראות חדשות" />
-    }
-  </ul>
+  @if (!service.loaded()) {
+    <app-skeleton class="rows" variant="rows" [count]="3" />
+  } @else {
+    <ul class="rows">
+      @for (n of rows.items(); track n._id) {
+        <li>
+          <button type="button" class="row" [class.unread]="!n.isViewed" (click)="openNotification(n)">
+            <span class="text">{{ n.text }}</span>
+            <span class="time">{{ n.creationDate | relativeTime }}</span>
+          </button>
+        </li>
+      } @empty {
+        <nz-empty nzNotFoundContent="אין התראות חדשות" />
+      }
+      @if (rows.hasMore()) {
+        <li class="sentinel" aria-hidden="true" (appInView)="rows.more()" [appInViewKey]="rows.items().length" rootMargin="100px"></li>
+      }
+    </ul>
+  }
 </ng-template>

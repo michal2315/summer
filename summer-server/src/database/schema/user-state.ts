@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { labels, permissions } from './catalog';
-import { collections } from './collections';
 import { createdAt, id, updatedAt } from './columns';
 import { summaries } from './summaries';
 import { users } from './users';
@@ -36,30 +35,6 @@ export const userFavSummaries = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.summaryId] })],
-);
-
-export const userFavCollections = pgTable(
-  'user_fav_collections',
-  {
-    userId: userFk(),
-    collectionId: uuid()
-      .notNull()
-      .references(() => collections.id, { onDelete: 'cascade' }),
-    createdAt: createdAt(),
-  },
-  (t) => [primaryKey({ columns: [t.userId, t.collectionId] })],
-);
-
-export const userPinnedCollections = pgTable(
-  'user_pinned_collections',
-  {
-    userId: userFk(),
-    collectionId: uuid()
-      .notNull()
-      .references(() => collections.id, { onDelete: 'cascade' }),
-    createdAt: createdAt(),
-  },
-  (t) => [primaryKey({ columns: [t.userId, t.collectionId] })],
 );
 
 export const userPinnedLabels = pgTable(
@@ -117,7 +92,6 @@ export interface SummaryTemplateData {
   /** absent in templates saved before groups could be tagged */
   taggedPermissions?: string[];
   labels: string[];
-  collections: string[];
   folder: string | null;
 }
 

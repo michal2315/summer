@@ -33,12 +33,16 @@
     @if (pageTitle(); as title) {
       <div class="title-group">
         <div class="page-title" role="heading" aria-level="1">{{ title }}</div>
-        <span class="count-pill" [attr.aria-label]="store.total() + ' ' + tabs[tabIndex()].label">{{ store.total() }}</span>
+        @if (accessCount()) {
+          <app-access-count [shown]="store.total()" [scope]="scope()" [search]="search()" [searching]="filtered()" />
+        } @else {
+          <span class="count-pill" [attr.aria-label]="store.total() + ' ' + tabs[tabIndex()].label">{{ store.total() }}</span>
+        }
       </div>
     } @else {
       <span class="count">{{ store.total() }} {{ tabs[tabIndex()].label }}</span>
     }
-    <app-summary-actions-bar [excelActions]="excelActions()" [collection]="collection()" />
+    <app-summary-actions-bar [excelActions]="excelActions()" />
     <span class="spacer"></span>
     <app-sort-row [sort]="sort()" (sortChange)="onSort($event)" />
     <nz-radio-group [ngModel]="view()" (ngModelChange)="setView($event)" nzSize="small" nzButtonStyle="solid" aria-label="תצוגה">

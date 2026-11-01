@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { StorageService } from '../../../core/storage/storage.service';
+import { SkeletonComponent } from '../../components/skeleton/skeleton.component';
 import { confetti } from '../confetti';
 import { MILESTONES } from './milestones';
 
@@ -10,7 +11,7 @@ const SEEN_KEY = 'seenMilestones';
 /** A row of milestone badges for a profile. Earning a new one on your own profile gets confetti, once. */
 @Component({
   selector: 'app-milestones',
-  imports: [NzToolTipModule],
+  imports: [NzToolTipModule, SkeletonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { role: 'region', 'aria-label': 'אבני דרך' },
   templateUrl: './milestones.component.html',

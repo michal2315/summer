@@ -12,9 +12,10 @@ import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { FormsModule } from '@angular/forms';
 import { ResizablePageComponent } from '../../../shared/components/resizable-page/resizable-page.component';
 import { ScrollRailComponent } from '../../../shared/components/scroll-rail/scroll-rail.component';
-import { ICollection, ISummary, ISummarySearch, SortKey, SummaryKind, SummarySearch } from '../../../shared/models';
+import { ISummary, ISummarySearch, SortKey, SummaryKind, SummarySearch } from '../../../shared/models';
 import { DEFAULT_SORT, searchFromParams, searchToParams } from '../search-query';
 import { SortRowComponent } from '../sort-row/sort-row.component';
+import { AccessCountComponent } from '../access-count/access-count.component';
 import { SummaryActionsBarComponent } from '../summary-actions-bar/summary-actions-bar.component';
 import { SummariesTableComponent } from '../summaries-table/summaries-table.component';
 import { SummaryDetailComponent } from '../summary-detail/summary-detail.component';
@@ -56,6 +57,7 @@ const jsonEqual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringi
     SummaryDetailComponent,
     SortRowComponent,
     SummaryActionsBarComponent,
+    AccessCountComponent,
   ],
   providers: [SummaryListStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -77,12 +79,16 @@ export class SummaryBrowserComponent {
   readonly pageTitle = input<string | null>(null);
   /** What the list says when it is empty and nothing is searched. */
   readonly empty = input<EmptyState>({ title: 'אין כאן עדיין תמציות' });
-  /** List this collection's summaries instead of the owner's feed. */
-  readonly collection = input<ICollection | null>(null);
   /** Excel template download + upload in the toolbar (feed). */
   readonly excelActions = input(false);
   /** Show the open summary in a side panel. Off when the host page shows `summaryId` itself (hierarchy). */
   readonly detailAside = input(true);
+  /** Filters that always apply on top of the search (hierarchy: a folder and its subfolders, or no folder). */
+  readonly scope = input<ISummarySearch>({});
+  /** Beside the title: "shown out of total" and how many summaries permissions hide in the scope (home page). */
+  readonly accessCount = input(false);
+  /** Open a running summary through the `runningId` query param instead of its own page (hierarchy). */
+  readonly openRunningInPlace = input(false);
   /** List this running summary's sumaroons. */
   readonly runningId = input<string | null>(null);
   /** Route prefix for the side panel's full-screen button (the open summary's id is appended). */
@@ -116,19 +122,20 @@ export class SummaryBrowserComponent {
   readonly filtered = computed(() => {
     const s = this.search();
     const filled = (v: unknown) => (Array.isArray(v) ? v.length > 0 : !!v);
-    return [s.text, s.labels, s.users, s.contentTypes, s.colors, s.dates, s.createdDates, s.collections, s.department, s.kinds].some(filled);
+    return [s.text, s.labels, s.users, s.contentTypes, s.colors, s.dates, s.createdDates, s.folders, s.department, s.kinds].some(filled);
   });
   /** Grouping hides individual sumaroons, so it's off as soon as anything is searched or filtered. */
   readonly groupActive = computed(() => this.groupSumaroons() && this.tab() === SummarySearch.Summary && !this.filtered());
 
   constructor() {
+    effect(() => this.store.runningInPlace.set(this.openRunningInPlace()));
     effect(() => {
       const tab = this.tab();
       const query = {
         ownerId: this.ownerId(),
-        collectionId: this.collection()?._id ?? null,
         search: {
           ...this.search(),
+          ...this.scope(),
           ...(this.runningId() ? { parentId: this.runningId()!, kinds: [SummaryKind.Sumaroon] } : {}),
           sort: this.sort(),
           isProfile: this.isProfile(),
@@ -154,7 +161,7 @@ export class SummaryBrowserComponent {
 
   /** The card/row under viewport y; probes a little up and down so gaps and date dividers still resolve. */
   private summaryAt(clientY: number): ISummary | null {
-    const list = this.host.nativeElement.querySelector('app-summary-list, app-summaries-table');
+    const list = this.host.nativeElement.querySelector('app-summary-list, app-summaries-table, app-sumaroon-timeline');
     if (!list) return null;
     const rect = list.getBoundingClientRect();
     const x = rect.left + rect.width / 2;
@@ -190,7 +197,8 @@ export class SummaryBrowserComponent {
 
   /** Eye toggle: open in the aside, or close if already open. A running summary has its own page. */
   toggle(s: ISummary) {
-    if (s.kind === SummaryKind.Running) this.router.navigate(['/running', s._id]);
+    if (s.kind === SummaryKind.Running && this.openRunningInPlace()) this.patchParams({ runningId: s._id, summaryId: null });
+    else if (s.kind === SummaryKind.Running) this.router.navigate(['/running', s._id]);
     else this.patchParams({ summaryId: s._id === this.openId() ? null : s._id });
   }
 

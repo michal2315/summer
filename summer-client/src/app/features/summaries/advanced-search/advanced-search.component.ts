@@ -10,11 +10,11 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { CapsuleWordsInputComponent } from '../../../shared/components/capsules/capsule-words-input/capsule-words-input.component';
-import { ICollectionRef, IQueryGroup, ISummarySearch, QueryField, QueryOp, UserRef } from '../../../shared/models';
+import { IQueryGroup, ISummarySearch, QueryField, QueryOp, UserRef } from '../../../shared/models';
 import { SUMMARY_COLORS } from '../../../shared/models/colors';
 import { CapsuleService } from '../../../shared/services/capsule.service';
-import { CollectionService } from '../../../shared/services/collection.service';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
+import { FolderPath, FolderService, folderPaths } from '../../../shared/services/folder.service';
 import { stripPaging } from '../../../shared/services/search-history.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { capsuleTokenId, isCapsuleToken, treeCapsuleIds } from '../../../shared/utils/capsules';
@@ -63,7 +63,7 @@ const COLOR_NAMES: Record<string, string> = {
 export class AdvancedSearchComponent {
   private readonly summaries = inject(SummaryService);
   private readonly users = inject(UserService);
-  private readonly collections = inject(CollectionService);
+  private readonly folders = inject(FolderService);
   private readonly contentTypes = inject(ContentTypeService);
   private readonly capsules = inject(CapsuleService);
 
@@ -89,11 +89,11 @@ export class AdvancedSearchComponent {
 
   // Option lists for the value pickers, plus id → name for everything ever shown (the sentence needs names).
   readonly userOptions = signal<UserRef[]>([]);
-  readonly collectionOptions = signal<ICollectionRef[]>([]);
+  /** Every folder the user can see, by path (searched locally). */
+  readonly folderOptions = signal<FolderPath[]>([]);
   private readonly names = signal(new Map<string, string>());
   readonly contentTypeOptions = this.contentTypes.list;
   private readonly userQuery$ = new Subject<string>();
-  private readonly collectionQuery$ = new Subject<string>();
   private readonly count$ = new Subject<ISummarySearch>();
 
   constructor() {
@@ -119,18 +119,14 @@ export class AdvancedSearchComponent {
         this.userOptions.set(list.filter((u) => !u.isSystem));
       });
 
-    this.collectionQuery$
-      .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap((t) => this.collections.byName(t)),
-        takeUntilDestroyed(destroyRef),
-      )
+    this.folders
+      .tree()
+      .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((list) => {
-        this.remember(list.map((c) => [c._id, c.name]));
-        this.collectionOptions.set(list);
+        const paths = folderPaths(list);
+        this.remember(paths.map((f) => [f._id, f.name]));
+        this.folderOptions.set(paths);
       });
-    this.collectionQuery$.next('');
 
     // Live count of what "חיפוש" would find: the box text, the other applied filters and the tree.
     this.count$
@@ -217,16 +213,16 @@ export class AdvancedSearchComponent {
     return this.optionsFor(c.values, this.userOptions().map((u) => ({ id: u._id, name: u.fullName })));
   }
 
-  collectionOptionsFor(c: EditCondition): { id: string; name: string }[] {
-    return this.optionsFor(c.values, this.collectionOptions().map((x) => ({ id: x._id, name: x.name })));
+  /** Selected folders the user can no longer see still show (as …) so they can be removed. */
+  folderOptionsFor(c: EditCondition): { id: string; name: string }[] {
+    return this.optionsFor(
+      c.values.filter((id) => !this.folderOptions().some((f) => f._id === id)),
+      this.folderOptions().map((f) => ({ id: f._id, name: f.path })),
+    );
   }
 
   searchUsers(text: string) {
     this.userQuery$.next(text);
-  }
-
-  searchCollections(text: string) {
-    this.collectionQuery$.next(text);
   }
 
   private optionsFor(selected: string[], found: { id: string; name: string }[]) {
@@ -247,14 +243,12 @@ export class AdvancedSearchComponent {
     this.names.update((m) => new Map([...m, ...entries]));
   }
 
-  /** Names for the user and collection ids in a query loaded from the URL or a pinned search. */
+  /** Names for the user ids in a query loaded from the URL or a pinned search (folder names come with the tree). */
   private loadNames(q: IQueryGroup | undefined) {
-    const ids = { author: new Set<string>(), collection: new Set<string>() };
-    const walk = (g: IQueryGroup) =>
-      g.children.forEach((c) => (c.type === 'group' ? walk(c) : (c.field === 'author' || c.field === 'collection') && c.values?.forEach((v) => ids[c.field as 'author'].add(v))));
+    const authors = new Set<string>();
+    const walk = (g: IQueryGroup) => g.children.forEach((c) => (c.type === 'group' ? walk(c) : c.field === 'author' && c.values?.forEach((v) => authors.add(v))));
     if (q) walk(q);
     this.capsules.ensure({ ids: treeCapsuleIds(q) });
-    if (ids.author.size) this.users.byIds([...ids.author]).subscribe((list) => this.remember(list.map((u) => [u._id, u.fullName])));
-    if (ids.collection.size) this.collections.byIds([...ids.collection]).subscribe((list) => this.remember(list.map((c) => [c._id, c.name])));
+    if (authors.size) this.users.byIds([...authors]).subscribe((list) => this.remember(list.map((u) => [u._id, u.fullName])));
   }
 }

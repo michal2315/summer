@@ -10,7 +10,7 @@ describe('search query params', () => {
       colors: ['#ff0000'],
       users: ['u2'],
       labels: ['מועד א׳'],
-      collections: ['c1'],
+      folders: ['f1'],
       dates: ['2026-10-01T00:00:00.000Z', '2026-10-20T00:00:00.000Z'],
       createdDates: undefined,
       sort: 'title',

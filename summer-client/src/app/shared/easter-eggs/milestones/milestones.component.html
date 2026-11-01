@@ -5,22 +5,26 @@
   }
 </div>
 
-<div class="badges" role="list">
-  @for (b of badges(); track b.id) {
-    <div
-      class="badge"
-      role="listitem"
-      tabindex="0"
-      [class.earned]="b.earned"
-      [class.fresh]="b.fresh"
-      [nz-tooltip]="b.hint"
-      [attr.aria-label]="(b.earned ? b.title : 'נעול') + ': ' + b.hint"
-    >
-      <span class="medal" aria-hidden="true">{{ b.earned ? b.emoji : '🔒' }}</span>
-      <span class="name">{{ b.earned ? b.title : '???' }}</span>
-      @if (b.fresh) {
-        <span class="new">חדש!</span>
-      }
-    </div>
-  }
-</div>
+@if (loaded()) {
+  <div class="badges" role="list">
+    @for (b of badges(); track b.id) {
+      <div
+        class="badge"
+        role="listitem"
+        tabindex="0"
+        [class.earned]="b.earned"
+        [class.fresh]="b.fresh"
+        [nz-tooltip]="b.hint"
+        [attr.aria-label]="(b.earned ? b.title : 'נעול') + ': ' + b.hint"
+      >
+        <span class="medal" aria-hidden="true">{{ b.earned ? b.emoji : '🔒' }}</span>
+        <span class="name">{{ b.earned ? b.title : '???' }}</span>
+        @if (b.fresh) {
+          <span class="new">חדש!</span>
+        }
+      </div>
+    }
+  </div>
+} @else {
+  <app-skeleton variant="chips" [count]="badges().length" />
+}

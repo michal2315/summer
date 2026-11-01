@@ -60,10 +60,7 @@ export class UserService {
   pinPermission(permissionId: string) {
     return this.update(this.http.post<IUser>(`${BASE}/pinned-permission/`, { permissionId }));
   }
-  pinCollection(collectionId: string) {
-    return this.update(this.http.post<IUser>(`${BASE}/pinned-collection/`, { collectionId }));
-  }
-  favoriteEntity(type: 'label' | 'collection' | 'permission', valueId: string) {
+  favoriteEntity(type: 'label' | 'permission', valueId: string) {
     return this.update(this.http.post<IUser>(`${BASE}/favorite-${type}/`, { valueId }));
   }
   favoriteSummary(summaryId: string) {

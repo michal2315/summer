@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, count, eq, inArray } from 'drizzle-orm';
-import { CurrentUser } from '../auth/identity-provider';
-import { collectionVisible } from '../collections/collection.access';
+import { and, asc, count, eq } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
-import { SummaryTemplateData, collections, summaryTemplates } from '../database/schema';
+import { SummaryTemplateData, summaryTemplates } from '../database/schema';
 
 @Injectable()
 export class SummaryTemplatesRepository {
@@ -44,14 +42,5 @@ export class SummaryTemplatesRepository {
       .where(and(eq(summaryTemplates.id, id), eq(summaryTemplates.userId, userId)))
       .returning({ id: summaryTemplates.id });
     return rows.length > 0;
-  }
-
-  /** Names of the collections among `ids` the caller can still see. */
-  async visibleCollectionRefs(me: CurrentUser, ids: string[]): Promise<{ id: string; name: string }[]> {
-    if (!ids.length) return [];
-    return this.db
-      .select({ id: collections.id, name: collections.name })
-      .from(collections)
-      .where(and(inArray(collections.id, ids), collectionVisible(me)));
   }
 }

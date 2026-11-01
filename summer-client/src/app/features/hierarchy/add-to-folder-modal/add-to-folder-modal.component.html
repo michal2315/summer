@@ -1,19 +1,3 @@
-<label for="add-collections">לקטים</label>
-<nz-select
-  nzId="add-collections"
-  nzMode="multiple"
-  nzShowSearch
-  nzServerSearch
-  nzPlaceHolder="חיפוש לקט"
-  [ngModel]="collections()"
-  (ngModelChange)="collections.set($event)"
-  (nzOnSearch)="collectionQuery$.next($event)"
->
-  @for (c of collectionOptions(); track c._id) {
-    <nz-option [nzValue]="c._id" [nzLabel]="c.name" />
-  }
-</nz-select>
-
 <label for="add-summaries">תמציות</label>
 <nz-select
   nzId="add-summaries"
@@ -30,10 +14,10 @@
   }
 </nz-select>
 
-<div class="muted note">פריט שכבר נמצא בתיקייה אחרת יועבר אל "{{ data.folderName }}".</div>
+<div class="muted note">תמצית שכבר נמצאת בתיקייה אחרת תועבר אל "{{ data.folderName }}".</div>
 <div class="footer">
   <button nz-button type="button" (click)="modal.close(false)">ביטול</button>
-  <button nz-button nzType="primary" type="button" [disabled]="!collections().length && !summaries().length" [nzLoading]="busy()" (click)="add()">
+  <button nz-button nzType="primary" type="button" [disabled]="!summaries().length" [nzLoading]="busy()" (click)="add()">
     הוספה
   </button>
 </div>

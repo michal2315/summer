@@ -19,8 +19,6 @@ export const ALT_KEYS = {
 
   home: { key: '1', label: 'דף הבית', group: 'עמודים' },
   profile: { key: '2', label: 'פרופיל', group: 'עמודים' },
-  collections: { key: '3', label: 'לקטים', group: 'עמודים' },
-  hierarchy: { key: '4', label: 'היררכיה', group: 'עמודים' },
   notifications: { key: '5', label: 'התראות', group: 'עמודים' },
   permissions: { key: '6', label: 'הרשאות', group: 'עמודים' },
   extension: { key: '7', label: 'תוסף', group: 'עמודים' },

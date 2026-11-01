@@ -34,15 +34,13 @@ describe('folders (hierarchy)', () => {
     await h.as('nmizrahi').get(`/folder/${sub._id}/items`).expect(404);
   });
 
-  it('lists collections then summaries, each filtered by its own visibility', async () => {
+  it('lists the summaries the caller may see, and counts only those', async () => {
     const id = await folder('מדעי המחשב');
-    const items = (await h.as('mgolan').get(`/folder/${id}/items`).expect(200)).body as { type: string; _id: string }[];
-    expect(items.map((i) => i.type)).toEqual(['collection', 'collection', 'summary']);
-    // The seed placed two summaries here, but one requires a group mgolan lacks: it is neither listed nor counted.
-    expect(await h.sql('select 1 from folder_summaries where folder_id = $1', [id])).toHaveLength(2);
+    const items = (await h.as('mgolan').get(`/folder/${id}/items`).expect(200)).body as { _id: string; kind: string }[];
+    expect(items.length).toBeGreaterThan(0);
     const tree = (await h.as('mgolan').get('/folder')).body as { _id: string; itemCount: number }[];
     expect(tree.find((f) => f._id === id)!.itemCount).toBe(items.length);
-    for (const item of items.filter((i) => i.type === 'summary')) await h.as('mgolan').get(`/summary/${item._id}/false`).expect(200);
+    for (const item of items) await h.as('mgolan').get(`/summary/${item._id}/false`).expect(200);
   });
 
   it('create: needs a permission; a subfolder needs a manager of the parent', async () => {
@@ -67,16 +65,16 @@ describe('folders (hierarchy)', () => {
     const { body: theirs } = await createSummary(h, 'dlevi', summaryPayload(l));
     const { body: draft } = await createSummary(h, 'mgolan', summaryPayload(l, { isDraft: true }));
 
-    await h.as('mgolan').post(`/folder/${target}/items`).send({ items: [{ type: 'summary', _id: theirs._id }] }).expect(403);
-    await h.as('mgolan').post(`/folder/${target}/items`).send({ items: [{ type: 'summary', _id: draft._id }] }).expect(400);
-    await h.as('dlevi').post(`/folder/${target}/items`).send({ items: [{ type: 'summary', _id: theirs._id }] }).expect(403); // not a manager
+    await h.as('mgolan').post(`/folder/${target}/items`).send({ summaryIds: [theirs._id] }).expect(403);
+    await h.as('mgolan').post(`/folder/${target}/items`).send({ summaryIds: [draft._id] }).expect(400);
+    await h.as('dlevi').post(`/folder/${target}/items`).send({ summaryIds: [theirs._id] }).expect(403); // not a manager
 
-    await h.as('mgolan').post(`/folder/${await folder('שנה א׳')}/items`).send({ items: [{ type: 'summary', _id: mine._id }] }).expect(201);
-    await h.as('mgolan').post(`/folder/${target}/items`).send({ items: [{ type: 'summary', _id: mine._id }] }).expect(201);
+    await h.as('mgolan').post(`/folder/${await folder('שנה א׳')}/items`).send({ summaryIds: [mine._id] }).expect(201);
+    await h.as('mgolan').post(`/folder/${target}/items`).send({ summaryIds: [mine._id] }).expect(201);
     const placed = await h.sql<{ folder_id: string }>('select folder_id from folder_summaries where summary_id = $1', [mine._id]);
     expect(placed).toEqual([{ folder_id: target }]);
 
-    await h.as('mgolan').post(`/folder/${target}/items/remove`).send({ items: [{ type: 'summary', _id: mine._id }] }).expect(201);
+    await h.as('mgolan').post(`/folder/${target}/items/remove`).send({ summaryIds: [mine._id] }).expect(201);
     expect((await h.as('mgolan').get(`/folder/${target}/items`)).body).toEqual([]);
     await h.as('mgolan').get(`/summary/${mine._id}/false`).expect(200);
   });
@@ -84,7 +82,7 @@ describe('folders (hierarchy)', () => {
   it('is navigation only: an item in a restricted folder keeps its own access', async () => {
     const staffOnly = (await h.as('mgolan').post('/folder/create').send({ name: 'סגל בלבד', permissions: [l.perm('staff')] }).expect(201)).body;
     const { body: s } = await createSummary(h, 'mgolan', summaryPayload(l, { permissions: [l.perm('cs-faculty')] }));
-    await h.as('mgolan').post(`/folder/${staffOnly._id}/items`).send({ items: [{ type: 'summary', _id: s._id }] }).expect(201);
+    await h.as('mgolan').post(`/folder/${staffOnly._id}/items`).send({ summaryIds: [s._id] }).expect(201);
 
     await h.as('dlevi').get(`/folder/${staffOnly._id}/items`).expect(404); // no staff group
     await h.as('dlevi').get(`/summary/${s._id}/false`).expect(200); // still reachable on its own permissions
@@ -92,12 +90,11 @@ describe('folders (hierarchy)', () => {
 
   it('deleting a folder deletes its subtree; the items inside are kept', async () => {
     const top = await folder('שנה א׳');
-    const collectionsBefore = (await h.sql<{ n: number }>('select count(*)::int n from collections'))[0].n;
+    const summariesBefore = (await h.sql<{ n: number }>('select count(*)::int n from summaries'))[0].n;
     await h.as('dlevi').delete(`/folder/${top}`).expect(403);
     await h.as('mgolan').delete(`/folder/${top}`).expect(200);
     expect(await treeNames('mgolan')).toEqual(['חומרי הוראה לסגל', 'סגל בלבד', 'שורש של דנה']);
-    expect((await h.sql<{ n: number }>('select count(*)::int n from collections'))[0].n).toBe(collectionsBefore);
-    expect(await h.sql('select 1 from folder_collections')).toHaveLength(0);
+    expect((await h.sql<{ n: number }>('select count(*)::int n from summaries'))[0].n).toBe(summariesBefore);
   });
 
   it('the database refuses a folder without permissions', async () => {

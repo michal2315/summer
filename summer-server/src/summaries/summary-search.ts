@@ -12,7 +12,7 @@ export const MAX_PAGE = 100;
 // ---------------------------------------------------------------- advanced search (query builder tree)
 
 export const TEXT_FIELDS = ['text', 'title', 'content', 'notes', 'comments', 'labels'] as const;
-export const VALUE_FIELDS = ['author', 'contentType', 'collection', 'color'] as const;
+export const VALUE_FIELDS = ['author', 'contentType', 'folder', 'color'] as const;
 export const DATE_FIELDS = ['eventDate', 'createdDate'] as const;
 const OPS_BY_KIND = { text: ['all', 'any', 'none'], value: ['isOneOf', 'isNot'], date: ['after', 'before', 'between'] } as const;
 const MAX_QUERY_DEPTH = 4;
@@ -37,7 +37,7 @@ const conditionSchema = z
   })
   .superRefine((c, ctx) => {
     if (!(OPS_BY_KIND[fieldKind(c.field)] as readonly string[]).includes(c.op)) ctx.addIssue({ code: 'custom', message: `"${c.op}" does not apply to ${c.field}` });
-    if ((c.field === 'author' || c.field === 'collection') && !c.values.every((v) => zId.safeParse(v).success))
+    if ((c.field === 'author' || c.field === 'folder') && !c.values.every((v) => zId.safeParse(v).success))
       ctx.addIssue({ code: 'custom', message: `${c.field} values must be ids` });
   });
 
@@ -83,7 +83,7 @@ const querySchema = z.preprocess(
   }, `query is limited to ${MAX_QUERY_DEPTH} levels and ${MAX_QUERY_CONDITIONS} conditions`),
 );
 
-/** ISummarySearch from the client, as query params (feed/collection) or JSON (Excel export). Unknown keys are dropped. */
+/** ISummarySearch from the client, as query params (feed) or JSON (Excel export). Unknown keys are dropped. */
 export const summarySearchSchema = z.object({
   text: z.string().max(200).default(''),
   searchTypes: zList.pipe(z.array(z.enum(SEARCH_TYPES))),
@@ -99,7 +99,10 @@ export const summarySearchSchema = z.object({
   contentTypes: zList,
   colors: zList,
   labels: zList,
-  collections: zList.pipe(z.array(zId)),
+  /** placed in one of these folders or their subfolders */
+  folders: zList.pipe(z.array(zId)),
+  /** only summaries in no folder (a sumaroon: whose running summary is in none) */
+  noFolder: zBoolString,
   /** only these kinds (summary | running | sumaroon); empty = all */
   kinds: zList.pipe(z.array(z.enum(SUMMARY_KINDS))),
   /** the sumaroons of this running summary */

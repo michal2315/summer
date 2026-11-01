@@ -7,17 +7,16 @@ import { seed } from './seed';
 /**
  * Bulk, randomised data for trying the app under a heavier load (`npm run db:seed:load`). Runs the regular dev
  * seed first (so the dev logins and fixtures still work), then adds a few thousand summaries of every kind,
- * custom fields and content types, collections and a nested folder tree. Deterministic for a given seed number.
+ * custom fields and content types, and a nested folder tree. Deterministic for a given seed number.
  */
 
 export interface LoadOptions {
   summaries: number;
   runningSummaries: number;
-  collections: number;
   seed: number;
 }
 
-export const DEFAULT_LOAD: LoadOptions = { summaries: 4000, runningSummaries: 40, collections: 120, seed: 7 };
+export const DEFAULT_LOAD: LoadOptions = { summaries: 4000, runningSummaries: 40, seed: 7 };
 
 const DEPARTMENTS = [
   { group: 'cs-faculty', name: 'מדעי המחשב', courses: ['מבוא למדעי המחשב', 'תכנות מונחה עצמים', 'רשתות תקשורת', 'בסיסי נתונים', 'קומפילציה', 'למידת מכונה', 'אבטחת מידע', 'גרפיקה ממוחשבת'] },
@@ -235,7 +234,7 @@ export async function seedLoad(db: Db, opts: LoadOptions = DEFAULT_LOAD, now = D
     const commentRows: (typeof s.comments.$inferInsert)[] = [];
     const seenRows: (typeof s.summarySeen.$inferInsert)[] = [];
     const taggedRows: (typeof s.summaryTaggedUsers.$inferInsert)[] = [];
-    /** Published regular/running summaries by course, for collections and folders. */
+    /** Published regular/running summaries by course, for folders. */
     const byCourse = new Map<string, { id: string; groups: string[] }[]>();
 
     const addSocial = (id: string, created: number) => {
@@ -354,43 +353,10 @@ export async function seedLoad(db: Db, opts: LoadOptions = DEFAULT_LOAD, now = D
     await insertChunked(seenRows, (rows) => tx.insert(s.summarySeen).values(rows).onConflictDoNothing());
     await insertChunked(taggedRows, (rows) => tx.insert(s.summaryTaggedUsers).values(rows).onConflictDoNothing());
 
-    // ---- collections -----------------------------------------------------------------------------------
-    const collectionRows: (typeof s.collections.$inferInsert)[] = [];
-    const collectionPermRows: (typeof s.collectionPermissions.$inferInsert)[] = [];
-    const collectionEditorRows: (typeof s.collectionEditors.$inferInsert)[] = [];
-    const memberRows: (typeof s.summaryCollections.$inferInsert)[] = [];
-    const collectionsByCourse = new Map<string, string[]>();
-    const COLLECTION_KINDS = ['סמ׳ א׳', 'סמ׳ ב׳', 'חומר למבחן', 'תרגולים', 'הרצאות נבחרות', 'מועד ב׳', 'קריאה נוספת'];
-    for (let i = 0; i < opts.collections; i++) {
-      const course = skewed(courses);
-      const groups = [course.dept.group, ...(r() < 0.2 ? ['year-1'] : [])];
-      const eligible = authors.filter((a) => groups.every((g) => a.groups.includes(g)));
-      if (!eligible.length) continue;
-      const id = randomUUID();
-      const createdBy = skewed(eligible);
-      const created = now - int(20, 400) * DAY;
-      collectionRows.push({ id, name: `${pick(COLLECTION_KINDS)} - ${course.name}`, createdBy: createdBy.id, createdAt: past(created), updatedAt: past(created + int(0, 20) * DAY) });
-      for (const g of groups) collectionPermRows.push({ collectionId: id, permissionId: permByGroup.get(g)! });
-      for (const u of new Set([createdBy, ...some(eligible, 2)])) collectionEditorRows.push({ collectionId: id, userId: u.id });
-      // Mostly the course's own summaries, plus the odd one from elsewhere; sizes range from a handful to ~150.
-      const pool = byCourse.get(course.name) ?? [];
-      const size = Math.min(pool.length, Math.floor(Math.pow(r(), 2) * 150) + 3);
-      const members = new Set(Array.from({ length: size }, () => pick(pool).id));
-      if (r() < 0.3) for (const sm of some([...byCourse.values()].flat(), 5)) members.add(sm.id);
-      for (const summaryId of members) memberRows.push({ summaryId, collectionId: id, createdAt: past(created + int(0, 60) * DAY) });
-      if (!collectionsByCourse.has(course.name)) collectionsByCourse.set(course.name, []);
-      collectionsByCourse.get(course.name)!.push(id);
-    }
-    await insertChunked(collectionRows, (rows) => tx.insert(s.collections).values(rows));
-    await insertChunked(collectionPermRows, (rows) => tx.insert(s.collectionPermissions).values(rows));
-    await insertChunked(collectionEditorRows, (rows) => tx.insert(s.collectionEditors).values(rows));
-    await insertChunked(memberRows, (rows) => tx.insert(s.summaryCollections).values(rows));
-
     // ---- folders: faculty → year → semester → course (→ topic) -----------------------------------------
     const folderRows: (typeof s.folders.$inferInsert)[] = [];
     const folderPermRows: (typeof s.folderPermissions.$inferInsert)[] = [];
     const folderEditorRows: (typeof s.folderEditors.$inferInsert)[] = [];
-    const folderCollectionRows: (typeof s.folderCollections.$inferInsert)[] = [];
     const folderSummaryRows: (typeof s.folderSummaries.$inferInsert)[] = [];
     const placedSummaries = new Set<string>();
     const folder = (name: string, parentId: string | null, groups: string[], managerPool: typeof authors) => {
@@ -418,10 +384,6 @@ export async function seedLoad(db: Db, opts: LoadOptions = DEFAULT_LOAD, now = D
           const semId = folder(semester, yearId, [dept.group], managers);
           for (const course of dept.courses.filter(() => r() < 0.5)) {
             const courseId = folder(course, semId, [dept.group], managers);
-            for (const cid of collectionsByCourse.get(course) ?? []) {
-              if (folderCollectionRows.some((fc) => fc.collectionId === cid) || r() < 0.3) continue;
-              folderCollectionRows.push({ folderId: courseId, collectionId: cid });
-            }
             const pool = byCourse.get(course) ?? [];
             placeSummaries(courseId, pool, 6);
             // Some courses go one or two levels deeper.
@@ -437,7 +399,6 @@ export async function seedLoad(db: Db, opts: LoadOptions = DEFAULT_LOAD, now = D
     await insertChunked(folderRows, (rows) => tx.insert(s.folders).values(rows));
     await insertChunked(folderPermRows, (rows) => tx.insert(s.folderPermissions).values(rows));
     await insertChunked(folderEditorRows, (rows) => tx.insert(s.folderEditors).values(rows));
-    await insertChunked(folderCollectionRows, (rows) => tx.insert(s.folderCollections).values(rows));
     await insertChunked(folderSummaryRows, (rows) => tx.insert(s.folderSummaries).values(rows));
 
     // A few favourites and pins for the default dev login so those screens aren't empty.
@@ -455,11 +416,8 @@ export async function seedLoad(db: Db, opts: LoadOptions = DEFAULT_LOAD, now = D
       fieldValues: fieldValueRows.length,
       labels: labelId.size,
       comments: commentRows.length,
-      collections: collectionRows.length,
-      collectionMembers: memberRows.length,
       folders: folderRows.length,
       folderSummaries: folderSummaryRows.length,
-      folderCollections: folderCollectionRows.length,
     });
   });
   return counts;

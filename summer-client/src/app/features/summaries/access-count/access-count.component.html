@@ -1,0 +1,34 @@
+@if (stats(); as s) {
+  <span class="shown">מוצגות {{ shown() }} מתוך {{ s.total }}</span>
+  @if (s.hidden) {
+    <span
+      class="hidden"
+      tabindex="0"
+      nz-popover
+      nzPopoverTrigger="hover"
+      nzPopoverPlacement="bottomRight"
+      [nzPopoverContent]="map"
+      [attr.aria-label]="s.hidden + (searching() ? ' תמציות שתואמות לחיפוש חסומות בגלל הרשאות' : ' תמציות חסומות בגלל הרשאות')"
+    >
+      <span nz-icon nzType="lock"></span> {{ s.hidden }} חסומות
+    </span>
+  }
+
+  <ng-template #map>
+    <div class="map">
+      <div class="map-title">{{ s.hidden }} תמציות {{ searching() ? 'שתואמות לחיפוש ו' : 'ש' }}אין לך הרשאה לראות</div>
+      <div class="map-sub">ההרשאות שחסרות לך כדי לראות אותן:</div>
+      <ul class="rows">
+        @for (m of s.missing; track m.permission._id) {
+          <li class="row">
+            <span class="name"><span class="dot" [style.background]="m.permission.color"></span>{{ m.permission.name }}</span>
+            <span class="bar"><span class="fill" [style.width.%]="(m.blocking / maxBlocking()) * 100" [style.background]="m.permission.color"></span></span>
+            <span class="num">{{ m.blocking }}</span>
+            <span class="only">{{ m.only ? m.only + ' רק בגללה' : '' }}</span>
+          </li>
+        }
+      </ul>
+      <div class="note">תמצית שחסרות לה כמה הרשאות נספרת תחת כל אחת. "רק בגללה" — תמציות שייפתחו אם תקבלו את ההרשאה הזו בלבד.</div>
+    </div>
+  </ng-template>
+}

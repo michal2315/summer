@@ -16,9 +16,9 @@
   </nz-input-group>
   <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
 
-  @if (list(); as capsules) {
+  @if (list()) {
     <div class="grid">
-      @for (c of capsules; track c._id) {
+      @for (c of page.items(); track c._id) {
         <div class="card" role="article" [attr.aria-label]="c.name">
           <app-capsule-words class="words" [capsule]="c" />
           <div class="actions">
@@ -34,7 +34,10 @@
         <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="filter() ? 'אין כמוסה בשם הזה' : 'אין כמוסות'" />
       }
     </div>
+    @if (page.hasMore()) {
+      <div class="sentinel" (appInView)="page.more()" [appInViewKey]="page.items().length"></div>
+    }
   } @else {
-    <nz-skeleton [nzActive]="true" />
+    <app-skeleton class="grid" variant="tiles" [count]="6" />
   }
 </div>

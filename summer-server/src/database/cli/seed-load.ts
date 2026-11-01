@@ -7,15 +7,15 @@ import { loadDatabaseUrl } from './load-db-url';
 
 /**
  * Fills a separate `summer_load` database (same PostgreSQL server as DATABASE_URL) with bulk random data.
- * Usage: npm run db:seed:load [-- --summaries=4000 --running=40 --collections=120 --seed=7]
+ * Usage: npm run db:seed:load [-- --summaries=4000 --running=40 --seed=7]
  * Then run the server against it with `npm run start:load`.
  */
 function parseArgs(argv: string[]): LoadOptions {
   const opts = { ...DEFAULT_LOAD };
-  const keys: Record<string, keyof LoadOptions> = { summaries: 'summaries', running: 'runningSummaries', collections: 'collections', seed: 'seed' };
+  const keys: Record<string, keyof LoadOptions> = { summaries: 'summaries', running: 'runningSummaries', seed: 'seed' };
   for (const arg of argv) {
     const m = /^--(\w+)=(\d+)$/.exec(arg);
-    if (!m || !keys[m[1]]) throw new Error(`unknown argument "${arg}" (expected --summaries=N --running=N --collections=N --seed=N)`);
+    if (!m || !keys[m[1]]) throw new Error(`unknown argument "${arg}" (expected --summaries=N --running=N --seed=N)`);
     opts[keys[m[1]]] = Number(m[2]);
   }
   return opts;

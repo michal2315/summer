@@ -4,31 +4,104 @@
       <div class="month-label" role="heading" aria-level="3">{{ month.label }}</div>
     </li>
     @for (step of month.steps; track step.summary._id) {
-      <li class="step" [attr.data-summary-id]="step.summary._id" [class.open]="step.summary._id === openId()">
-        <div class="rail" aria-hidden="true"><span class="number">{{ step.number }}</span></div>
-        <div class="body">
-          <div class="date">{{ step.date | dateFormat: 'dd/MM/yyyy' }}</div>
-          <app-summary-card
-            [summary]="step.summary"
-            [search]="search()"
-            [active]="step.summary._id === openId()"
-            [selectable]="store.selectMode()"
-            [selected]="store.selected().has(step.summary._id)"
-            (selectToggle)="store.toggleSelected($event)"
-            (toggleOpen)="toggle.emit($event)"
-          />
+      @let s = step.summary;
+      <li class="step" [attr.data-summary-id]="s._id" [class.open]="s._id === openId()" [class.selected]="store.selected().has(s._id)">
+        <div class="when">
+          @if (step.date) {
+            <div class="day">{{ step.date | dateFormat: 'dd/MM/yyyy' }}</div>
+            @if (step.time) {
+              <div class="time">{{ step.time | dateFormat: 'HH:mm' }}</div>
+            }
+          } @else {
+            <div class="day muted">ללא תאריך</div>
+          }
         </div>
+
+        <div class="rail" aria-hidden="true"><span class="dot" [style.--dot]="s.color || null"></span></div>
+
+        <div class="what">
+          @if (store.selectMode()) {
+            <label nz-checkbox [nzChecked]="store.selected().has(s._id)" (nzCheckedChange)="store.toggleSelected(s._id)" aria-label="בחירת התמציתונית"></label>
+          }
+          <button
+            type="button"
+            class="content"
+            nz-popover
+            [nzPopoverContent]="details"
+            nzPopoverTrigger="hover"
+            nzPopoverPlacement="left"
+            [nzPopoverMouseEnterDelay]="0.4"
+            nzPopoverOverlayClassName="sumaroon-details-popover"
+            (click)="toggle.emit(s)"
+            [attr.aria-expanded]="s._id === openId()"
+          >
+            <span class="number">{{ step.number }}</span>
+            <span class="text">
+              <span class="title" [innerHTML]="s.title | highlight: search() : T.Title"></span>
+              <span class="preview" [innerHTML]="s.content | plainText: 400 | highlight: search() : T.Content"></span>
+            </span>
+            @if (unread(s)) {
+              <span class="unread" aria-label="טרם נקרא"></span>
+            }
+          </button>
+        </div>
+
+        <ng-template #details>
+          <div class="sumaroon-details">
+            <div class="d-who"><app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="22" /> {{ s.user.fullName }}@if (s.department || s.user.department) {<span class="d-muted"> · {{ s.department || s.user.department }}</span>}</div>
+            @if (s.eventDate) {
+              <div><span nz-icon nzType="calendar"></span> תאריך האירוע: {{ s.eventDate | dateFormat: 'dd/MM/yyyy' }}{{ s.eventSecTime ? ' ' + (s.eventSecTime | dateFormat: 'HH:mm') : '' }}</div>
+            }
+            <div><span nz-icon nzType="clock-circle"></span> נכתב: {{ s.creationDate | dateFormat }}</div>
+            @if (s.modifyDate && s.modifyDate !== s.creationDate) {
+              <div><span nz-icon nzType="edit"></span> עודכן: {{ s.modifyDate | dateFormat }}</div>
+            }
+            <div><app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}</div>
+            @if (s.link) {
+              <a class="d-link" [href]="s.link" target="_blank" rel="noopener noreferrer"><span nz-icon nzType="link"></span> <span class="d-url" dir="ltr">{{ s.link }}</span></a>
+            }
+            @if (s.folder; as f) {
+              <div><span nz-icon nzType="folder"></span> {{ f.name }}</div>
+            }
+            @for (f of s.summaryFields ?? []; track f.field._id) {
+              <div><span class="d-strong">{{ f.field.name }}:</span> {{ f.value }}</div>
+            }
+            @if (labelNames(s).length) {
+              <div class="d-chips">
+                @for (l of labelNames(s); track l) {
+                  <span class="d-chip">{{ l }}</span>
+                }
+              </div>
+            }
+            @if (s.permissions.length) {
+              <div><span nz-icon nzType="lock"></span> הרשאות נוספות: {{ permissionNames(s) }}</div>
+            }
+            <div class="d-stats">
+              @if (s.isDraft) {
+                <span class="d-draft">טיוטה</span>
+              }
+              <span><span nz-icon nzType="message"></span> {{ s.comments.length }}</span>
+              @if (s.files.length) {
+                <span><span nz-icon nzType="paper-clip"></span> {{ s.files.length }}</span>
+              }
+              @if (s.isFavorite) {
+                <span><span nz-icon nzType="star" nzTheme="fill"></span></span>
+              }
+            </div>
+            <div class="d-muted">לחיצה לפתיחת התמציתונית</div>
+          </div>
+        </ng-template>
       </li>
     }
   }
 </ol>
 
 @if (store.loading()) {
-  <div class="loader"><nz-spin nzSimple /></div>
+  <app-skeleton class="loader" variant="timeline" [count]="store.summaries().length ? 2 : 5" />
 } @else if (store.loaded() && !store.summaries().length) {
-  <nz-empty class="empty" nzNotFoundImage="simple" nzNotFoundContent="עדיין אין תמציתוניות — הוסיפו את הראשונה בכפתור ״תמציתונית״ למעלה" />
+  <nz-empty class="empty" nzNotFoundImage="simple" nzNotFoundContent="עדיין אין תמציתוניות — הוסיפו את הראשונה בכפתור ״תמציתונית״" />
 }
 
 @if (store.hasMore()) {
-  <div class="sentinel" (appInView)="store.loadMore()"></div>
+  <div class="sentinel" (appInView)="store.loadMore()" [appInViewKey]="store.summaries().length"></div>
 }

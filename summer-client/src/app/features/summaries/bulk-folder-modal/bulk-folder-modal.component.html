@@ -13,6 +13,8 @@
   } @else {
     <div class="muted empty">אין תיקיות שאתם מנהלים. אפשר ליצור תיקייה בעמוד ההיררכיה.</div>
   }
+} @else {
+  <app-skeleton variant="form" [count]="1" />
 }
 <div class="footer">
   <button nz-button type="button" (click)="modal.close(false)">ביטול</button>

@@ -42,7 +42,7 @@ export const MILESTONES: Milestone[] = [
   { id: 'labels', emoji: '🏷️', title: 'אספנות תגיות', hint: '10 תגיות שונות בתמציות' },
   { id: 'files', emoji: '📎', title: 'אספנות קבצים', hint: 'תמצית עם 3 קבצים מצורפים ומעלה' },
   { id: 'team', emoji: '🤝', title: 'עבודת צוות', hint: 'תיוג 5 אנשים ומעלה בתמצית אחת' },
-  { id: 'organized', emoji: '🗂️', title: 'סדר מופתי', hint: 'תמצית ששייכת ל-3 אוספים ומעלה' },
+  { id: 'organized', emoji: '🗂️', title: 'סדר מופתי', hint: '3 תמציות שלך מסודרות בתיקיות' },
 
   // ---- how long ----
   { id: 'epic', emoji: '📜', title: 'אפוס', hint: 'תמצית של יותר מ-5,000 תווים' },

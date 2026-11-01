@@ -23,7 +23,8 @@ type ExportRequest = z.infer<typeof exportBody>;
 /** headersMap: Excel column header → target key (title/content/labels/eventDate/notes/department or a field id). */
 const importFields = z.object({
   type: zId,
-  collections: z.array(zId).default([]),
+  /** every imported summary goes into this folder (the importer must manage it) */
+  folder: z.preprocess((v) => v || null, zId.nullable()).default(null),
   permissions: z.array(zId).default([]),
   headersMap: z.record(z.string(), z.string()),
 });
@@ -75,7 +76,7 @@ export class ExcelService {
     } catch {
       throw new BadRequestException('headersMap must be JSON');
     }
-    const req = parse(importFields, { ...fields, collections: asList(fields.collections), permissions: asList(fields.permissions), headersMap });
+    const req = parse(importFields, { ...fields, permissions: asList(fields.permissions), headersMap });
 
     let sheetRows: Record<string, unknown>[];
     try {
@@ -100,7 +101,7 @@ export class ExcelService {
           eventDate: this.toDay(v.eventDate),
           department: v.department || me.department,
           labels: (v.labels ?? '').split(/[,،]/).map((l) => l.trim()).filter(Boolean),
-          collectionIds: req.collections,
+          folderId: req.folder,
           permissions: req.permissions,
           taggedUsers: [],
           summaryFields: Object.entries(v)

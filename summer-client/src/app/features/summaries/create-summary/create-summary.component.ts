@@ -25,11 +25,12 @@ import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import {
   FieldsType,
-  ICollectionRef,
   IContentType,
   IField,
+  IFolderRef,
   ISummary,
   ISummaryParent,
   ISummaryTemplate,
@@ -40,13 +41,12 @@ import {
   UserRef,
 } from '../../../shared/models';
 import { DateFormatPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
-import { CollectionService } from '../../../shared/services/collection.service';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { LabelService } from '../../../shared/services/label.service';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { SummaryTemplateService } from '../../../shared/services/summary-template.service';
-import { FolderService, managedFolderPaths } from '../../../shared/services/folder.service';
+import { FolderPath, FolderService, folderPaths, managedFolderPaths } from '../../../shared/services/folder.service';
 
 type FieldValue = string | number | Date | null;
 
@@ -79,8 +79,7 @@ const LOCAL_DRAFT_KEY = 'summaryFormDraft';
 interface LocalDraft {
   savedAt: string;
   value: FormValue;
-  /** Display names for the selected collections / tagged users, which the form only holds as ids. */
-  collections: ICollectionRef[];
+  /** Display names for the tagged users, which the form only holds as ids. */
   users: UserRef[];
 }
 type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
@@ -88,7 +87,7 @@ type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
 /** The running summary a sumaroon is written into, plus the content type it imposes. */
 type ParentInfo = ISummaryParent & { contentTypeId: string };
 /** The sharing-section values a template fills in. */
-type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'collections' | 'folder'>;
+type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'folder'>;
 const LABELS_PAGE = 20;
 
 @Component({
@@ -112,6 +111,7 @@ const LABELS_PAGE = 20;
     QuillEditorComponent,
     AvatarComponent,
     ContentTypeIconComponent,
+    SkeletonComponent,
     DateFormatPipe,
     RelativeTimePipe,
   ],
@@ -127,7 +127,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly contentTypes = inject(ContentTypeService);
   readonly permissionGroups = inject(PermissionService);
   private readonly labels = inject(LabelService);
-  private readonly collectionService = inject(CollectionService);
   readonly users = inject(UserService);
   private readonly summaries = inject(SummaryService);
   private readonly router = inject(Router);
@@ -158,7 +157,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   readonly form = this.fb.group({
     kind: [SummaryKind.Summary],
-    /** create only: hierarchy folder to place the published summary in */
+    /** hierarchy folder of the published summary (never a sumaroon's) */
     folder: [null as string | null],
     /** sumaroon: its running summary */
     parent: [null as string | null],
@@ -171,7 +170,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     title: ['', [Validators.required, Validators.maxLength(200)]],
     content: ['', Validators.required],
     labels: [[] as string[], Validators.required],
-    collections: [[] as string[]],
     taggedUsers: [[] as string[]],
     taggedPermissions: [[] as string[]],
     notes: [''],
@@ -196,7 +194,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     requireSync: true,
   });
   readonly contentType = computed<IContentType | undefined>(() => this.contentTypes.list().find((t) => t._id === this.contentTypeId()));
-  readonly collectionsRequired = computed(() => this.contentType()?.name === GENERIC && this.kind() !== SummaryKind.Sumaroon);
   readonly typeFieldDefs = computed(() =>
     (this.contentType()?.fields ?? []).flatMap((f) => {
       const field = this.contentTypes.fieldsById().get(f.field);
@@ -214,9 +211,30 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private pendingTypeValues: Record<string, FieldValue> = {};
   readonly duplicates = signal<DuplicateHit[]>([]);
 
-  // ---- hierarchy folder (create only; sumaroons live inside their running summary) ----
+  // ---- hierarchy folder (sumaroons live inside their running summary) ----
   private readonly folderService = inject(FolderService);
-  readonly folderOptions = signal<{ _id: string; path: string }[]>([]);
+  /** Every folder the user can see, and the ones they manage (only managers may move a summary in or out). */
+  private readonly allFolders = signal<FolderPath[]>([]);
+  private readonly managedFolders = signal<FolderPath[]>([]);
+  /** The folder the summary sits in (edit), if the user can see it. */
+  private readonly currentFolder = signal<IFolderRef | null>(null);
+  /** In a folder the user doesn't manage: shown, but it can't be changed here. */
+  readonly folderLocked = computed(() => {
+    const cur = this.currentFolder();
+    return !!cur && !this.managedFolders().some((f) => f._id === cur._id);
+  });
+  readonly folderOptions = computed<FolderPath[]>(() => {
+    const cur = this.currentFolder();
+    if (!cur || !this.folderLocked()) return this.managedFolders();
+    return [this.allFolders().find((f) => f._id === cur._id) ?? { ...cur, path: cur.name }, ...this.managedFolders()];
+  });
+  /** The catch-all "generic" type has to be filed somewhere — when the user manages a folder to file it in. */
+  readonly folderRequired = computed(
+    () => this.contentType()?.name === GENERIC && this.kind() !== SummaryKind.Sumaroon && this.managedFolders().length > 0,
+  );
+  readonly folderHint = computed(() =>
+    this.folderLocked() ? 'רק מנהלי התיקייה יכולים להוציא ממנה את התמצית' : this.folderRequired() ? 'לסוג "כללי" חובה לבחור תיקייה' : 'אופציונלי — מיקום בהיררכיה',
+  );
 
   // ---- kind (summary / running / sumaroon) ----
   readonly kind = toSignal(this.form.controls.kind.valueChanges.pipe(startWith(this.form.controls.kind.value)), { requireSync: true });
@@ -242,9 +260,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private labelsDone = false;
   private readonly labelSearch$ = new Subject<string>();
 
-  readonly collectionOptions = signal<ICollectionRef[]>([]);
-  private readonly collectionSearch$ = new Subject<string>();
-
   readonly userOptions = signal<UserRef[]>([]);
   private readonly userSearch$ = new Subject<string>();
 
@@ -258,7 +273,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     return [...this.permissionGroups.list()].sort((a, b) => Number(pinned.has(b._id)) - Number(pinned.has(a._id)));
   });
   readonly sortedLabels = computed(() => this.pinFirst(this.labelOptions(), (l) => l, 'pinnedLabels', 'favoriteLabels'));
-  readonly sortedCollections = computed(() => this.pinFirst(this.collectionOptions(), (c) => c._id, 'pinnedCollections', 'favoriteCollections'));
 
   // ---- sharing-section templates ----
   /** The template last applied (shown in the picker). */
@@ -288,7 +302,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     check(c.content.invalid, 'תוכן');
     check(c.permissions.invalid, 'הרשאות');
     check(c.labels.invalid, 'תגיות');
-    check(c.collections.invalid, 'לקטים');
+    check(c.folder.invalid, 'תיקייה');
     return out;
   });
 
@@ -301,7 +315,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly hasSharingValues = computed(() => {
     this.formTick();
     const v = this.form.getRawValue();
-    return !!(v.permissions.length || v.taggedUsers.length || v.taggedPermissions.length || v.labels.length || v.collections.length || v.folder);
+    return !!(v.permissions.length || v.taggedUsers.length || v.taggedPermissions.length || v.labels.length || v.folder);
   });
 
   readonly editorPlaceholder = 'תתפרעו :) הוסיפו # לפני מילה בשביל להפוך אותה לתגית';
@@ -322,14 +336,17 @@ export class CreateSummaryComponent implements HasPendingChanges {
       });
     });
 
-    // Collections are required only for the catch-all "generic" type — and never allowed on a sumaroon.
+    // A sumaroon never sits in a folder; "generic" needs one (folderRequired); a folder the user doesn't manage stays put.
     effect(() => {
-      const generic = this.contentType()?.name === GENERIC;
       const sumaroon = this.kind() === SummaryKind.Sumaroon;
+      const required = this.folderRequired();
+      const locked = this.folderLocked();
       untracked(() => {
-        const c = this.form.controls.collections;
-        if (sumaroon && c.value.length) c.setValue([]);
-        c.setValidators(generic && !sumaroon ? Validators.required : null);
+        const c = this.form.controls.folder;
+        if (sumaroon && c.value) c.setValue(null);
+        c.setValidators(required ? Validators.required : null);
+        if (locked) c.disable({ emitEvent: false });
+        else c.enable({ emitEvent: false });
         c.updateValueAndValidity();
       });
     });
@@ -381,12 +398,14 @@ export class CreateSummaryComponent implements HasPendingChanges {
       });
     this.parentSearch$.next('');
 
-    // Folders the user may place a summary in.
-    if (!this.summary())
-      this.folderService
-        .tree()
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((list) => this.folderOptions.set(managedFolderPaths(list, this.users.userId() ?? '')));
+    // Folders the user may place a summary in (and the paths of the others, for a folder they don't manage).
+    this.folderService
+      .tree()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((list) => {
+        this.allFolders.set(folderPaths(list));
+        this.managedFolders.set(managedFolderPaths(list, this.users.userId() ?? ''));
+      });
 
     // Populate from the resolved summary (edit mode) once the content types and fields needed to split type/extra fields are in.
     effect(() => {
@@ -413,15 +432,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
         this.labelsLoading.set(false);
       });
 
-    this.collectionSearch$
-      .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap((t) => this.collectionService.byName(t)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((list) => this.collectionOptions.update((cur) => mergeById(cur.filter((c) => this.form.controls.collections.value.includes(c._id)), list)));
-
     this.userSearch$
       .pipe(
         debounceTime(250),
@@ -432,7 +442,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
       .subscribe((list) => this.userOptions.update((cur) => mergeById(cur.filter((u) => this.form.controls.taggedUsers.value.includes(u._id)), list)));
 
     this.labelSearch$.next('');
-    this.collectionSearch$.next('');
     this.templates.load();
 
     // Offer to restore unsaved work from an earlier visit (the key is known once the edit resolver's input is set).
@@ -456,7 +465,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const draft: LocalDraft = {
       savedAt: new Date().toISOString(),
       value: v,
-      collections: this.collectionOptions().filter((c) => v.collections.includes(c._id)),
       users: this.userOptions().filter((u) => v.taggedUsers.includes(u._id)),
     };
     this.storage.set(this.localDraftKey(), draft);
@@ -481,7 +489,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.form.controls.extraFields.clear();
     for (const e of extraFields) this.addExtraRow(e.field, e.value);
     this.labelOptions.update((l) => this.withSelected(l, rest.labels));
-    this.collectionOptions.update((c) => mergeById(d.collections, c));
     this.userOptions.update((u) => mergeById(d.users, u));
     this.notesOpen.set(!!rest.notes);
     this.form.markAsDirty();
@@ -531,7 +538,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       title: s.title,
       content: s.content,
       labels: s.labels.map((l) => l.name),
-      collections: s.collectionIds.map((c) => c._id),
+      folder: s.folder?._id ?? null,
       taggedUsers: s.taggedUsers.map((u) => u._id),
       taggedPermissions: s.taggedPermissions.map((p) => p._id),
       notes: s.notes ?? '',
@@ -545,7 +552,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.form.controls.extraFields.clear();
     for (const e of extra) this.addExtraRow(e.field, e.value);
     this.labelOptions.update((l) => this.withSelected(l, s.labels.map((x) => x.name)));
-    this.collectionOptions.update((c) => mergeById(s.collectionIds, c));
+    this.currentFolder.set(s.folder);
     this.userOptions.set(s.taggedUsers);
     this.existingFiles.set([...s.files]);
     this.notesOpen.set(!!s.notes);
@@ -583,25 +590,23 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const t = this.templates.list().find((x) => x._id === id);
     if (!t) return;
     const sumaroon = this.kind() === SummaryKind.Sumaroon;
-    const canPlace = !this.isEdit() && !sumaroon;
+    const canPlace = !sumaroon && !this.folderLocked();
     const assignable = new Set(this.permissionGroups.assignable().map((p) => p._id));
     const permissions = t.permissions.filter((p) => assignable.has(p));
     const known = this.permissionGroups.byId();
     const taggedPermissions = t.taggedPermissions.filter((p) => known.has(p));
-    const folder = canPlace && this.folderOptions().some((f) => f._id === t.folder) ? t.folder : null;
+    const folder = canPlace && this.managedFolders().some((f) => f._id === t.folder) ? t.folder : null;
     const skipped =
       t.permissions.length - permissions.length + t.taggedPermissions.length - taggedPermissions.length + (canPlace && t.folder && !folder ? 1 : 0);
 
     this.templateUndo.set({ name: t.name, previousId: this.appliedTemplate(), values: this.sharingValues() });
     this.labelOptions.update((l) => this.withSelected(l, t.labels));
-    this.collectionOptions.update((c) => mergeById(t.collections, c));
     this.userOptions.update((u) => mergeById(t.taggedUsers, u));
     this.form.patchValue({
       permissions,
       taggedUsers: t.taggedUsers.map((u) => u._id),
       taggedPermissions,
       labels: [...t.labels],
-      collections: sumaroon ? [] : t.collections.map((c) => c._id),
       ...(canPlace ? { folder } : {}),
     });
     this.form.markAsDirty();
@@ -649,8 +654,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
   }
 
   private sharingValues(): SharingValues {
-    const { permissions, taggedUsers, taggedPermissions, labels, collections, folder } = this.form.getRawValue();
-    return { permissions, taggedUsers, taggedPermissions, labels, collections, folder };
+    const { permissions, taggedUsers, taggedPermissions, labels, folder } = this.form.getRawValue();
+    return { permissions, taggedUsers, taggedPermissions, labels, folder };
   }
 
   // ---- template helpers ----
@@ -724,19 +729,15 @@ export class CreateSummaryComponent implements HasPendingChanges {
     });
   }
 
-  onCollectionSearch(text: string) {
-    this.collectionSearch$.next(text);
-  }
-
   onUserSearch(text: string) {
     if (text.trim()) this.userSearch$.next(text.trim());
   }
 
-  isPinned(kind: 'pinnedLabels' | 'pinnedPermissions' | 'pinnedCollections', id: string) {
+  isPinned(kind: 'pinnedLabels' | 'pinnedPermissions', id: string) {
     return this.users.user()?.[kind].includes(id) ?? false;
   }
 
-  isFavorite(kind: 'favoriteLabels' | 'favoriteCollections', id: string) {
+  isFavorite(kind: 'favoriteLabels', id: string) {
     return this.users.user()?.[kind].includes(id) ?? false;
   }
 
@@ -750,8 +751,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
   pinLabel = (l: string) => this.users.pinLabel(l).subscribe();
   favoriteLabel = (l: string) => this.users.favoriteEntity('label', l).subscribe();
   pinPermission = (id: string) => this.users.pinPermission(id).subscribe();
-  pinCollection = (id: string) => this.users.pinCollection(id).subscribe();
-  favoriteCollection = (id: string) => this.users.favoriteEntity('collection', id).subscribe();
 
   permissionColor(id: string) {
     return this.permissionGroups.list().find((p) => p._id === id)?.color ?? '#ccc';
@@ -814,7 +813,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     if (!valid) {
       this.form.markAllAsTouched();
       for (const ctrl of Object.values(c.typeFields.controls)) ctrl.markAsDirty();
-      for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.collections, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
+      for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.folder, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
       this.message.warning(isDraft ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
       this.scrollToFirstError();
       return;
@@ -846,7 +845,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
       eventSecTime: v.eventSecTime && kind !== SummaryKind.Running ? format(v.eventSecTime, 'HH:mm') : undefined,
       department: v.department,
       labels: v.labels,
-      collectionIds: kind === SummaryKind.Sumaroon ? [] : v.collections,
+      // Drafts never sit in a folder; sending none leaves an existing placement alone.
+      folderId: kind !== SummaryKind.Sumaroon && !isDraft ? v.folder : undefined,
       permissions: v.permissions,
       taggedUsers: v.taggedUsers,
       taggedPermissions: v.taggedPermissions,
@@ -858,14 +858,13 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
     this.saving.set(true);
     const req = this.isEdit() ? this.summaries.update(payload, files) : this.summaries.create(payload, files);
-    const folder = !this.isEdit() && kind !== SummaryKind.Sumaroon ? v.folder : null;
     req.subscribe({
       next: (s) => {
         this.saved = true;
         this.saving.set(false);
         this.clearLocalDraft();
-        if (folder && isDraft) this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
-        else if (folder) this.folderService.addItems(folder, [{ type: 'summary', _id: s._id }]).subscribe();
+        if (isDraft && v.folder && kind !== SummaryKind.Sumaroon && !this.folderLocked())
+          this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
         this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
         if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });
         // Running summaries have their own page; a sumaroon opens in its running summary's panel.
@@ -884,8 +883,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private pinFirst<T>(
     list: T[],
     id: (x: T) => string,
-    pinnedKey: 'pinnedLabels' | 'pinnedCollections',
-    favKey: 'favoriteLabels' | 'favoriteCollections',
+    pinnedKey: 'pinnedLabels',
+    favKey: 'favoriteLabels',
   ): T[] {
     const u = this.users.user();
     const rank = (x: T) => (u?.[pinnedKey].includes(id(x)) ? 0 : u?.[favKey].includes(id(x)) ? 1 : 2);

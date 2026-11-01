@@ -7,7 +7,7 @@ import { CardSkeletonComponent } from '../../../shared/components/card-skeleton/
 import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { LoadingQuipComponent } from '../../../shared/easter-eggs/loading-quip/loading-quip.component';
 import { SummyComponent } from '../../../shared/easter-eggs/summy/summy.component';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ISummary, ISummaryParent, ISummarySearch } from '../../../shared/models';
 import { SummaryCardComponent } from '../summary-card/summary-card.component';
 import { SummaryListStore } from '../summary-list.store';
@@ -56,6 +56,7 @@ export class SummaryListComponent {
   readonly groupSumaroons = input(false);
   readonly bundlePreview = BUNDLE_PREVIEW;
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   readonly toggle = output<ISummary>();
   /** A search or filter is applied — an empty result then offers to clear it. */
   readonly filtered = input(false);
@@ -117,7 +118,8 @@ export class SummaryListComponent {
   }
 
   openRunning(id: string) {
-    this.router.navigate(['/running', id]);
+    if (this.store.runningInPlace()) this.router.navigate([], { relativeTo: this.route, queryParams: { runningId: id, summaryId: null }, queryParamsHandling: 'merge' });
+    else this.router.navigate(['/running', id]);
   }
 
   move(delta: number, event: Event) {

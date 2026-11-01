@@ -1,20 +1,18 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SQL, and, asc, eq, exists, gte, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { Capsule, CapsuleLookup, NO_CAPSULES, capsuleTokenId, isCapsuleToken, wordsOf } from '../capsules/capsule';
-import { collectionVisible } from '../collections/collection.access';
-import { idsWhere, textLike } from '../common/sql';
+import { idsWhere, textLike, uuidArray } from '../common/sql';
 import { dayRange } from '../common/time';
-import { APP_CONFIG, AppConfig } from '../config/app-config';
 import { DatabaseService } from '../database/database.service';
 import {
-  collections,
   comments,
+  folderSummaries,
+  folders,
   contentTypes,
   labels,
   permissions,
   summaries,
-  summaryCollections,
   summaryEditors,
   summaryFields,
   summaryFiles,
@@ -26,6 +24,7 @@ import {
   userFavSummaries,
   users,
 } from '../database/schema';
+import { folderEditable, folderVisible } from '../folders/folder.access';
 import { summaryEditable, summaryVisible } from './summary.access';
 import { Bucket, QueryCondition, QueryGroup, SummarySearch, TEXT_FIELDS, TextField, parseQuery } from './summary-search';
 
@@ -49,10 +48,7 @@ export interface BucketOwner {
 
 @Injectable()
 export class SummariesRepository {
-  constructor(
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly database: DatabaseService,
-  ) {}
+  constructor(private readonly database: DatabaseService) {}
 
   private get db() {
     return this.database.db;
@@ -62,11 +58,11 @@ export class SummariesRepository {
 
   /** "The caller may see this summary" as a predicate over `summaries` (see summary.access.ts). */
   visible(me: CurrentUser): SQL {
-    return summaryVisible(me, this.config.access);
+    return summaryVisible(me);
   }
 
   editable(me: CurrentUser): SQL {
-    return summaryEditable(me, this.config.access);
+    return summaryEditable(me);
   }
 
   /** The subset of `ids` the caller may view (or edit). */
@@ -74,9 +70,9 @@ export class SummariesRepository {
     return idsWhere(this.db, summaries, summaries.id, ids, mode === 'view' ? this.visible(me) : this.editable(me));
   }
 
-  /** The subset of collection `ids` the caller may see (a summary's memberships, collections being assigned). */
-  visibleCollectionIds(me: CurrentUser, ids: string[]): Promise<Set<string>> {
-    return idsWhere(this.db, collections, collections.id, ids, collectionVisible(me));
+  /** The subset of folder `ids` the caller may see (a summary's folder is shown only to those who can see the folder). */
+  visibleFolderIds(me: CurrentUser, ids: string[], mode: 'view' | 'edit' = 'view'): Promise<Set<string>> {
+    return idsWhere(this.db, folders, folders.id, ids, mode === 'view' ? folderVisible(me) : folderEditable(me));
   }
 
   // ---------------------------------------------------------------- reads
@@ -110,7 +106,7 @@ export class SummariesRepository {
     return new Set(rows.map((r) => r.id));
   }
 
-  /** Search filters shared by the feed, collection pages and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
+  /** Search filters shared by the feed, rule matching and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
   filterConditions(f: SummarySearch, timeZone: string, capsules: CapsuleLookup = NO_CAPSULES): SQL[] {
     const conds: SQL[] = [];
     const checked = f.searchTypes.flatMap((t) => SEARCH_TYPE_FIELDS[t] ?? []);
@@ -163,15 +159,8 @@ export class SummariesRepository {
             .where(and(eq(summaryLabels.summaryId, summaries.id), inArray(labels.name, f.labels))),
         ),
       );
-    if (f.collections.length)
-      conds.push(
-        exists(
-          this.db
-            .select({ x: sql`1` })
-            .from(summaryCollections)
-            .where(and(eq(summaryCollections.summaryId, summaries.id), inArray(summaryCollections.collectionId, f.collections))),
-        ),
-      );
+    if (f.folders.length) conds.push(this.inFolders(f.folders));
+    if (f.noFolder) conds.push(sql`not exists (select 1 from ${folderSummaries} fs where fs.summary_id = coalesce("summaries"."parent_id", "summaries"."id"))`);
     if (f.kinds.length) conds.push(inArray(summaries.kind, f.kinds));
     if (f.parentId) conds.push(eq(summaries.parentId, f.parentId));
     const eventRange = f.dates.length === 2 ? dayRange(f.dates[0], f.dates[1], timeZone) : null;
@@ -223,6 +212,20 @@ export class SummariesRepository {
   }
 
   /** Advanced search tree → SQL. Empty conditions (no words, values or dates) and empty groups are ignored. */
+  /**
+   * Placed in one of `folderIds` or anywhere below them; a sumaroon counts as wherever its running summary is. Folders
+   * do not restrict their items, so this does not check the folders' own visibility (the summary's is checked as usual).
+   */
+  private inFolders(folderIds: string[]): SQL {
+    return sql`exists (select 1 from ${folderSummaries} fs where fs.summary_id = coalesce("summaries"."parent_id", "summaries"."id") and fs.folder_id in (
+      with recursive sub(id) as (
+        select unnest(${uuidArray(folderIds)})
+        union
+        select f.id from ${folders} f join sub on f.parent_id = sub.id
+      )
+      select id from sub))`;
+  }
+
   private queryGroup(g: QueryGroup, timeZone: string, capsules: CapsuleLookup): SQL | undefined {
     const parts = g.children
       .map((c) => (c.type === 'group' ? this.queryGroup(c, timeZone, capsules) : this.queryCondition(c, timeZone, capsules)))
@@ -259,17 +262,8 @@ export class SummariesRepository {
         return c.values.length
           ? pick(inArray(summaries.contentTypeId, this.db.select({ id: contentTypes.id }).from(contentTypes).where(inArray(contentTypes.name, c.values))))
           : undefined;
-      case 'collection':
-        return c.values.length
-          ? pick(
-              exists(
-                this.db
-                  .select({ x: sql`1` })
-                  .from(summaryCollections)
-                  .where(and(eq(summaryCollections.summaryId, summaries.id), inArray(summaryCollections.collectionId, c.values))),
-              ),
-            )
-          : undefined;
+      case 'folder':
+        return c.values.length ? pick(this.inFolders(c.values)) : undefined;
       case 'color':
         return c.values.length ? pick(inArray(summaries.color, c.values)) : undefined;
       case 'eventDate':
@@ -340,6 +334,36 @@ export class SummariesRepository {
     return rows.map((r) => r.id);
   }
 
+  /**
+   * Published summaries within `scope` the caller can see; those matching `search` (scope included) they can't, and per
+   * permission they lack how many of the hidden ones require it (a sumaroon also requires its running summary's).
+   */
+  async accessStats(me: CurrentUser, scope: SQL[], search: SQL[]) {
+    const published = eq(summaries.isDraft, false);
+    const hiddenWhere = and(published, not(this.visible(me)), ...search)!;
+    const hidden = this.db.select({ id: summaries.id, parentId: summaries.parentId }).from(summaries).where(hiddenWhere);
+    const [total, hiddenCount, missing] = await Promise.all([
+      this.count(and(published, this.visible(me), ...scope)!),
+      this.count(hiddenWhere),
+      this.db
+        .execute<{ permission_id: string; blocking: number; only_one: number }>(
+          sql`with hidden as (${hidden}),
+            missing as (
+              select h.id, array_agg(distinct sp.permission_id) perms
+              from hidden h join summary_permissions sp on sp.summary_id = h.id or sp.summary_id = h.parent_id
+              where sp.permission_id <> all(${uuidArray(me.permissionIds)})
+              group by h.id
+            )
+            select p as permission_id, count(*)::int as blocking, (count(*) filter (where cardinality(perms) = 1))::int as only_one
+            from missing, unnest(perms) p
+            group by p
+            order by blocking desc`,
+        )
+        .then((r) => r.rows),
+    ]);
+    return { total, hidden: hiddenCount, missing };
+  }
+
   async count(where: SQL): Promise<number> {
     const [row] = await this.db.select({ n: sql<number>`count(*)::int` }).from(summaries).where(where);
     return row.n;
@@ -383,7 +407,7 @@ export class SummariesRepository {
         seen: { columns: { userId: true } },
         files: { columns: { fileName: true }, orderBy: (f, { asc }) => [asc(f.createdAt), asc(f.fileName)] },
         comments: { orderBy: (c, { asc }) => [asc(c.createdAt)], with: { author: { columns: refColumns } } },
-        collections: { with: { collection: { columns: { id: true, name: true } } } },
+        folder: { with: { folder: { columns: { id: true, name: true } } } },
       },
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -489,9 +513,10 @@ export class SummariesRepository {
     return result;
   }
 
-  async collectionIds(id: string): Promise<string[]> {
-    const rows = await this.db.select({ id: summaryCollections.collectionId }).from(summaryCollections).where(eq(summaryCollections.summaryId, id));
-    return rows.map((r) => r.id);
+  /** The folder holding the summary, if any. */
+  async folderId(id: string): Promise<string | null> {
+    const [row] = await this.db.select({ id: folderSummaries.folderId }).from(folderSummaries).where(eq(folderSummaries.summaryId, id));
+    return row?.id ?? null;
   }
 
   async fileNames(id: string): Promise<string[]> {
@@ -557,17 +582,14 @@ export class SummariesRepository {
     if (permissionIds.length) await this.db.insert(summaryTaggedPermissions).values(permissionIds.map((permissionId) => ({ summaryId: id, permissionId })));
   }
 
-  async addCollections(id: string, collectionIds: string[]): Promise<void> {
-    if (collectionIds.length)
+  /** Put the summary in `folderId` (moving it out of any other folder), or take it out of the hierarchy with null. */
+  async setFolder(id: string, folderId: string | null): Promise<void> {
+    if (!folderId) await this.db.delete(folderSummaries).where(eq(folderSummaries.summaryId, id));
+    else
       await this.db
-        .insert(summaryCollections)
-        .values(collectionIds.map((collectionId) => ({ summaryId: id, collectionId })))
-        .onConflictDoNothing();
-  }
-
-  async removeCollections(id: string, collectionIds: string[]): Promise<void> {
-    if (collectionIds.length)
-      await this.db.delete(summaryCollections).where(and(eq(summaryCollections.summaryId, id), inArray(summaryCollections.collectionId, collectionIds)));
+        .insert(folderSummaries)
+        .values({ summaryId: id, folderId })
+        .onConflictDoUpdate({ target: folderSummaries.summaryId, set: { folderId, createdAt: new Date() } });
   }
 
   async addFiles(id: string, files: { fileName: string; size: number; mimeType: string }[]): Promise<void> {

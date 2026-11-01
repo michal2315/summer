@@ -9,6 +9,7 @@
 .row.unread::before { content: ''; position: absolute; inset-inline-start: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: $primary-pink; }
 .row.unread .text { font-weight: 700; }
 .time { font-size: 12px; color: $gray; }
+.sentinel { flex: none; height: 1px; }
 
 // Count badge: a true circle for one digit; widens into a pill only for 10+.
 :host ::ng-deep .ant-badge-count {

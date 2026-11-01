@@ -15,7 +15,6 @@ const templateSchema = z.object({
   taggedUsers: z.array(zId).max(200).default([]),
   taggedPermissions: z.array(zId).max(100).default([]),
   labels: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
-  collections: z.array(zId).max(200).default([]),
   folder: zId.nullable().default(null),
 });
 
@@ -28,17 +27,12 @@ export class SummaryTemplatesService {
     private readonly users: UsersRepository,
   ) {}
 
-  /** Users and collections come back with their names, minus the ones that are gone or no longer visible. */
+  /** Users come back with their names, minus the ones that are gone. */
   async list(me: CurrentUser): Promise<ApiSummaryTemplate[]> {
     const rows = await this.templates.list(me.id);
     const userIds = unique(rows.flatMap((r) => r.data.taggedUsers));
-    const collectionIds = unique(rows.flatMap((r) => r.data.collections));
-    const [users, collections] = await Promise.all([
-      this.users.existingIds(userIds).then((ids) => this.users.refsByIds(ids)),
-      this.templates.visibleCollectionRefs(me, collectionIds),
-    ]);
+    const users = await this.users.refsByIds(await this.users.existingIds(userIds));
     const userById = new Map(users.map((u) => [u._id, u]));
-    const collectionById = new Map(collections.map((c) => [c.id, { _id: c.id, name: c.name }]));
     return rows.map((r) => ({
       _id: r.id,
       name: r.name,
@@ -46,7 +40,6 @@ export class SummaryTemplatesService {
       taggedUsers: r.data.taggedUsers.flatMap((id) => userById.get(id) ?? []),
       taggedPermissions: r.data.taggedPermissions ?? [],
       labels: r.data.labels,
-      collections: r.data.collections.flatMap((id) => collectionById.get(id) ?? []),
       folder: r.data.folder,
     }));
   }
@@ -58,7 +51,6 @@ export class SummaryTemplatesService {
       taggedUsers: unique(v.taggedUsers),
       taggedPermissions: unique(v.taggedPermissions),
       labels: unique(v.labels),
-      collections: unique(v.collections),
       folder: v.folder,
     };
     await this.database.transaction(async () => {

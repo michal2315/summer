@@ -38,5 +38,9 @@
     <span class="count">{{ c.words.length }} מילים</span>
   </div>
 } @empty {
-  <div class="empty">{{ loading() ? 'מחפש כמוסות…' : 'אין כמוסה בשם הזה' }}</div>
+  @if (loading()) {
+    <app-skeleton class="loading" variant="tree" [count]="3" />
+  } @else {
+    <div class="empty">אין כמוסה בשם הזה</div>
+  }
 }

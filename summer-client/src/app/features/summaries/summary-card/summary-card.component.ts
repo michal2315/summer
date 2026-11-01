@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -12,6 +12,7 @@ import { ColorPickerComponent } from '../../../shared/components/color-picker/co
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { ISummary, ISummarySearch, SearchType, SummaryKind } from '../../../shared/models';
 import { colorGlow } from '../../../shared/models/colors';
+import { hierarchyParams } from '../../../shared/services/folder.service';
 import { DateFormatPipe, HighlightPipe, RelativeTimePipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { MatchSnippetsComponent } from '../match-snippets/match-snippets.component';
 import { SummaryActionsService } from '../summary-actions.service';
@@ -51,7 +52,9 @@ const VISIBLE_LABELS = 4;
 export class SummaryCardComponent {
   private readonly users = inject(UserService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   readonly actions = inject(SummaryActionsService);
+  readonly hierarchyParams = hierarchyParams;
   private readonly store = inject(SummaryListStore, { optional: true });
 
   readonly summary = input.required<ISummary>();
@@ -79,7 +82,8 @@ export class SummaryCardComponent {
 
   /** A sumaroon's running summary has its own page. */
   openParent(id: string) {
-    this.router.navigate(['/running', id]);
+    if (this.store?.runningInPlace()) this.router.navigate([], { relativeTo: this.route, queryParams: { runningId: id, summaryId: null }, queryParamsHandling: 'merge' });
+    else this.router.navigate(['/running', id]);
   }
 
   searchLabel(name: string, event: Event) {

@@ -1,6 +1,6 @@
 @use 'tokens' as *;
 
-// Shared compact card look (summary + collection cards). @use it from a component stylesheet.
+// Shared compact card look (summary cards). @use it from a component stylesheet.
 
 :host {
   display: block;

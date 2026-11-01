@@ -5,6 +5,8 @@
   @if (info(); as info) {
     <a nz-button nzType="primary" nzSize="large" [href]="crxUrl"><span nz-icon nzType="plus"></span> הוספה לדפדפן</a>
     <div class="version">גרסה {{ info.version }} · <a routerLink="install">בעיות בהתקנה?</a></div>
+  } @else if (info() === undefined) {
+    <app-skeleton class="install-skeleton" variant="text" [count]="2" />
   } @else {
     <div class="version">התוסף עדיין לא פורסם בשרת הזה.</div>
   }

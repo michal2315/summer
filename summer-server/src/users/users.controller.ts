@@ -63,19 +63,9 @@ export class UsersController {
     return this.users.togglePinnedPermission(me, body?.permissionId);
   }
 
-  @Post('pinned-collection')
-  pinCollection(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
-    return this.users.toggleCollection(me, 'pinned', body?.collectionId);
-  }
-
   @Post('favorite-label')
   favoriteLabel(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
     return this.users.toggleLabel(me, 'favorite', body?.valueId);
-  }
-
-  @Post('favorite-collection')
-  favoriteCollection(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
-    return this.users.toggleCollection(me, 'favorite', body?.valueId);
   }
 
   /** IUser has no favourite-permissions list, so there is nothing to store (kept for client compatibility). */

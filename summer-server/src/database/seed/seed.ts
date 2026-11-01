@@ -42,10 +42,10 @@ const COLORS = ['#fe9eae', '#ff0000', '#ffa500', '#008000', '#00b2b2', '#0000c9'
 const COMMENTS = ['תודה רבה! עזר מאוד 🙏', 'יש טעות קטנה בהגדרה בפסקה השנייה', 'מישהו יודע אם זה בחומר למבחן?', 'סיכום מעולה', '@dlevi תסתכלי על זה'];
 
 const TABLES = [
-  'folder_summaries', 'folder_collections', 'folder_editors', 'folder_permissions', 'folders',
+  'folder_summaries', 'folder_editors', 'folder_permissions', 'folders',
   'notifications', 'notification_rule_hits', 'notification_rules', 'whats_new_seen', 'user_pinned_searches', 'user_pinned_permissions', 'user_fav_labels',
-  'user_pinned_labels', 'user_pinned_collections', 'user_fav_collections', 'user_fav_summaries', 'user_follows',
-  'summary_collections', 'collection_editors', 'collection_permissions', 'collections', 'comments', 'summary_files',
+  'user_pinned_labels', 'user_fav_summaries', 'user_follows',
+  'comments', 'summary_files',
   'summary_seen', 'summary_tagged_users', 'summary_tagged_permissions', 'summary_fields', 'summary_labels', 'summary_editors', 'summary_permissions',
   'summaries', 'labels', 'content_type_fields', 'content_types', 'fields', 'permissions', 'users',
 ];
@@ -86,6 +86,11 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
         { name: 'סטודנטים שנה א׳', groupName: 'year-1', color: '#ffa500' },
         { name: 'סגל אקדמי', groupName: 'staff', color: '#ff0000' },
         { name: 'תבור', groupName: 'tavor', color: '#8b5a2b' },
+        { name: 'צוות מחקר', groupName: 'research', color: '#00b2b2' },
+        { name: 'ועדת בחינות', groupName: 'exams-committee', color: '#fe9eae' },
+        { name: 'תואר שני', groupName: 'graduate', color: '#808080' },
+        { name: 'מעבדת ביולוגיה', groupName: 'bio-lab', color: '#2e8b57' },
+        { name: 'חסוי — הנהלה', groupName: 'management', color: '#4b0082' },
       ])
       .returning();
     const perm = (group: string) => permissions.find((p) => p.groupName === group)!.id;
@@ -132,22 +137,11 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
     const labelId = (name: string) => labelRows.find((l) => l.name === name)!.id;
 
     const mgolan = user('mgolan');
-    const collections = await tx
-      .insert(s.collections)
-      .values(
-        COURSES.slice(0, 5).map((c) => ({
-          name: `סמ׳ א׳ - ${c.name}`,
-          createdBy: mgolan.id,
-          createdAt: new Date(now - 120 * DAY),
-          updatedAt: new Date(now - 10 * DAY),
-        })),
-      )
-      .returning();
-    await tx.insert(s.collectionPermissions).values(collections.map((c, i) => ({ collectionId: c.id, permissionId: perm(COURSES[i].group) })));
-    await tx.insert(s.collectionEditors).values(collections.map((c) => ({ collectionId: c.id, userId: mgolan.id })));
 
     const authors = users.filter((u) => !u.isSystem);
     const summaryIds: string[] = [];
+    /** Published summaries of the first five courses, placed in their faculty folders below. */
+    const courseSummaries = new Map<number, string[]>();
     const draftIds = new Set<string>();
     const isDraftAt = (i: number, authorId: string) => authorId === mgolan.id && i % 4 === 3;
     for (let i = 0; i < 48; i++) {
@@ -189,7 +183,7 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
       const commenters = some(authors, 3);
       const labels = [...new Set([course.name, ...some(LABELS, 3)])];
       const tagged = r() < 0.25 ? [pick(authors).id] : [];
-      const inCollection = courseIdx < 5 && r() < 0.6;
+      const inCourseFolder = courseIdx < 5 && r() < 0.6;
       const seenBy = some(authors, 4).map((u) => u.id);
       const color = r() < 0.35 ? pick(COLORS) : '';
 
@@ -221,7 +215,7 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
       if (fieldValues.length) await tx.insert(s.summaryFields).values(fieldValues.map((v) => ({ summaryId: sid, ...v })));
       if (tagged.length) await tx.insert(s.summaryTaggedUsers).values(tagged.map((userId) => ({ summaryId: sid, userId })));
       if (seenBy.length) await tx.insert(s.summarySeen).values(seenBy.map((userId) => ({ summaryId: sid, userId })));
-      if (inCollection) await tx.insert(s.summaryCollections).values({ summaryId: sid, collectionId: collections[courseIdx].id });
+      if (inCourseFolder && !draftIds.has(sid)) courseSummaries.set(courseIdx, [...(courseSummaries.get(courseIdx) ?? []), sid]);
       if (commenters.length)
         await tx.insert(s.comments).values(
           commenters.map((c, j) => ({
@@ -260,11 +254,11 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
       await tx.insert(s.folderPermissions).values({ folderId: row.id, permissionId: perm(d.group) });
       await tx.insert(s.folderEditors).values((d.managers ?? ['mgolan']).map((u) => ({ folderId: row.id, userId: user(u).id })));
     }
-    const place = async (key: string, collectionIdx: number[], summaryIdx: number[]) => {
+    const place = async (key: string, courseIdx: number[], summaryIdx: number[]) => {
       const folderId = folderIds.get(key)!;
-      for (const i of collectionIdx) await tx.insert(s.folderCollections).values({ folderId, collectionId: collections[i].id });
-      for (const summaryId of summaryIdx.map((i) => summaryIds[i]).filter((sid) => !draftIds.has(sid)))
-        await tx.insert(s.folderSummaries).values({ folderId, summaryId });
+      const ids = [...courseIdx.flatMap((c) => courseSummaries.get(c) ?? []), ...summaryIdx.map((i) => summaryIds[i])].filter((sid) => !draftIds.has(sid));
+      // A summary sits in one folder: the first placement wins.
+      for (const summaryId of ids) await tx.insert(s.folderSummaries).values({ folderId, summaryId }).onConflictDoNothing();
     };
     await place('fd4', [0, 1], [0, 1]);
     await place('fd5', [2, 3], []);

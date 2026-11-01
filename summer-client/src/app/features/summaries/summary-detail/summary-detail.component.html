@@ -98,14 +98,12 @@
         </nz-collapse-panel>
       }
 
-      @if (s.collectionIds.length) {
-        <nz-collapse-panel [nzHeader]="'לקטים (' + s.collectionIds.length + ')'">
+      @if (s.folder; as f) {
+        <nz-collapse-panel nzHeader="תיקייה">
           <ul class="files">
-            @for (c of s.collectionIds; track c._id) {
-              <li>
-                <a [routerLink]="['/collections', c._id]"><span nz-icon nzType="folder"></span> {{ c.name }}</a>
-              </li>
-            }
+            <li>
+              <a [routerLink]="['/summaries']" [queryParams]="hierarchyParams(s)"><span nz-icon nzType="folder"></span> {{ f.name }}</a>
+            </li>
           </ul>
         </nz-collapse-panel>
       }
@@ -175,5 +173,5 @@
 } @else if (notFound()) {
   <nz-empty class="state" nzNotFoundImage="simple" nzNotFoundContent="התמצית לא נמצאה או שאין לך הרשאה לצפות בה" />
 } @else {
-  <div class="detail"><nz-skeleton [nzActive]="true" [nzAvatar]="true" [nzParagraph]="{ rows: 8 }" /></div>
+  <div class="detail" [class.page]="mode() === 'page'"><app-skeleton variant="detail" /></div>
 }

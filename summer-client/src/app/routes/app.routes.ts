@@ -26,12 +26,8 @@ export const routes: Routes = [
       },
       { path: 'user-not-found', ...status('user-not-found') },
       { path: 'running', loadChildren: () => import('./running.routes') },
-      { path: 'collections', loadChildren: () => import('./collections.routes') },
-      {
-        path: 'hierarchy',
-        loadComponent: () => import('../features/hierarchy/hierarchy-page/hierarchy-page.component').then((m) => m.HierarchyPageComponent),
-        title: 'Summer · היררכיה',
-      },
+      // The hierarchy is the home page now (old links keep their query params).
+      { path: 'hierarchy', redirectTo: 'summaries' },
       { path: 'notifications', loadChildren: () => import('./notifications.routes') },
       {
         path: 'capsules',

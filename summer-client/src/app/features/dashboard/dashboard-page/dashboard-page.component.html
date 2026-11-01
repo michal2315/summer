@@ -4,8 +4,8 @@
     <span class="spacer"></span>
   </div>
 
-  @if (groups(); as groups) {
-    @for (g of groups; track g.key) {
+  @if (groups()) {
+    @for (g of page.items(); track g.key) {
       <div class="group">
         <div class="group-title" role="heading" aria-level="2">
           <a [routerLink]="['/summaries']" [queryParams]="{ q: g.key, in: labelType }">{{ g.key }}</a>
@@ -20,8 +20,16 @@
     } @empty {
       <nz-empty nzNotFoundImage="simple" nzNotFoundContent="אין תמציות להצגה" />
     }
+    @if (page.hasMore()) {
+      <div class="sentinel" (appInView)="page.more()" [appInViewKey]="page.items().length"></div>
+    }
   } @else {
-    <nz-skeleton [nzActive]="true" [nzParagraph]="{ rows: 8 }" />
+    @for (i of [0, 1]; track i) {
+      <div class="group">
+        <app-skeleton class="skeleton-title" variant="text" [count]="1" />
+        <app-skeleton class="cubes" variant="tiles" [count]="4" />
+      </div>
+    }
   }
 </div>
 

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../auth/identity-provider';
 import { CapsulesService } from '../capsules/capsules.service';
-import { ApiBulkResult, ApiSummary, SummaryLengths } from '../common/api-types';
+import { ApiAccessStats, ApiBulkResult, ApiSummary, SummaryLengths, toApiPermission } from '../common/api-types';
 import { htmlToText, sanitizeQuill } from '../common/html';
 import { calendarDayRange, parseEventDate } from '../common/time';
 import { parse, unique, zId } from '../common/validation';
@@ -27,7 +27,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** Labels per summary, and characters per label. */
 const MAX_LABELS = 100;
 const MAX_LABEL = 100;
-/** Summaries per bulk action (same cap as adding to a collection). */
+/** Summaries per bulk action. */
 export const BULK_MAX = 1000;
 
 /** SummaryPayload (multipart field `summary`, JSON). */
@@ -41,7 +41,8 @@ const payloadSchema = z.object({
   eventSecTime: z.string().nullish(),
   department: z.string().trim().max(200).default(''),
   labels: z.array(z.string()).max(MAX_LABELS).default([]),
-  collectionIds: z.array(zId).max(200).default([]),
+  /** hierarchy folder: absent = leave as is, null = take out of the hierarchy. Published regular/running summaries only. */
+  folderId: zId.nullish(),
   permissions: z.array(zId).max(100).default([]),
   taggedUsers: z.array(zId).max(200).default([]),
   /** permission groups whose members count as tagged */
@@ -92,7 +93,7 @@ interface ValidInput {
   fieldValues: { fieldId: string; value: string }[];
   taggedUserIds: string[];
   taggedPermissionIds: string[];
-  collectionIds: string[];
+  folderId: string | null | undefined;
   keepFiles: string[];
 }
 
@@ -122,10 +123,10 @@ export class SummariesService {
   async hydrate(me: CurrentUser, ids: string[]): Promise<ApiSummary[]> {
     const rows = await this.repo.loadFull(ids);
     const runningIds = rows.filter((r) => r.kind === 'running').map((r) => r.id);
-    const [favorites, editable, visibleCollections, parents, counts, previews] = await Promise.all([
+    const [favorites, editable, visibleFolders, parents, counts, previews] = await Promise.all([
       this.repo.favoriteIds(me.id, ids),
       this.repo.visibleIds(me, ids, 'edit'),
-      this.repo.visibleCollectionIds(me, unique(rows.flatMap((r) => r.collections.map((c) => c.collectionId)))),
+      this.repo.visibleFolderIds(me, unique(rows.flatMap((r) => (r.folder ? [r.folder.folderId] : [])))),
       // A visible sumaroon implies a visible running summary (summary.access.ts).
       this.repo.parents(unique(rows.flatMap((r) => (r.parentId ? [r.parentId] : [])))),
       this.repo.sumaroonCounts(runningIds, this.repo.visible(me)),
@@ -136,7 +137,7 @@ export class SummariesService {
       toApiSummary(r, {
         isFavorite: favorites.has(r.id),
         canEdit: editable.has(r.id),
-        visibleCollections,
+        visibleFolders,
         parent: r.parentId ? parentById.get(r.parentId) : undefined,
         sumaroonCount: counts.get(r.id),
         sumaroonPreview: previews.get(r.id),
@@ -163,17 +164,6 @@ export class SummariesService {
     return { summaries: await this.hydrate(me, ids), lengths };
   }
 
-  /** Summaries in a collection (the caller must already be allowed to view the collection). */
-  async inCollection(me: CurrentUser, collectionId: string, f: SummarySearch): Promise<{ summaries: ApiSummary[]; lengths: SummaryLengths }> {
-    const where = and(
-      this.repo.visible(me),
-      this.repo.bucketCondition('SUMMARY', { ownerId: me.id, isProfile: false }),
-      ...(await this.filters({ ...f, collections: [collectionId] })),
-    )!;
-    const [ids, total] = await Promise.all([this.repo.pageIds(where, this.repo.orderBy(f.sort), f.skip, f.limit), this.repo.count(where)]);
-    return { summaries: await this.hydrate(me, ids), lengths: { summary: total, draft: 0, tagged: 0, favorite: 0 } };
-  }
-
   /** Visible published summaries matching `f`. */
   async count(me: CurrentUser, f: SummarySearch): Promise<number> {
     return this.repo.count(
@@ -183,6 +173,24 @@ export class SummariesService {
         ...(await this.filters(f)),
       )!,
     );
+  }
+
+  /**
+   * The home page counter: visible summaries in the scope of `f` (folders / noFolder), and the ones matching the whole
+   * search that permissions hide. By product decision this reveals that hidden summaries match a search (never which).
+   */
+  async accessStats(me: CurrentUser, f: SummarySearch): Promise<ApiAccessStats> {
+    const scope = this.repo.filterConditions({ ...summarySearchSchema.parse({}), folders: f.folders, noFolder: f.noFolder }, this.config.timezone);
+    const stats = await this.repo.accessStats(me, scope, await this.filters(f));
+    const byId = new Map((await this.permissions.byIds(stats.missing.map((m) => m.permission_id))).map((p) => [p.id, p]));
+    return {
+      total: stats.total,
+      hidden: stats.hidden,
+      missing: stats.missing.flatMap((m) => {
+        const p = byId.get(m.permission_id);
+        return p ? [{ permission: toApiPermission(p), blocking: m.blocking, only: m.only_one }] : [];
+      }),
+    };
   }
 
   /** The search filters as SQL, with the capsules it names fetched first. */
@@ -276,7 +284,7 @@ export class SummariesService {
         createdId = id;
         await this.repo.addEditor(id, me.id);
         await this.writeRelations(id, input);
-        await this.repo.addCollections(id, input.collectionIds);
+        if (input.folderId) await this.repo.setFolder(id, input.folderId);
         await this.repo.addFiles(id, await this.files.store(id, uploads));
         if (!input.values.isDraft) {
           await this.notifyTagged(me, id, input.values.title, input.taggedUserIds, input.taggedPermissionIds);
@@ -311,7 +319,7 @@ export class SummariesService {
 
         if (!(await this.repo.update(id, input.values, payload.version))) throw new ConflictException('summary was changed by someone else');
         await this.writeRelations(id, input);
-        await this.syncCollections(me, id, input.collectionIds);
+        await this.syncFolder(me, id, input.folderId);
 
         const dropped = await this.repo.removeFilesExcept(id, input.keepFiles);
         const stored = await this.files.store(id, uploads);
@@ -355,7 +363,7 @@ export class SummariesService {
         const id = await this.repo.insert({ ...input.values, createdBy: me.id });
         await this.repo.addEditor(id, me.id);
         await this.writeRelations(id, input);
-        await this.repo.addCollections(id, input.collectionIds);
+        if (input.folderId) await this.repo.setFolder(id, input.folderId);
       }
     });
     return inputs.length;
@@ -474,7 +482,7 @@ export class SummariesService {
     return { meta, stream: this.files.open(id, fileName) };
   }
 
-  /** For collections/folders: which of `ids` are sumaroons (they cannot be placed anywhere but their running summary). */
+  /** For folders: which of `ids` are sumaroons (they cannot be placed anywhere but their running summary). */
   onlySumaroons(ids: string[]): Promise<string[]> {
     return this.repo.onlySumaroons(ids);
   }
@@ -511,20 +519,24 @@ export class SummariesService {
   }
 
   /**
-   * Replace memberships within the collections the editor can see. Memberships in collections hidden from the
-   * editor are left untouched (the client never received them, so their absence is not a removal request).
+   * Move the summary to `desired` (validated: a folder the editor manages, or null). Leaving a folder needs its managers
+   * too, like on the hierarchy page. A folder hidden from the editor stays put when they send null (the client never
+   * received it, so its absence is not a removal request).
    */
-  private async syncCollections(me: CurrentUser, id: string, desired: string[]): Promise<void> {
-    const current = await this.repo.collectionIds(id);
-    const visible = await this.repo.visibleCollectionIds(me, current);
-    await this.repo.removeCollections(
-      id,
-      current.filter((c) => visible.has(c) && !desired.includes(c)),
-    );
-    await this.repo.addCollections(
-      id,
-      desired.filter((c) => !current.includes(c)),
-    );
+  private async syncFolder(me: CurrentUser, id: string, desired: string | null | undefined): Promise<void> {
+    if (desired === undefined) return;
+    const current = await this.repo.folderId(id);
+    if (current === desired) return;
+    if (current) {
+      if (desired === null && !(await this.repo.visibleFolderIds(me, [current])).has(current)) return;
+      await this.assertManagesFolder(me, current);
+    }
+    if (desired) await this.assertManagesFolder(me, desired);
+    await this.repo.setFolder(id, desired);
+  }
+
+  private async assertManagesFolder(me: CurrentUser, folderId: string): Promise<void> {
+    if (!(await this.repo.visibleFolderIds(me, [folderId], 'edit')).has(folderId)) throw new ForbiddenException('only a folder’s managers may move summaries in or out of it');
   }
 
   /** Tagged users, then members of tagged groups who weren't tagged by name: one notification each. */
@@ -568,7 +580,7 @@ export class SummariesService {
     if (!isSumaroon && p.link) throw new BadRequestException('only a sumaroon has a link');
     let parent: SummaryRow | undefined;
     if (parentId) {
-      // Like adding a summary to a collection: you need to see the running summary.
+      // You need to see the running summary to add to it.
       if (!(await this.repo.visibleIds(me, [parentId])).has(parentId)) throw new BadRequestException('unknown running summary');
       parent = await this.repo.findById(parentId);
     }
@@ -598,10 +610,13 @@ export class SummariesService {
     const taggedPermissionIds = unique(p.taggedPermissions);
     if ((await this.permissions.byIds(taggedPermissionIds)).length !== taggedPermissionIds.length) throw new BadRequestException('unknown tagged group');
 
-    const collectionIds = unique(p.collectionIds);
-    if (isSumaroon && collectionIds.length) throw new BadRequestException(SUMAROON_ONLY_INSIDE);
-    const visibleCollections = await this.repo.visibleCollectionIds(me, collectionIds);
-    if (collectionIds.some((c) => !visibleCollections.has(c))) throw new BadRequestException('unknown collection');
+    const folderId = p.folderId;
+    if (folderId) {
+      if (isSumaroon) throw new BadRequestException(SUMAROON_ONLY_INSIDE);
+      if (p.isDraft) throw new BadRequestException('drafts cannot be placed in a folder');
+      // On edit, only a change of folder needs its managers (see syncFolder).
+      if (!existing) await this.assertManagesFolder(me, folderId);
+    }
 
     let eventDate: Date | null = null;
     if (p.eventDate) {
@@ -636,7 +651,7 @@ export class SummariesService {
       fieldValues,
       taggedUserIds,
       taggedPermissionIds,
-      collectionIds,
+      folderId,
       keepFiles: unique(p.files),
     };
   }

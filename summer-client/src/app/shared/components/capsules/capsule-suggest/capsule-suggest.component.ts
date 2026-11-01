@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, effect, inject, input, 
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { ICapsule } from '../../../models';
 import { normalizeCapsuleName, wordsOf } from '../../../utils/capsules';
+import { SkeletonComponent } from '../../skeleton/skeleton.component';
 
 const PREVIEW_WORDS = 4;
 
@@ -11,7 +12,7 @@ const PREVIEW_WORDS = 4;
  */
 @Component({
   selector: 'app-capsule-suggest',
-  imports: [NzIconModule],
+  imports: [NzIconModule, SkeletonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './capsule-suggest.component.html',
   styleUrl: './capsule-suggest.component.scss',

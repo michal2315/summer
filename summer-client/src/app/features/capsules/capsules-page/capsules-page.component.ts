@@ -6,13 +6,15 @@ import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { catchError, debounceTime, of, switchMap } from 'rxjs';
 import { CapsuleWordsComponent } from '../../../shared/components/capsules/capsule-words/capsule-words.component';
+import { InViewDirective } from '../../../shared/components/in-view.directive';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { ICapsule } from '../../../shared/models';
 import { CapsuleService } from '../../../shared/services/capsule.service';
 import { capsuleSearchToken } from '../../../shared/utils/capsules';
+import { renderPages } from '../../../shared/utils/render-pages';
 
 /**
  * /capsules — the capsules from the external service, read only: filter by name, see the words by condition,
@@ -20,7 +22,7 @@ import { capsuleSearchToken } from '../../../shared/utils/capsules';
  */
 @Component({
   selector: 'app-capsules-page',
-  imports: [NzButtonModule, NzEmptyModule, NzIconModule, NzInputModule, NzSkeletonModule, NzToolTipModule, CapsuleWordsComponent],
+  imports: [NzButtonModule, NzEmptyModule, NzIconModule, NzInputModule, NzToolTipModule, CapsuleWordsComponent, InViewDirective, SkeletonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './capsules-page.component.html',
   styleUrl: './capsules-page.component.scss',
@@ -39,6 +41,8 @@ export class CapsulesPageComponent {
     { initialValue: null },
   );
   readonly count = computed(() => this.list()?.length ?? 0);
+  /** Cards rendered a page at a time; a new result list starts over. */
+  readonly page = renderPages(() => this.list() ?? [], 24, this.list);
 
   search(c: ICapsule) {
     this.router.navigate(['/summaries'], { queryParams: { q: capsuleSearchToken(c) } });

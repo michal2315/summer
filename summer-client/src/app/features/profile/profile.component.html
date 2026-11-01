@@ -1,22 +1,40 @@
 @if (profile(); as p) {
   <app-summary-browser [ownerId]="p._id" [isProfile]="true" [showTabs]="isOwn()" [searchPlaceholder]="'חיפוש בתמציות של ' + p.fullName" [empty]="empty()">
-    <div browser-header class="header">
-      <app-avatar [user]="p" [size]="56" />
-      <div class="who">
-        <div class="page-title" role="heading" aria-level="1">{{ p.fullName }}</div>
-        <span class="muted">{{ p.department }}</span>
-      </div>
-      <span class="spacer"></span>
-      @if (isOwn()) {
-        <a nz-button nzType="primary" routerLink="/summaries/new" appAltKey="newSummary"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
-      } @else {
-        <button nz-button [nzType]="isFollowing() ? 'default' : 'primary'" [nzLoading]="busy()" (click)="toggleFollow(p._id)">
-          {{ isFollowing() ? 'הסר עוקב' : 'עקוב' }}
+    <div browser-header class="header" [class.expanded]="showMilestones()">
+      <div class="top">
+        <app-avatar [user]="p" [size]="56" />
+        <div class="who">
+          <div class="page-title" role="heading" aria-level="1">{{ p.fullName }}</div>
+          <span class="muted">{{ p.department }}</span>
+        </div>
+        <span class="spacer"></span>
+        @if (isOwn()) {
+          <a nz-button nzType="primary" routerLink="/summaries/new" appAltKey="newSummary"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
+        } @else {
+          <button nz-button [nzType]="isFollowing() ? 'default' : 'primary'" [nzLoading]="busy()" (click)="toggleFollow(p._id)">
+            {{ isFollowing() ? 'הסר עוקב' : 'עקוב' }}
+          </button>
+        }
+        <button
+          nz-button
+          nzType="text"
+          class="toggle"
+          [attr.aria-expanded]="showMilestones()"
+          aria-controls="profile-milestones"
+          (click)="showMilestones.set(!showMilestones())"
+        >
+          <span nz-icon nzType="trophy"></span>
+          <span nz-icon nzType="down" class="chevron"></span>
         </button>
+      </div>
+      @if (showMilestones()) {
+        <app-milestones id="profile-milestones" [userId]="p._id" [isOwn]="isOwn()" />
       }
     </div>
-    <app-milestones browser-header [userId]="p._id" [isOwn]="isOwn()" />
   </app-summary-browser>
 } @else {
-  <div class="loading"><nz-skeleton [nzActive]="true" [nzAvatar]="{ size: 56 }" /></div>
+  <div class="loading">
+    <app-skeleton variant="header" />
+    <app-card-skeleton [count]="4" />
+  </div>
 }

@@ -26,8 +26,6 @@ export interface IUser {
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
-  pinnedCollections: string[];
-  favoriteCollections: string[];
   following: string[];
   recentExtraField: string[];
 }
@@ -87,12 +85,12 @@ export interface ISummaryField {
   value: string | undefined;
 }
 
-export interface ICollectionRef {
+export interface IFolderRef {
   _id: string;
   name: string;
 }
 
-/** A personal preset for the summary form's sharing section. The server leaves out users and collections the owner can no longer see. */
+/** A personal preset for the summary form's sharing section. The server leaves out users who no longer exist. */
 export interface ISummaryTemplate {
   _id: string;
   name: string;
@@ -100,22 +98,10 @@ export interface ISummaryTemplate {
   taggedUsers: UserRef[];
   taggedPermissions: string[];
   labels: string[];
-  collections: ICollectionRef[];
   folder: string | null;
 }
 
-export type SummaryTemplatePayload = Omit<ISummaryTemplate, '_id' | 'taggedUsers' | 'collections'> & { taggedUsers: string[]; collections: string[] };
-
-export interface ICollection extends ICollectionRef {
-  permissions: IPermission[];
-  summaries: string[];
-  /** user ids */
-  managers: string[];
-  createdBy: UserRef;
-  createdAt: string;
-  updatedAt: string;
-  isDeleted: boolean;
-}
+export type SummaryTemplatePayload = Omit<ISummaryTemplate, '_id' | 'taggedUsers'> & { taggedUsers: string[] };
 
 /** summary = regular; running = תמצית רצף (a focused series with a date range); sumaroon = תמציתונית (one entry of a series). */
 export enum SummaryKind {
@@ -161,7 +147,8 @@ export interface ISummary {
   taggedUsers: UserRef[];
   /** permission groups whose members count as tagged */
   taggedPermissions: IPermission[];
-  collectionIds: ICollectionRef[];
+  /** null when not in a folder, or in one the viewer cannot see */
+  folder: IFolderRef | null;
   permissions: IPermission[];
   seenBy: string[];
   color: string;
@@ -185,6 +172,17 @@ export interface ISummary {
 
 /** Why a bulk action left a summary out (hidden and deleted summaries are both 'not-found'). */
 export type BulkSkipReason = 'not-found' | 'not-editor' | 'sumaroon' | 'too-many-labels' | 'draft';
+
+/**
+ * Home page counter: `total` = published summaries the user can see in the scope (all, a folder with its subfolders, or
+ * no folder); `hidden` = ones matching the search that permissions hide, and the missing permissions behind them. A
+ * summary missing several counts under each; `only` = hidden by that permission alone.
+ */
+export interface IAccessStats {
+  total: number;
+  hidden: number;
+  missing: { permission: IPermission; blocking: number; only: number }[];
+}
 
 export interface IBulkResult {
   applied: string[];
@@ -243,7 +241,10 @@ export interface ISummarySearch {
   contentTypes?: string[];
   colors?: string[];
   labels?: string[];
-  collections?: string[];
+  /** placed in one of these folders or their subfolders */
+  folders?: string[];
+  /** only summaries that are in no folder */
+  noFolder?: boolean;
   /** only these kinds; empty = all */
   kinds?: SummaryKind[];
   /** the sumaroons of this running summary */
@@ -253,7 +254,7 @@ export interface ISummarySearch {
 }
 
 export type QueryTextField = 'text' | 'title' | 'content' | 'notes' | 'comments' | 'labels';
-export type QueryField = QueryTextField | 'author' | 'contentType' | 'collection' | 'color' | 'eventDate' | 'createdDate';
+export type QueryField = QueryTextField | 'author' | 'contentType' | 'folder' | 'color' | 'eventDate' | 'createdDate';
 export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between';
 
 /**
@@ -281,7 +282,7 @@ export interface IQueryCondition {
   op: QueryOp;
   /** text fields; a capsule is the word `#cap:<id>` */
   words?: string[];
-  /** author / collection ids, content type names, color hexes */
+  /** author / folder ids, content type names, color hexes */
   values?: string[];
   /** date fields: ISO instants of local midnight */
   from?: string;
@@ -294,21 +295,15 @@ export interface IQueryGroup {
   children: (IQueryGroup | IQueryCondition)[];
 }
 
-export interface CollectionPayload {
-  name: string;
-  permissions: string[];
-  managers: string[];
-  /** edit only: summary ids to remove from the collection */
-  summaries?: string[];
-}
-
-/** A node in the hierarchy (/hierarchy). Folders nest via parentId; root folders have parentId null. */
+/** A node in the folder tree (home page). Folders nest via parentId; root folders have parentId null. */
 export interface IFolder {
   _id: string;
   name: string;
   parentId: string | null;
-  /** collections + summaries directly in this folder (not counting subfolders) */
+  /** summaries directly in this folder (not counting subfolders) */
   itemCount: number;
+  /** summaries directly in this folder the user lacks permissions to see */
+  hiddenCount: number;
   permissions: IPermission[];
   /** user ids */
   managers: string[];
@@ -317,15 +312,11 @@ export interface IFolder {
   updatedAt: string;
 }
 
-export type FolderItemType = 'collection' | 'summary';
-
-/** A collection or summary placed in a folder. Each item lives in at most one folder. */
+/** A summary placed in a folder (each sits in at most one; sumaroons never do). */
 export interface IFolderItem {
-  type: FolderItemType;
   _id: string;
   name: string;
-  /** summaries only (sumaroons never sit in folders) */
-  kind?: SummaryKind;
+  kind: SummaryKind;
 }
 
 export interface FolderPayload {
@@ -405,7 +396,8 @@ export interface SummaryPayload {
   eventSecTime?: string;
   department: string;
   labels: string[];
-  collectionIds: string[];
+  /** hierarchy folder: omitted = leave as is, null = take out. Not for drafts or sumaroons. */
+  folderId?: string | null;
   permissions: string[];
   taggedUsers: string[];
   taggedPermissions: string[];

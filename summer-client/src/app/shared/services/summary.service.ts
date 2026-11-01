@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, map, tap } from 'rxjs';
-import { IBulkResult, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
+import { IAccessStats, IBulkResult, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
 import { DOCX_MIME, XLSX_MIME, saveFile } from '../utils/save-file';
 import { toHttpParams } from './http-params';
 
@@ -29,6 +29,11 @@ export class SummaryService {
   /** How many published summaries `search` would find. */
   count(search: ISummarySearch): Observable<number> {
     return this.http.get<{ count: number }>(`${BASE}/count`, { params: toHttpParams(search) }).pipe(map((res) => res.count));
+  }
+
+  /** Visible summaries in the search's scope, and the ones matching it that permissions hide. */
+  accessStats(scope: ISummarySearch): Observable<IAccessStats> {
+    return this.http.get<IAccessStats>(`${BASE}/access-stats`, { params: toHttpParams(scope) });
   }
 
   search(userId: string, search: ISummarySearch): Observable<ISummariesResponse> {
@@ -119,11 +124,11 @@ export class SummaryService {
   }
 
   /** Bulk import. headersMap: Excel column header → summary field key (title/content/labels/… or a field id). */
-  uploadExcel(req: { file: File; type: string; collections: string[]; permissions: string[]; headersMap: Record<string, string> }) {
+  uploadExcel(req: { file: File; type: string; folder: string | null; permissions: string[]; headersMap: Record<string, string> }) {
     const fd = new FormData();
     fd.append('file', req.file, req.file.name);
     fd.append('type', req.type);
-    for (const c of req.collections) fd.append('collections', c);
+    if (req.folder) fd.append('folder', req.folder);
     for (const p of req.permissions) fd.append('permissions', p);
     fd.append('headersMap', JSON.stringify(req.headersMap));
     return this.http.post<{ created: number }>(`${BASE}/upload/excel`, fd);

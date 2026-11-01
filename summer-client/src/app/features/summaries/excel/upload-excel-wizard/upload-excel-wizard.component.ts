@@ -10,9 +10,9 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzStepsModule } from 'ng-zorro-antd/steps';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzUploadFile, NzUploadModule } from 'ng-zorro-antd/upload';
-import { ICollectionRef } from '../../../../shared/models';
-import { CollectionService } from '../../../../shared/services/collection.service';
+import { UserService } from '../../../../core/auth/user.service';
 import { ContentTypeService } from '../../../../shared/services/content-type.service';
+import { FolderPath, FolderService, managedFolderPaths } from '../../../../shared/services/folder.service';
 import { PermissionService } from '../../../../shared/services/permission.service';
 import { SummaryService } from '../../../../shared/services/summary.service';
 import { ImportTarget, SheetData, guessMapping, readSheet, targetsFor } from '../excel-fields';
@@ -35,7 +35,8 @@ const PREVIEW_ROWS = 5;
 export class UploadExcelWizardComponent {
   readonly contentTypes = inject(ContentTypeService);
   readonly permissionGroups = inject(PermissionService);
-  private readonly collectionService = inject(CollectionService);
+  private readonly folders = inject(FolderService);
+  private readonly users = inject(UserService);
   private readonly summaries = inject(SummaryService);
   private readonly modal = inject(NzModalRef);
   private readonly message = inject(NzMessageService);
@@ -48,8 +49,9 @@ export class UploadExcelWizardComponent {
   // step 1
   readonly contentTypeId = signal<string | null>(this.data?.contentTypeId ?? null);
   readonly permissions = signal<string[]>([]);
-  readonly collections = signal<string[]>([]);
-  readonly collectionOptions = signal<ICollectionRef[]>([]);
+  /** hierarchy folder for every imported summary (optional; only folders the user manages) */
+  readonly folder = signal<string | null>(null);
+  readonly folderOptions = signal<FolderPath[]>([]);
   readonly file = signal<File | null>(null);
   readonly fileList = computed<NzUploadFile[]>(() => {
     const f = this.file();
@@ -89,7 +91,7 @@ export class UploadExcelWizardComponent {
   });
 
   constructor() {
-    this.searchCollections('');
+    this.folders.tree().subscribe((list) => this.folderOptions.set(managedFolderPaths(list, this.users.userId() ?? '')));
   }
 
   beforeUpload = (f: NzUploadFile): boolean => {
@@ -97,10 +99,6 @@ export class UploadExcelWizardComponent {
     this.error.set(null);
     return false;
   };
-
-  searchCollections(text: string) {
-    this.collectionService.byName(text).subscribe((list) => this.collectionOptions.set(list));
-  }
 
   setMapping(key: string, header: string | null) {
     this.mapping.update((m) => ({ ...m, [key]: header }));
@@ -148,7 +146,7 @@ export class UploadExcelWizardComponent {
     );
     this.busy.set(true);
     this.summaries
-      .uploadExcel({ file: this.file()!, type: this.contentTypeId()!, collections: this.collections(), permissions: this.permissions(), headersMap })
+      .uploadExcel({ file: this.file()!, type: this.contentTypeId()!, folder: this.folder(), permissions: this.permissions(), headersMap })
       .subscribe({
         next: (res) => {
           this.message.success(`יובאו ${res?.created ?? this.rowCount()} תמציות`);

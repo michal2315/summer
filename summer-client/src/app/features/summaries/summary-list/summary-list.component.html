@@ -70,5 +70,5 @@
 }
 
 @if (store.hasMore()) {
-  <div class="sentinel" (appInView)="store.loadMore()"></div>
+  <div class="sentinel" (appInView)="store.loadMore()" [appInViewKey]="store.summaries().length"></div>
 }

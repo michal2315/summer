@@ -1,14 +1,13 @@
 import { sql } from 'drizzle-orm';
 import { AnyPgColumn, check, index, integer, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 import { permissions } from './catalog';
-import { collections } from './collections';
 import { createdAt, id, updatedAt } from './columns';
 import { summaries } from './summaries';
 import { users } from './users';
 
 /**
- * Hierarchy folders (/hierarchy). Each folder has zero or one parent (roots have none); parentId is set at
- * creation and never changed, so cycles cannot form. Deleting a folder deletes its subtree (FK cascade).
+ * Hierarchy folders (/hierarchy). Each folder has zero or one parent (roots have none). Moves are serialized and
+ * checked for cycles by FoldersService.move. Deleting a folder deletes its subtree (FK cascade).
  */
 export const folders = pgTable(
   'folders',
@@ -31,7 +30,7 @@ const folderFk = () =>
     .notNull()
     .references(() => folders.id, { onDelete: 'cascade' });
 
-/** Viewing requirements (all-of, like collections). Every folder needs at least one (trigger). */
+/** Viewing requirements (all-of). Every folder needs at least one (trigger). */
 export const folderPermissions = pgTable(
   'folder_permissions',
   {
@@ -68,15 +67,3 @@ export const folderSummaries = pgTable(
   (t) => [index().on(t.folderId)],
 );
 
-/** A collection sits in at most one folder (primary key on collectionId). */
-export const folderCollections = pgTable(
-  'folder_collections',
-  {
-    collectionId: uuid()
-      .primaryKey()
-      .references(() => collections.id, { onDelete: 'cascade' }),
-    folderId: folderFk(),
-    createdAt: createdAt(),
-  },
-  (t) => [index().on(t.folderId)],
-);

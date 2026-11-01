@@ -1,9 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { CurrentUser } from '../auth/identity-provider';
 import { idsWhere } from '../common/sql';
-import { APP_CONFIG, AppConfig } from '../config/app-config';
 import { DatabaseService } from '../database/database.service';
 import { comments, contentTypes, labels, notificationRuleHits, notificationRules, notifications, summaries, summaryLabels, userFollows, users } from '../database/schema';
 import { summaryVisible } from '../summaries/summary.access';
@@ -60,10 +59,7 @@ const actor = alias(users, 'actor');
 
 @Injectable()
 export class NotificationsRepository {
-  constructor(
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly database: DatabaseService,
-  ) {}
+  constructor(private readonly database: DatabaseService) {}
 
   private get db() {
     return this.database.db;
@@ -88,7 +84,7 @@ export class NotificationsRepository {
   }
 
   async canView(principal: CurrentUser, summaryId: string): Promise<boolean> {
-    return (await idsWhere(this.db, summaries, summaries.id, [summaryId], summaryVisible(principal, this.config.access))).has(summaryId);
+    return (await idsWhere(this.db, summaries, summaries.id, [summaryId], summaryVisible(principal))).has(summaryId);
   }
 
   async insertMany(rows: NewNotification[]): Promise<{ id: string; userId: string }[]> {
@@ -210,7 +206,7 @@ export class NotificationsRepository {
       .from(notifications)
       .leftJoin(summaries, eq(summaries.id, notifications.summaryId))
       .leftJoin(author, eq(author.id, notifications.createdBy))
-      .where(and(eq(notifications.userId, me.id), or(isNull(notifications.summaryId), summaryVisible(me, this.config.access))))
+      .where(and(eq(notifications.userId, me.id), or(isNull(notifications.summaryId), summaryVisible(me))))
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .limit(INBOX_LIMIT);
   }

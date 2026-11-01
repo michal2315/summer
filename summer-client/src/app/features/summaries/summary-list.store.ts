@@ -3,7 +3,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { APP_CONFIG } from '../../core/config/app-config';
 import { ISummariesLength, ISummary, ISummarySearch, SummarySearch } from '../../shared/models';
-import { CollectionService } from '../../shared/services/collection.service';
 import { SummaryService } from '../../shared/services/summary.service';
 
 const EMPTY_LENGTHS: ISummariesLength = { summary: 0, draft: 0, tagged: 0, favorite: 0 };
@@ -11,21 +10,20 @@ const EMPTY_LENGTHS: ISummariesLength = { summary: 0, draft: 0, tagged: 0, favor
 export interface ListQuery {
   ownerId: string;
   search: ISummarySearch;
-  /** When set, list the summaries of this collection instead of the owner's feed. */
-  collectionId?: string | null;
 }
 
 /**
- * State for one summaries list (feed, profile or collection). Provided per page, not root.
+ * State for one summaries list (feed, profile, running summary). Provided per page, not root.
  * Card list uses append paging (skip/limit); table view uses replace paging (pageIndex).
  * Mutations broadcast by SummaryService patch rows in place — no refetch.
  */
 @Injectable()
 export class SummaryListStore {
   private readonly service = inject(SummaryService);
-  private readonly collections = inject(CollectionService);
   private readonly config = inject(APP_CONFIG);
   readonly limit = this.config.summariesLimit;
+  /** Set by the browser: open a running summary through the `runningId` query param (home page) instead of its own page. */
+  readonly runningInPlace = signal(false);
   readonly maxSelection = this.config.maxToExport;
 
   private query: ListQuery | null = null;
@@ -40,7 +38,7 @@ export class SummaryListStore {
   readonly version = signal(0);
   private readonly tab = signal<SummarySearch>(SummarySearch.Summary);
 
-  // ---- selection mode (export / bulk edits / remove-from-collection) ----
+  // ---- selection mode (export / bulk edits) ----
   readonly selectMode = signal(false);
   /** Selected id → its row as listed when selected (kept across pages, so bulk actions know kind and canEdit). */
   private readonly selection = signal<ReadonlyMap<string, ISummary | undefined>>(new Map());
@@ -105,7 +103,7 @@ export class SummaryListStore {
     this.fetch((pageIndex - 1) * this.limit, 'replace');
   }
 
-  /** Same query again (e.g. after summaries were removed from the collection). */
+  /** Same query again (e.g. after a bulk edit). */
   reload() {
     if (this.query) this.load(this.query);
   }
@@ -152,8 +150,7 @@ export class SummaryListStore {
     this.inflight?.unsubscribe();
     this.loading.set(true);
     const search = { ...query.search, skip, limit: this.limit };
-    const request = query.collectionId ? this.collections.summaries(query.collectionId, search) : this.service.search(query.ownerId, search);
-    this.inflight = request.subscribe({
+    this.inflight = this.service.search(query.ownerId, search).subscribe({
       next: ({ summaries, lengths }) => {
         this.summaries.update((cur) => (mode === 'append' ? [...cur, ...summaries] : summaries));
         this.lengths.set(lengths);

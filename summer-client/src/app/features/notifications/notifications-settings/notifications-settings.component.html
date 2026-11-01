@@ -37,10 +37,10 @@
   <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
 
   @if (service.rules() === null) {
-    <nz-skeleton [nzActive]="true" />
+    <div class="list"><app-skeleton variant="rows" [count]="4" /></div>
   } @else {
     <ul class="list">
-      @for (r of filtered(); track r._id) {
+      @for (r of page.items(); track r._id) {
         <li class="item" [class.paused]="!r.isNotify">
           <div class="text">
             <span class="rule-name">
@@ -86,5 +86,8 @@
         <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="service.filter() ? 'אין כללים תואמים' : 'עדיין אין כללי התראה'" />
       }
     </ul>
+    @if (page.hasMore()) {
+      <div class="sentinel" (appInView)="page.more()" [appInViewKey]="page.items().length"></div>
+    }
   }
 </div>

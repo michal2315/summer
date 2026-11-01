@@ -5,7 +5,6 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subscription } from 'rxjs';
@@ -13,10 +12,12 @@ import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
 import { CapsuleCatchComponent } from '../../../shared/components/capsules/capsule-catch/capsule-catch.component';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
+import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { ColorPickerComponent } from '../../../shared/components/color-picker/color-picker.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { FieldsType, ISummary, ISummaryField, ISummarySearch, SUMMARY_KIND_LABEL, SearchType, SummaryKind } from '../../../shared/models';
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
+import { hierarchyParams } from '../../../shared/services/folder.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { MatchNavComponent } from '../match-nav/match-nav.component';
 import { SummaryActionsService } from '../summary-actions.service';
@@ -33,10 +34,10 @@ const SNAPSHOT_KEY = 'currSummary';
     NzCollapseModule,
     NzEmptyModule,
     NzIconModule,
-    NzSkeletonModule,
     NzTagModule,
     NzToolTipModule,
     AvatarComponent,
+    SkeletonComponent,
     CapsuleCatchComponent,
     ColorPickerComponent,
     ContentTypeIconComponent,
@@ -76,6 +77,7 @@ export class SummaryDetailComponent {
   readonly notFound = signal(false);
 
   readonly T = SearchType;
+  readonly hierarchyParams = hierarchyParams;
   readonly isMine = computed(() => this.summary()?.user._id === this.users.userId());
 
   private inflight?: Subscription;

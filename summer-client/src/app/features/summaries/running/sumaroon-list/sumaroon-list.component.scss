@@ -19,4 +19,5 @@ li:hover { background: $white; border-color: $border-strong; }
 .lock { color: $gray; }
 .link { color: $accent; }
 .empty { padding: 10px; background: none; border: none; }
-.loader { display: grid; place-items: center; padding: 12px; border: none; background: none; }
+.loader { padding: 4px 0; }
+.sentinel { height: 1px; }

@@ -1,7 +1,7 @@
 import { Harness, createHarness } from './harness';
 import { Lookups, createSummary, lookups, summaryPayload } from './fixtures';
 
-describe('summaries, collections, comments, personal state', () => {
+describe('summaries, comments, personal state', () => {
   let h: Harness;
   let l: Lookups;
 
@@ -96,8 +96,10 @@ describe('summaries, collections, comments, personal state', () => {
       'dlevi',
       summaryPayload(l, { title: 'קנגורו ב', contentType: l.type('lecture'), summaryFields: [{ field: courseField, value: 'קורס' }], eventDate: '2026-05-10' }),
     );
-    const col = (await h.as('mgolan').post('/collection/create').send({ name: 'אוסף קנגורו', permissions: [l.perm('cs-faculty')], managers: [] })).body;
-    await h.as('mgolan').post('/collection/add').send({ collectionIds: [col._id], summaryIds: [a._id] }).expect(201);
+    // a sits in מדעי המחשב, a subfolder of סמסטר א׳: filtering by a folder includes its subfolders.
+    const [semester] = await h.sql<{ id: string }>(`select id from folders where name = 'סמסטר א׳'`);
+    const [cs] = await h.sql<{ id: string }>(`select id from folders where name = 'מדעי המחשב'`);
+    await h.as('mgolan').post(`/folder/${cs.id}/items`).send({ summaryIds: [a._id] }).expect(201);
     const dlevi = await myId('dlevi');
 
     const cond = (field: string, op: string, more: object) => ({ type: 'cond', field, op, ...more });
@@ -110,8 +112,8 @@ describe('summaries, collections, comments, personal state', () => {
     expect(await run(group('AND', cond('title', 'none', { words: ['א'] })))).toBe(1);
     expect(await run(group('AND', cond('author', 'isNot', { values: [dlevi] })))).toBe(1);
     expect(await run(group('AND', cond('contentType', 'isOneOf', { values: ['lecture'] })))).toBe(1);
-    expect(await run(group('AND', cond('collection', 'isOneOf', { values: [col._id] })))).toBe(1);
-    expect(await run(group('AND', cond('collection', 'isNot', { values: [col._id] })))).toBe(1);
+    expect(await run(group('AND', cond('folder', 'isOneOf', { values: [semester.id] })))).toBe(1);
+    expect(await run(group('AND', cond('folder', 'isNot', { values: [cs.id] })))).toBe(1);
     expect(await run(group('AND', cond('eventDate', 'after', { from: '2026-04-01T00:00:00.000Z' })))).toBe(1);
     // (content has שפן OR author is dlevi) AND event date before March → only a
     expect(
@@ -129,37 +131,19 @@ describe('summaries, collections, comments, personal state', () => {
     await h.as('mgolan').get('/summary/count').query({ query: JSON.stringify(group('AND', cond('author', 'isOneOf', { values: ['x'] }))) }).expect(400);
   });
 
-  it('collections: needs permissions; adding needs summary edit rights; removal and deletion keep the summary', async () => {
-    await h.as('mgolan').post('/collection/create').send({ name: 'ריק', permissions: [], managers: [] }).expect(400);
-    const col = (await h.as('mgolan').post('/collection/create').send({ name: 'אוסף בדיקה', permissions: [l.perm('cs-faculty')], managers: [] }).expect(201)).body;
-    expect(col.managers).toEqual([l.user('mgolan')]);
-
-    const { body: s } = await createSummary(h, 'mgolan', summaryPayload(l));
-    await h.as('dlevi').post('/collection/add').send({ collectionIds: [col._id], summaryIds: [s._id] }).expect(403);
-    await h.as('mgolan').post('/collection/add').send({ collectionIds: [col._id], summaryIds: [s._id] }).expect(201);
-    expect((await h.as('mgolan').get(`/collection/${col._id}`)).body.summaries).toEqual([s._id]);
-    expect((await h.as('mgolan').get(`/summary/${s._id}/false`)).body.collectionIds).toEqual([{ _id: col._id, name: 'אוסף בדיקה' }]);
-
-    await h.as('dlevi').post(`/collection/edit/${col._id}`).send({ name: 'x', permissions: [l.perm('cs-faculty')], managers: [] }).expect(403);
-    await h.as('mgolan').post(`/collection/edit/${col._id}`).send({ name: 'אוסף', permissions: [l.perm('cs-faculty')], managers: [], summaries: [s._id] }).expect(201);
-    expect((await h.as('mgolan').get(`/collection/${col._id}`)).body.summaries).toEqual([]);
-
-    await h.as('mgolan').delete(`/collection/${col._id}`).expect(200);
-    await h.as('mgolan').get(`/summary/${s._id}/false`).expect(200);
-  });
-
-  it('keeps memberships in collections the editor cannot see when they save the summary', async () => {
-    // A math-only collection (dlevi cannot see it) holding dlevi's summary.
-    const col = (await h.as('mgolan').post('/collection/create').send({ name: 'מתמטיקה בלבד', permissions: [l.perm('math-faculty')], managers: [] })).body;
+  it('keeps a summary in a folder the editor cannot see when they save it', async () => {
+    // A staff-only folder (dlevi cannot see it) holding dlevi's summary.
+    const [staff] = await h.sql<{ id: string }>(`select id from folders where name = 'חומרי הוראה לסגל'`);
     const { body: s } = await createSummary(h, 'dlevi', summaryPayload(l));
-    await h.sql('insert into summary_collections (summary_id, collection_id) values ($1, $2)', [s._id, col._id]);
+    await h.sql('insert into folder_summaries (summary_id, folder_id) values ($1, $2)', [s._id, staff.id]);
+    expect((await h.as('dlevi').get(`/summary/${s._id}/false`)).body.folder).toBeNull();
 
     await h
       .as('dlevi')
       .put('/summary')
-      .field('summary', JSON.stringify(summaryPayload(l, { id: s._id, collectionIds: [] })))
+      .field('summary', JSON.stringify(summaryPayload(l, { id: s._id, folderId: null })))
       .expect(200);
-    expect(await h.sql('select 1 from summary_collections where summary_id = $1 and collection_id = $2', [s._id, col._id])).toHaveLength(1);
+    expect(await h.sql('select 1 from folder_summaries where summary_id = $1 and folder_id = $2', [s._id, staff.id])).toHaveLength(1);
   });
 
   it('comments: viewers comment, the author is notified, only the comment author deletes', async () => {
@@ -201,24 +185,19 @@ describe('summaries, collections, comments, personal state', () => {
   });
 
   it('summary templates: personal, saved by name, and drop what the owner can no longer see', async () => {
-    const math = (await h.as('mgolan').post('/collection/create').send({ name: 'תבנית מתמטיקה', permissions: [l.perm('math-faculty')], managers: [] })).body;
-    const cs = (await h.as('mgolan').post('/collection/create').send({ name: 'תבנית מדמ"ח', permissions: [l.perm('cs-faculty')], managers: [] })).body;
     const template = {
       name: 'הקורס שלי',
       permissions: [l.perm('cs-faculty')],
       taggedUsers: [l.user('aperetz'), l.user('aperetz')],
       labels: ['שבוע 1'],
-      collections: [cs._id, math._id],
     };
 
-    // dlevi cannot see the math collection, so it is left out.
     const [saved] = (await h.as('dlevi').post('/user/templates').send(template).expect(201)).body;
     expect(saved).toMatchObject({
       name: 'הקורס שלי',
       permissions: [l.perm('cs-faculty')],
       taggedUsers: [{ username: 'aperetz' }],
       labels: ['שבוע 1'],
-      collections: [{ _id: cs._id, name: 'תבנית מדמ"ח' }],
       folder: null,
     });
 

@@ -17,6 +17,9 @@ export class NotificationService {
   private started = false;
 
   readonly items = this._items.asReadonly();
+  private readonly _loaded = signal(false);
+  /** The first poll has answered (or failed). */
+  readonly loaded = this._loaded.asReadonly();
   readonly unread = computed(() => this._items().filter((n) => !n.isViewed).length);
 
   /** Poll every notificationsPollMs while the tab is visible; refetch immediately when it becomes visible again. */
@@ -28,12 +31,20 @@ export class NotificationService {
       .pipe(
         switchMap(() => (document.hidden ? EMPTY : timer(0, this.config.notificationsPollMs))),
         switchMap(() =>
-          this.http.get<INotification[]>(BASE, { context: new HttpContext().set(SILENT_ERRORS, true) }).pipe(catchError(() => EMPTY)),
+          this.http.get<INotification[]>(BASE, { context: new HttpContext().set(SILENT_ERRORS, true) }).pipe(
+            catchError(() => {
+              this._loaded.set(true);
+              return EMPTY;
+            }),
+          ),
         ),
         filter(Array.isArray),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((items) => this._items.set(items));
+      .subscribe((items) => {
+        this._items.set(items);
+        this._loaded.set(true);
+      });
   }
 
   markViewed(id: string): void {

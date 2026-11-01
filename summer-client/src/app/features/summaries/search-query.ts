@@ -10,7 +10,7 @@ const KEYS = {
   colors: 'colors',
   users: 'users',
   labels: 'labels',
-  collections: 'collections',
+  folders: 'folders',
   dates: 'event',
   createdDates: 'created',
   sort: 'sort',
@@ -43,7 +43,7 @@ export function searchFromParams(p: Params): ISummarySearch {
     colors: list(p[KEYS.colors])?.map((c) => (c.startsWith('#') ? c : `#${c}`)),
     users: list(p[KEYS.users]),
     labels: list(p[KEYS.labels]),
-    collections: list(p[KEYS.collections]),
+    folders: list(p[KEYS.folders]),
     dates: list(p[KEYS.dates]),
     createdDates: list(p[KEYS.createdDates]),
     sort: (p[KEYS.sort] as SortKey) || undefined,
@@ -60,7 +60,7 @@ export function searchToParams(s: ISummarySearch): Params {
     [KEYS.colors]: join(s.colors?.map((c) => c.replace('#', ''))),
     [KEYS.users]: join(s.users),
     [KEYS.labels]: join(s.labels),
-    [KEYS.collections]: join(s.collections),
+    [KEYS.folders]: join(s.folders),
     [KEYS.dates]: join(s.dates),
     [KEYS.createdDates]: join(s.createdDates),
     [KEYS.sort]: s.sort && s.sort !== DEFAULT_SORT ? s.sort : null,
@@ -70,12 +70,12 @@ export function searchToParams(s: ISummarySearch): Params {
 
 /** Number of active advanced filters (badge on the search box). */
 export function activeFilterCount(s: ISummarySearch): number {
-  const lists = [s.searchTypes, s.contentTypes, s.colors, s.users, s.labels, s.collections, s.dates, s.createdDates].filter((v) => v?.length).length;
+  const lists = [s.searchTypes, s.contentTypes, s.colors, s.users, s.labels, s.folders, s.dates, s.createdDates].filter((v) => v?.length).length;
   return lists + (s.query ? countConditions(s.query) : 0);
 }
 
 /** What a search alert keeps: the filters that select summaries (no paging, sort, buckets or profile scope). Same list as the server. */
-const ALERT_KEYS = ['text', 'searchTypes', 'contentTypes', 'colors', 'users', 'labels', 'collections', 'dates', 'createdDates', 'query'] as const;
+const ALERT_KEYS = ['text', 'searchTypes', 'contentTypes', 'colors', 'users', 'labels', 'folders', 'dates', 'createdDates', 'query'] as const;
 
 export function alertSearch(s: ISummarySearch): ISummarySearch {
   const out: Record<string, unknown> = {};

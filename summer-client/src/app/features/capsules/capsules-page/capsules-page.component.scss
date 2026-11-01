@@ -113,3 +113,11 @@
 .spacer {
   flex: 1;
 }
+
+app-skeleton.grid {
+  --tile-min: 300px;
+}
+
+.sentinel {
+  height: 1px;
+}

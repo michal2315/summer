@@ -30,18 +30,10 @@
             </nz-select>
           </label>
           <label>
-            <span>לקטים</span>
-            <nz-select
-              nzMode="multiple"
-              nzShowSearch
-              nzServerSearch
-              [ngModel]="collections()"
-              (ngModelChange)="collections.set($event)"
-              (nzOnSearch)="searchCollections($event)"
-              nzPlaceHolder="הוספה ללקטים (לא חובה)"
-            >
-              @for (c of collectionOptions(); track c._id) {
-                <nz-option [nzValue]="c._id" [nzLabel]="c.name" />
+            <span>תיקייה</span>
+            <nz-select nzShowSearch nzAllowClear [ngModel]="folder()" (ngModelChange)="folder.set($event)" nzPlaceHolder="שיוך לתיקייה (לא חובה)">
+              @for (f of folderOptions(); track f._id) {
+                <nz-option [nzValue]="f._id" [nzLabel]="f.path" />
               }
             </nz-select>
           </label>
