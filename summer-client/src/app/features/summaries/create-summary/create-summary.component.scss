@@ -318,22 +318,80 @@
   }
 }
 
+.add-notes {
+  align-self: flex-start;
+  margin-bottom: 14px;
+}
+
+.drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 0;
+  color: $dark-gray;
+  [nz-icon] {
+    font-size: 22px;
+    color: $primary-orange;
+  }
+}
+
 .existing {
   list-style: none;
   padding: 0;
   margin: 0 0 8px;
 }
 
+// Save bar: stays at the bottom of the screen while the form scrolls.
 .actions {
   position: sticky;
   bottom: 0;
   background: $white;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   padding: 12px 0;
   border-top: 1px solid #f0f0f0;
   z-index: 5;
+  .spacer {
+    flex: 1;
+  }
+  .reset {
+    color: $dark-gray;
+  }
+  .autosaved {
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  // What's still missing after a failed publish; clicking jumps to the first one.
+  .missing {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: $error-color;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  @media (max-width: $bp-mobile) {
+    flex-wrap: wrap;
+    .missing {
+      max-width: 100%;
+      order: -1;
+      flex-basis: 100%;
+    }
+  }
 }
 
 .loading-more {

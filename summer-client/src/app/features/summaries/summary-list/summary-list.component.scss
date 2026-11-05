@@ -4,6 +4,8 @@
 .loader { display: grid; place-items: center; padding: 24px; }
 .empty { padding: 48px 0; }
 .sentinel { height: 1px; }
+// Easter egg: exactly one search result — laid out like the empty state (global .empty-state), under the card.
+.direct-hit { padding-top: 32px; }
 
 // Feed: a running summary's new sumaroons bundled into one row (looks like a small stack, not a full card).
 .bundle {

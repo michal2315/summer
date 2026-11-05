@@ -3,17 +3,15 @@
 :host {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   font-size: 12px;
   font-weight: 700;
-  line-height: 20px;
+  line-height: 22px;
+  white-space: nowrap;
 }
 
 .shown {
-  padding: 0 8px;
-  border-radius: 999px;
-  background: $pink-50;
-  color: $pink-strong;
+  color: $dark-gray;
 }
 
 .hidden {
@@ -21,9 +19,9 @@
   align-items: center;
   gap: 4px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: 10px;
   background: $gray-tag;
-  color: $gray;
+  color: $dark-gray;
   cursor: help;
   &:hover,
   &:focus-visible {

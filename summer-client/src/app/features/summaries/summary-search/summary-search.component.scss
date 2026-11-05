@@ -46,6 +46,7 @@ $tok-not-bg: #fde3e8;
   &:hover {
     border-color: $gray;
   }
+  &.open,
   &.focused {
     border-color: $dark-blue;
     box-shadow: 0 0 0 3px rgba(5, 4, 61, 0.08);
