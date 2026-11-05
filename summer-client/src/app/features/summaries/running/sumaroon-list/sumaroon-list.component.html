@@ -5,10 +5,6 @@
     <span class="range">{{ r.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ r.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
     <a class="page-link" [routerLink]="['/running', r._id]">לעמוד תמצית הרצף</a>
     <span class="spacer"></span>
-    <nz-radio-group [ngModel]="sort()" (ngModelChange)="sort.set($event)" nzSize="small" nzButtonStyle="solid" aria-label="מיון">
-      <label nz-radio-button nzValue="eventDate">לפי תאריך</label>
-      <label nz-radio-button nzValue="creationDate">לפי מועד כתיבה</label>
-    </nz-radio-group>
     <a nz-button nzType="primary" nzSize="small" routerLink="/summaries/new" [queryParams]="{ parentId: r._id }">
       <span nz-icon nzType="plus"></span> תמציתונית
     </a>

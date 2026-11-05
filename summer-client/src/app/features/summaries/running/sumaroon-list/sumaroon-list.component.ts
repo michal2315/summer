@@ -1,16 +1,14 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subscription, merge } from 'rxjs';
 import { UserService } from '../../../../core/auth/user.service';
 import { InViewDirective } from '../../../../shared/components/in-view.directive';
 import { SkeletonComponent } from '../../../../shared/components/skeleton/skeleton.component';
-import { ISummary, SortKey, SummaryKind } from '../../../../shared/models';
+import { ISummary, SummaryKind } from '../../../../shared/models';
 import { DateFormatPipe } from '../../../../shared/pipes/pipes';
 import { SummaryService } from '../../../../shared/services/summary.service';
 
@@ -19,7 +17,7 @@ const PAGE = 30;
 /** The sumaroons (תמציתוניות) of a running summary, shown inside its detail view. */
 @Component({
   selector: 'app-sumaroon-list',
-  imports: [FormsModule, RouterLink, NzButtonModule, NzIconModule, NzRadioModule, NzToolTipModule, DateFormatPipe, InViewDirective, SkeletonComponent],
+  imports: [RouterLink, NzButtonModule, NzIconModule, NzToolTipModule, DateFormatPipe, InViewDirective, SkeletonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sumaroon-list.component.html',
   styleUrl: './sumaroon-list.component.scss',
@@ -32,7 +30,6 @@ export class SumaroonListComponent {
 
   readonly running = input.required<ISummary>();
 
-  readonly sort = signal<Extract<SortKey, 'eventDate' | 'creationDate'>>('eventDate');
   readonly items = signal<ISummary[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
@@ -43,7 +40,6 @@ export class SumaroonListComponent {
   constructor() {
     effect(() => {
       this.running()._id;
-      this.sort();
       untracked(() => {
         this.items.set([]);
         this.fetch(0, PAGE);
@@ -63,7 +59,7 @@ export class SumaroonListComponent {
 
   /** skip 0 replaces the list; anything else appends to it. */
   private fetch(skip: number, limit: number) {
-    const search = { parentId: this.running()._id, kinds: [SummaryKind.Sumaroon], sort: this.sort(), limit, skip };
+    const search = { parentId: this.running()._id, kinds: [SummaryKind.Sumaroon], sort: 'eventDate' as const, limit, skip }; // sumaroons always run in timestamp order
     this.inflight?.unsubscribe();
     this.loading.set(true);
     this.inflight = this.service.search(this.users.userId()!, search).subscribe({

@@ -62,19 +62,15 @@ export class SumaroonTimelineComponent {
 
   readonly T = SearchType;
 
-  /** The date the list is ordered by: creation date when sorted by it, else the event date. */
-  private readonly byCreation = computed(() => (this.search()?.sort ?? 'eventDate').includes('creationDate'));
-  private readonly descending = computed(() => (this.search()?.sort ?? 'eventDate').startsWith('-'));
 
   readonly months = computed<Month[]>(() => {
     const list = this.store.summaries();
-    const total = this.store.total();
     const months: Month[] = [];
     list.forEach((summary, index) => {
-      const date = this.byCreation() ? summary.creationDate : summary.eventDate;
-      const time = this.byCreation() ? summary.creationDate : summary.eventSecTime;
+      const date = summary.eventDate;
+      const time = summary.eventSecTime;
       const key = date ? format(new Date(date), 'yyyy-MM') : 'none';
-      const step: Step = { summary, number: this.descending() ? total - index : index + 1, date, time };
+      const step: Step = { summary, number: index + 1, date, time };
       const last = months.at(-1);
       if (last?.key === key) last.steps.push(step);
       else months.push({ key, label: date ? format(new Date(date), 'MMMM yyyy', { locale: he }) : 'ללא תאריך', steps: [step] });

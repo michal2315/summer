@@ -115,7 +115,8 @@ export class SummaryBrowserComponent {
   });
   /** A running summary reads in order: earliest first by default. */
   private readonly defaultSort = computed<SortKey>(() => (this.runningId() ? 'eventDate' : DEFAULT_SORT));
-  readonly sort = computed<SortKey>(() => this.search().sort ?? this.defaultSort());
+  // Sumaroons always run in timestamp order; only other lists can be re-sorted.
+  readonly sort = computed<SortKey>(() => (this.runningId() ? 'eventDate' : (this.search().sort ?? this.defaultSort())));
   /** The search with its effective sort filled in (the timeline numbers and groups by it). */
   readonly sortedSearch = computed<ISummarySearch>(() => ({ ...this.search(), sort: this.sort() }));
   /** Anything searched or filtered (sort and view don't count). */

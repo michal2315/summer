@@ -44,7 +44,9 @@
     }
     <app-summary-actions-bar [excelActions]="excelActions()" />
     <span class="spacer"></span>
-    <app-sort-row [sort]="sort()" (sortChange)="onSort($event)" />
+    @if (!runningId()) {
+      <app-sort-row [sort]="sort()" (sortChange)="onSort($event)" />
+    }
     <nz-radio-group [ngModel]="view()" (ngModelChange)="setView($event)" nzSize="small" nzButtonStyle="solid" aria-label="תצוגה">
       @if (runningId()) {
         <label nz-radio-button nzValue="timeline" aria-label="תצוגת ציר"><span nz-icon nzType="field-time"></span></label>
