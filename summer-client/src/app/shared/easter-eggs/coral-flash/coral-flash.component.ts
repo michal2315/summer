@@ -21,8 +21,8 @@ const SPAWN_GAP = 24;
 const MAX_SPARKLES = 60;
 
 /**
- * The "coral" search easter egg, for our other product manager (a very pink person): for a few seconds the brand bits
- * go hot pink (`html.coral-mode` in styles.scss), and the cursor leaves a trail of pink sparkles and hearts.
+ * The "coral" search easter egg, for our other product manager (a very pink person): for a few seconds Summy goes
+ * pink (`html.coral-mode` in styles.scss), and the cursor leaves a trail of pink sparkles and hearts.
  */
 @Component({
   selector: 'app-coral-flash',

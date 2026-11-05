@@ -11,15 +11,6 @@
   --gradient-end: #{$primary-pink};
   --hover-start: #ec854d;
   --hover-end: #e7364b;
-  // Fades the brand colours in and out of Coral's pink mode (see the end of this file).
-  transition:
-    --primary-orange 0.5s ease,
-    --orange-50 0.5s ease,
-    --orange-100 0.5s ease,
-    --orange-strong 0.5s ease,
-    --gradient-end 0.5s ease,
-    --hover-start 0.5s ease,
-    --hover-end 0.5s ease;
   --dark-blue: #{$dark-blue};
   --gray: #{$gray};
   --app-background: #{$app-background};
@@ -193,28 +184,25 @@ body {
 }
 
 // ---- Coral's pink mode (shared/easter-eggs/coral-flash) ----
-// While the "coral" egg runs, every brand orange (tokens are CSS variables) swaps for hot pink.
-// Registered so the swap can fade (the transition is on :root).
-@each $name in primary-orange, orange-50, orange-100, orange-strong, gradient-end, hover-start, hover-end {
+// While the "coral" egg runs, Summy turns pink (the cursor trail is the component's own); the rest of the app keeps
+// its colours. Registered so Summy's colours can fade in and out.
+@each $name in primary-orange, summy-face, summy-rays {
   @property --#{$name} {
     syntax: '<color>';
     inherits: true;
     initial-value: transparent;
   }
 }
-html.coral-mode {
+app-summy {
+  --summy-face: #ffc94a;
+  --summy-rays: #{$star};
+  transition:
+    --primary-orange 0.5s ease,
+    --summy-face 0.5s ease,
+    --summy-rays 0.5s ease;
+}
+html.coral-mode app-summy {
   --primary-orange: #ff7eb9;
-  --orange-50: #fff0f7;
-  --orange-100: #ffd6ea;
-  --orange-strong: #c2185b;
-  --gradient-end: #e8257d;
-  --hover-start: #f06aa8;
-  --hover-end: #c81d6c;
-
-  .highlight {
-    background: #ffb3d9;
-  }
-  .highlight.highlight-current {
-    background: #ff5fa8;
-  }
+  --summy-face: #ffb3d9;
+  --summy-rays: #ff85c0;
 }

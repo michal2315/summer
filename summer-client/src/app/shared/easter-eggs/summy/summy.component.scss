@@ -14,7 +14,7 @@
 }
 
 .rays {
-  fill: $star;
+  fill: var(--summy-rays, #{$star}); // pink in Coral's pink mode (styles.scss)
   transform-origin: 60px 60px;
   animation: spin 18s linear infinite;
 }
