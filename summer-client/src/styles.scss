@@ -4,7 +4,22 @@
 
 :root {
   --primary-pink: #{$primary-pink};
-  --primary-orange: #{$primary-orange};
+  --primary-orange: #{$primary-orange-hex};
+  --orange-50: #{$orange-50-hex};
+  --orange-100: #ffe6d6;
+  --orange-strong: #c2571b;
+  --gradient-end: #{$primary-pink};
+  --hover-start: #ec854d;
+  --hover-end: #e7364b;
+  // Fades the brand colours in and out of Coral's pink mode (see the end of this file).
+  transition:
+    --primary-orange 0.5s ease,
+    --orange-50 0.5s ease,
+    --orange-100 0.5s ease,
+    --orange-strong 0.5s ease,
+    --gradient-end 0.5s ease,
+    --hover-start 0.5s ease,
+    --hover-end 0.5s ease;
   --dark-blue: #{$dark-blue};
   --gray: #{$gray};
   --app-background: #{$app-background};
@@ -164,6 +179,10 @@ body {
 .ant-dropdown-menu-item,
 .ant-select-item {
   border-radius: $radius-sm;
+}
+// Multi-selects whose options carry their own buttons: the selected background is enough, the tick crowds them.
+.no-check .ant-select-item-option-state {
+  display: none;
 }
 .ant-popover-title {
   font-weight: 700;
@@ -352,5 +371,38 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+// ---- Coral's pink mode (shared/easter-eggs/coral-flash) ----
+// While the "coral" egg runs, every brand orange (tokens are CSS variables) swaps for hot pink.
+// Registered so the swap can fade (the transition is on :root).
+@each $name in primary-orange, orange-50, orange-100, orange-strong, gradient-end, hover-start, hover-end {
+  @property --#{$name} {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: transparent;
+  }
+}
+html.coral-mode {
+  --primary-orange: #ff7eb9;
+  --orange-50: #fff0f7;
+  --orange-100: #ffd6ea;
+  --orange-strong: #c2185b;
+  --gradient-end: #e8257d;
+  --hover-start: #f06aa8;
+  --hover-end: #c81d6c;
+
+  .ant-btn-primary:not([disabled]) {
+    box-shadow: 0 4px 14px -4px rgba(#e8257d, 0.6);
+  }
+  .highlight {
+    background: #ffb3d9;
+    box-shadow:
+      inset 0 -2px 0 #e8257d,
+      0 0 0 1px rgba(#e8257d, 0.35);
+  }
+  .highlight.highlight-current {
+    background: #ff5fa8;
   }
 }

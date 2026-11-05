@@ -35,6 +35,8 @@ export class ProfileComponent {
       : { title: 'אין תמציות שאפשר להציג כאן' },
   );
   readonly isFollowing = computed(() => this.users.user()?.following.includes(this.userId()) ?? false);
+  readonly isPinned = computed(() => this.users.isPinnedUser(this.userId()));
+  readonly pinBusy = signal(false);
 
   constructor() {
     effect(() => {
@@ -53,5 +55,10 @@ export class ProfileComponent {
     this.busy.set(true);
     const req = this.isFollowing() ? this.users.unfollow(id) : this.users.follow(id);
     req.subscribe({ complete: () => this.busy.set(false), error: () => this.busy.set(false) });
+  }
+
+  togglePin(id: string) {
+    this.pinBusy.set(true);
+    this.users.pinUser(id).subscribe({ complete: () => this.pinBusy.set(false), error: () => this.pinBusy.set(false) });
   }
 }

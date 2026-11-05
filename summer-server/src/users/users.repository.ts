@@ -10,6 +10,7 @@ import {
   userPinnedLabels,
   userPinnedPermissions,
   userPinnedSearches,
+  userPinnedUsers,
   users,
 } from '../database/schema';
 import { VerifiedIdentity } from '../auth/identity-provider';
@@ -121,7 +122,7 @@ export class UsersRepository {
           .orderBy(asc(table.createdAt))
       ).map((r) => r.name);
 
-    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, following] = await Promise.all([
+    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, pinnedUsers, following] = await Promise.all([
       this.db
         .select({ search: userPinnedSearches.search })
         .from(userPinnedSearches)
@@ -131,6 +132,13 @@ export class UsersRepository {
       labelNames(userPinnedLabels),
       labelNames(userFavLabels),
       ids(userPinnedPermissions, userPinnedPermissions.permissionId),
+      this.db
+        .select(refColumns)
+        .from(userPinnedUsers)
+        .innerJoin(users, eq(users.id, userPinnedUsers.pinnedUserId))
+        .where(and(eq(userPinnedUsers.userId, userId), eq(users.isActive, true)))
+        .orderBy(asc(userPinnedUsers.createdAt))
+        .then((rows) => rows.map(toRef)),
       this.db
         .select({ v: userFollows.followedId })
         .from(userFollows)
@@ -145,6 +153,7 @@ export class UsersRepository {
       pinnedLabels,
       favoriteLabels,
       pinnedPermissions,
+      pinnedUsers,
       following,
       recentExtraField: [],
     };

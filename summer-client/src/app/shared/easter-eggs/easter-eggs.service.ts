@@ -1,13 +1,14 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, inject, signal } from '@angular/core';
 
-export type Flash = 'summer' | 'tavor' | 'tomer';
+export type Flash = 'summer' | 'tavor' | 'tomer' | 'coral';
 
 /** Search words → the overlay they trigger, and how long it stays (ms; matches each overlay's $duration). */
 const FLASHES: Record<Flash, { words: string[]; ms: number }> = {
   summer: { words: ['summer', 'סאמר'], ms: 2400 },
   tavor: { words: ['tavor', 'תבור'], ms: 3400 },
   tomer: { words: ['tomer', 'תומר'], ms: 3200 },
+  coral: { words: ['coral', 'קורל'], ms: 4000 },
 };
 
 /** Shown in the browser tab while the user is on another tab. One is picked per visit away. */

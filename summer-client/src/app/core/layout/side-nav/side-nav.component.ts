@@ -8,7 +8,7 @@ import { NotificationBellComponent } from '../../../shared/components/notificati
 import { WhatsNewService } from '../../../shared/components/whats-new';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { UserService } from '../../auth/user.service';
-import { APP_CONFIG } from '../../config/app-config';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { AltKeyId } from '../../../shared/keyboard/alt-keys';
 import { TourService } from '../../../shared/tour/tour.service';
@@ -29,7 +29,7 @@ interface NavItem {
 })
 export class SideNavComponent {
   private readonly users = inject(UserService);
-  private readonly config = inject(APP_CONFIG);
+  private readonly modal = inject(NzModalService);
   private readonly dashboardPermitted = toSignal(inject(PermissionService).dashboardAccess().pipe(catchError(() => of(false))), {
     initialValue: false,
   });
@@ -38,7 +38,12 @@ export class SideNavComponent {
   readonly tour = inject(TourService);
   readonly navigate = output<void>();
   readonly user = this.users.user;
-  readonly contactHref = `mailto:${this.config.usersMail.join(',')}?subject=${encodeURIComponent('פנייה בנושא Summer')}`;
+
+  /** Sunny team (helpdesk) popup; lazy-loaded so it stays out of the initial bundle. */
+  async openHelpdesk() {
+    const { HelpdeskModalComponent } = await import('../../../shared/components/helpdesk-modal/helpdesk-modal.component');
+    this.modal.create({ nzTitle: 'צוות סאני', nzContent: HelpdeskModalComponent, nzFooter: null, nzWidth: 440 });
+  }
 
   readonly items = computed<NavItem[]>(() => {
     const items: NavItem[] = [

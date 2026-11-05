@@ -23,6 +23,8 @@ export interface ApiUser extends UserRef {
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
+  /** oldest pin first; inactive users are left out */
+  pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
 }

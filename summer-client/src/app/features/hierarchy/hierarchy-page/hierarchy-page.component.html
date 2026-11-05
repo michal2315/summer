@@ -77,11 +77,6 @@
                 @for (item of u.items; track item._id) {
                   <ng-container *ngTemplateOutlet="summaryItem; context: { $implicit: item, folderId: NO_FOLDER, folder: null }" />
                 }
-                @if (u.total > u.items.length) {
-                  <li class="more-items">
-                    <a routerLink="/summaries" [queryParams]="{ folderId: NO_FOLDER }">ועוד {{ u.total - u.items.length }} תמציות ללא תיקייה</a>
-                  </li>
-                }
               } @else {
                 <li class="loading" aria-hidden="true"><app-skeleton variant="tree" [count]="3" /></li>
               }

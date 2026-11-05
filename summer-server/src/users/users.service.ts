@@ -74,6 +74,16 @@ export class UsersService {
     return this.me(me);
   }
 
+  /** Removing always works; adding needs an active, non-system user other than the caller. */
+  async togglePinnedUser(me: CurrentUser, userId: unknown): Promise<ApiUser> {
+    if (!isUuid(userId)) throw new NotFoundException();
+    if (userId === me.id) throw new BadRequestException('cannot pin yourself');
+    await this.state.togglePinnedUser(me.id, userId, async () => {
+      if (!(await this.users.existingIds([userId])).length) throw new NotFoundException();
+    });
+    return this.me(me);
+  }
+
   /** A favourite is only added for a summary the caller can see; removing always works. */
   async toggleFavoriteSummary(me: CurrentUser, summaryId: unknown): Promise<ApiUser> {
     if (!isUuid(summaryId)) throw new NotFoundException();

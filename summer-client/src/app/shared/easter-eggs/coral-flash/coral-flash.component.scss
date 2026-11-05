@@ -1,0 +1,51 @@
+.trail {
+  position: fixed;
+  inset: 0;
+  z-index: 1901;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.sparkle {
+  position: absolute;
+  width: var(--size);
+  height: var(--size);
+  margin: calc(var(--size) / -2) 0 0 calc(var(--size) / -2);
+  border-radius: 50%;
+  background: var(--color);
+  box-shadow: 0 0 6px var(--color);
+  animation: fade 0.8s ease-out forwards;
+
+  &.heart {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--color);
+    font-size: calc(var(--size) * 1.6);
+    line-height: 1;
+
+    &::before {
+      content: '♥';
+    }
+  }
+}
+
+@keyframes fade {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0.3);
+  }
+}
+
+// Reduced motion: pink mode only (styles.scss), no trail.
+@media (prefers-reduced-motion: reduce) {
+  .trail {
+    display: none;
+  }
+}

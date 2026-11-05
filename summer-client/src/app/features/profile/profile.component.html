@@ -14,6 +14,16 @@
           <button nz-button [nzType]="isFollowing() ? 'default' : 'primary'" [nzLoading]="busy()" (click)="toggleFollow(p._id)">
             {{ isFollowing() ? 'הסר עוקב' : 'עקוב' }}
           </button>
+          <button
+            nz-button
+            [nzLoading]="pinBusy()"
+            (click)="togglePin(p._id)"
+            [attr.aria-pressed]="isPinned()"
+            [title]="isPinned() ? 'הסרת הנעיצה' : 'נעיצה: יופיע ראשון בתיוג משתמשים'"
+          >
+            <span nz-icon nzType="pushpin" [nzTheme]="isPinned() ? 'fill' : 'outline'"></span>
+            {{ isPinned() ? 'נעוץ' : 'נעיצה' }}
+          </button>
         }
         <button
           nz-button

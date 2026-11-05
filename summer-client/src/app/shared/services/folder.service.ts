@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, Subject, tap } from 'rxjs';
+import { Observable, Subject, shareReplay, tap } from 'rxjs';
 import { FolderPayload, IBulkResult, IFolder, IFolderItem, ISummary, SummaryKind } from '../models';
 
 const BASE = '/api/folder';
@@ -11,10 +11,20 @@ export class FolderService {
 
   /** Emits after any mutation so the tree and the open folder refresh. */
   readonly changed$ = new Subject<void>();
+  private cached$: Observable<IFolder[]> | null = null;
+
+  constructor() {
+    this.changed$.subscribe(() => (this.cached$ = null));
+  }
 
   /** Every folder the user may see, flat — the client builds the tree from parentId. */
   tree(): Observable<IFolder[]> {
     return this.http.get<IFolder[]>(BASE);
+  }
+
+  /** tree(), fetched once and shared until the next mutation (hover popups). */
+  cachedTree(): Observable<IFolder[]> {
+    return (this.cached$ ??= this.tree().pipe(shareReplay(1)));
   }
 
   items(folderId: string): Observable<IFolderItem[]> {

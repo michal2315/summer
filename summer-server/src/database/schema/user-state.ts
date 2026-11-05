@@ -73,6 +73,17 @@ export const userPinnedPermissions = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.permissionId] })],
 );
 
+/** People the user tags often; listed first in user pickers. Directional and private, unlike follows it raises nothing. */
+export const userPinnedUsers = pgTable(
+  'user_pinned_users',
+  {
+    userId: userFk(),
+    pinnedUserId: userFk(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.pinnedUserId] }), check('user_pinned_users_not_self', sql`${t.userId} <> ${t.pinnedUserId}`)],
+);
+
 /** Saved searches: an opaque client search object (ISummarySearch minus paging). */
 export const userPinnedSearches = pgTable(
   'user_pinned_searches',

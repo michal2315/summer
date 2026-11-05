@@ -102,7 +102,18 @@
         <nz-collapse-panel nzHeader="תיקייה">
           <ul class="files">
             <li>
-              <a [routerLink]="['/summaries']" [queryParams]="hierarchyParams(s)"><span nz-icon nzType="folder"></span> {{ f.name }}</a>
+              <a
+                [routerLink]="['/summaries']"
+                [queryParams]="hierarchyParams(s)"
+                nz-popover
+                nzPopoverTrigger="hover"
+                nzPopoverPlacement="bottom"
+                [nzPopoverMouseEnterDelay]="0.3"
+                [nzPopoverContent]="folderInfo"
+              >
+                <span nz-icon nzType="folder"></span> {{ f.name }}
+              </a>
+              <ng-template #folderInfo><app-folder-info [summary]="s" /></ng-template>
             </li>
           </ul>
         </nz-collapse-panel>

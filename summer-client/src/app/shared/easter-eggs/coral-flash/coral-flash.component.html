@@ -1,0 +1,15 @@
+<div class="trail" aria-hidden="true">
+  @for (s of sparkles(); track s.id) {
+    <span
+      class="sparkle"
+      [class.heart]="s.heart"
+      [style.left.px]="s.x"
+      [style.top.px]="s.y"
+      [style.--dx]="s.dx + 'px'"
+      [style.--dy]="s.dy + 'px'"
+      [style.--size]="s.size + 'px'"
+      [style.--color]="s.color"
+      (animationend)="remove(s.id)"
+    ></span>
+  }
+</div>

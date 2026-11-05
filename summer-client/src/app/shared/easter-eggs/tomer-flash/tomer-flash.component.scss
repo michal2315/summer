@@ -11,7 +11,7 @@ $metal-dark: #5f6872;
   z-index: 1900;
   pointer-events: none;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 75%, rgba($white, 0.85) 0%, rgba($orange-50, 0.75) 45%, rgba($pink-50, 0.55) 100%);
+  background: radial-gradient(circle at 50% 75%, rgba($white, 0.85) 0%, rgba($orange-50-hex, 0.75) 45%, rgba($pink-50, 0.55) 100%);
   animation: wash $duration ease-in-out forwards;
 }
 

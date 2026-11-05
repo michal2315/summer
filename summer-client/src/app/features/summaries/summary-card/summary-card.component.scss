@@ -1,6 +1,10 @@
 @use 'tokens' as *;
 @use 'card';
 
+.card {
+  cursor: pointer;
+}
+
 .folder {
   display: inline-flex;
   align-items: center;
@@ -29,15 +33,27 @@
   font-size: 13px;
 }
 
-// Unread: a small brand dot before the author, instead of marking the read ones.
+// Unread: a labelled brand pill at the row's end, instead of marking the read ones.
 .unread {
   flex: none;
-  width: 8px;
-  height: 8px;
-  margin-inline-end: -2px;
-  border-radius: 50%;
-  background: $background;
-  box-shadow: 0 0 0 3px rgba($primary-pink, 0.15);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba($primary-pink, 0.1);
+  color: $pink-strong;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: $background;
+    box-shadow: 0 0 0 2px rgba($primary-pink, 0.2);
+  }
 }
 
 // No colour yet: the picker appears only while the card is hovered or focused.

@@ -11,6 +11,7 @@ import {
   userPinnedLabels,
   userPinnedPermissions,
   userPinnedSearches,
+  userPinnedUsers,
 } from '../database/schema';
 import { summaryVisible } from '../summaries/summary.access';
 
@@ -49,6 +50,18 @@ export class UserStateRepository {
       .where(and(eq(t.userId, userId), eq(t.permissionId, permissionId)))
       .returning({ id: t.permissionId });
     if (!removed.length) await this.db.insert(t).values({ userId, permissionId }).onConflictDoNothing();
+  }
+
+  /** `beforeAdd` runs only when adding (it may throw to refuse). */
+  async togglePinnedUser(userId: string, pinnedUserId: string, beforeAdd: () => Promise<void>): Promise<void> {
+    const t = userPinnedUsers;
+    const removed = await this.db
+      .delete(t)
+      .where(and(eq(t.userId, userId), eq(t.pinnedUserId, pinnedUserId)))
+      .returning({ id: t.pinnedUserId });
+    if (removed.length) return;
+    await beforeAdd();
+    await this.db.insert(t).values({ userId, pinnedUserId }).onConflictDoNothing();
   }
 
   /** Returns true when the summary is now a favourite. */

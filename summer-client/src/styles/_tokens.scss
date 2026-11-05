@@ -4,19 +4,23 @@ $content-padding: 4rem;
 
 // Brand — orange → pink stays the app's identity
 $primary-pink: #ff4056;
-$primary-orange: #ff9155;
+// The orange family are CSS variables (set in styles.scss) so Coral's pink mode can swap them at runtime. Sass colour
+// functions (rgba() etc.) can't take a variable, so they use the raw hex: $primary-orange-hex / $orange-50-hex.
+$primary-orange-hex: #ff9155;
+$orange-50-hex: #fff5ee;
+$primary-orange: var(--primary-orange);
 $pink-strong: #e8253d; // pink text on light tints (keeps contrast)
 $pink-50: #fff1f3;
 $pink-100: #ffdfe4;
-$orange-50: #fff5ee;
-$orange-100: #ffe6d6;
-$orange-strong: #c2571b; // orange text on light tints
+$orange-50: var(--orange-50);
+$orange-100: var(--orange-100);
+$orange-strong: var(--orange-strong); // orange text on light tints
 $star: #fab005;
 // Summy's yellow (shared/easter-eggs/summy) — search hits
 $summy-yellow: #ffc94a;
 $summy-yellow-strong: #e0a100;
-$background: linear-gradient(137deg, $primary-orange 0%, $primary-pink 100%);
-$background-hover: linear-gradient(125deg, #ec854d 0%, #e7364b 100%);
+$background: linear-gradient(137deg, $primary-orange 0%, var(--gradient-end) 100%);
+$background-hover: linear-gradient(125deg, var(--hover-start) 0%, var(--hover-end) 100%);
 // Very light brand wash for selected / highlighted surfaces
 $background-soft: linear-gradient(137deg, $orange-50 0%, $pink-50 100%);
 $focus-ring: 0 0 0 3px rgba(255, 64, 86, 0.18);

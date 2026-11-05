@@ -1,5 +1,5 @@
 @let s = summary();
-<div class="card" role="article" [attr.aria-label]="s.title" [class.sumaroon]="!!s.parent">
+<div class="card" role="article" [attr.aria-label]="s.title" [class.sumaroon]="!!s.parent" (click)="onCardClick($event)">
   @if (s.kind === K.Running) {
     <div class="running-banner">
       <span nz-icon nzType="unordered-list"></span>
@@ -23,9 +23,6 @@
       }
     }
     <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="28" />
-    @if (unread()) {
-      <span class="unread" nz-tooltip="חדש — טרם נקרא" aria-label="טרם נקרא"></span>
-    }
     <div class="meta">
       <div class="who">
         <a [routerLink]="['/profile', s.user._id]" class="name">{{ s.user.fullName }}</a>
@@ -54,9 +51,21 @@
     <div class="side">
       <span class="type"><app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}</span>
       @if (s.folder; as f) {
-        <a class="folder" [routerLink]="['/summaries']" [queryParams]="hierarchyParams(s)" (click)="$event.stopPropagation()" [nz-tooltip]="'בתיקייה: ' + f.name">
+        <a
+          class="folder"
+          [routerLink]="['/summaries']"
+          [queryParams]="hierarchyParams(s)"
+          (click)="$event.stopPropagation()"
+          nz-popover
+          nzPopoverTrigger="hover"
+          nzPopoverPlacement="bottom"
+          [nzPopoverMouseEnterDelay]="0.3"
+          [nzPopoverContent]="folderInfo"
+          [attr.aria-label]="'בתיקייה: ' + f.name"
+        >
           <span nz-icon nzType="folder"></span> <span class="folder-name">{{ f.name }}</span>
         </a>
+        <ng-template #folderInfo><app-folder-info [summary]="s" /></ng-template>
       }
       <app-color-picker class="color" [class.unset]="!s.color" [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
       @if (isMine()) {
@@ -73,10 +82,14 @@
           </ul>
         </nz-dropdown-menu>
       }
+      @if (unread()) {
+        <span class="unread" nz-tooltip="טרם פתחת את התמצית הזו"><span class="dot"></span>חדש · לא נקרא</span>
+      }
     </div>
   </div>
 
-  <button type="button" class="body" (click)="toggleOpen.emit(s)" [attr.aria-expanded]="active()">
+  <!-- Keyboard entry point; its click bubbles to the card's handler. -->
+  <button type="button" class="body" [attr.aria-expanded]="active()">
     <div class="title" role="heading" aria-level="3" [innerHTML]="s.title | highlight: search() : T.Title"></div>
     <div class="ql-container ql-snow read-only preview">
       <div class="ql-editor" [innerHTML]="s.content | richHtml: search() : T.Content"></div>

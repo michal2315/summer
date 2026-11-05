@@ -220,7 +220,7 @@
             <nz-option nzCustomContent [nzValue]="t._id" [nzLabel]="t.name">
               <span class="opt">
                 <span class="opt-label">{{ t.name }}</span>
-                <button type="button" class="opt-btn" (mousedown)="optionAction($event, deleteTemplate.bind(this, t))" [attr.aria-label]="'מחיקת התבנית ' + t.name">
+                <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, deleteTemplate.bind(this, t))" [attr.aria-label]="'מחיקת התבנית ' + t.name">
                   <span nz-icon nzType="delete"></span>
                 </button>
               </span>
@@ -260,7 +260,7 @@
                 <span class="opt">
                   <span class="dot" [style.background]="p.color"></span>
                   <span class="opt-label">{{ p.name }}</span>
-                  <button type="button" class="opt-btn" (mousedown)="optionAction($event, pinPermission.bind(this, p._id))" [attr.aria-label]="'נעיצה ' + p.name">
+                  <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinPermission.bind(this, p._id))" [attr.aria-label]="'נעיצה ' + p.name">
                     <span nz-icon nzType="pushpin" [nzTheme]="isPinned('pinnedPermissions', p._id) ? 'fill' : 'outline'"></span>
                   </button>
                 </span>
@@ -273,10 +273,16 @@
       <nz-form-item>
         <nz-form-label>תיוג משתמשים</nz-form-label>
         <nz-form-control nzExtra="משתמשים מתויגים מקבלים התראה">
-          <nz-select formControlName="taggedUsers" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="חיפוש לפי שם" (nzOnSearch)="onUserSearch($event)">
-            @for (u of userOptions(); track u._id) {
+          <nz-select formControlName="taggedUsers" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="חיפוש לפי שם" nzDropdownClassName="no-check" (nzOnSearch)="onUserSearch($event)">
+            @for (u of sortedUsers(); track u._id) {
               <nz-option nzCustomContent [nzValue]="u._id" [nzLabel]="u.fullName">
-                <span class="opt"><app-avatar [user]="u" [size]="24" /> {{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
+                <span class="opt">
+                  <app-avatar [user]="u" [size]="24" />
+                  <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
+                  <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinUser.bind(this, u._id))" [attr.aria-label]="'נעיצה ' + u.fullName">
+                    <span nz-icon nzType="pushpin" [nzTheme]="users.isPinnedUser(u._id) ? 'fill' : 'outline'"></span>
+                  </button>
+                </span>
               </nz-option>
             }
           </nz-select>
@@ -315,10 +321,10 @@
               <nz-option nzCustomContent [nzValue]="l" [nzLabel]="l">
                 <span class="opt">
                   <span class="opt-label">{{ l }}</span>
-                  <button type="button" class="opt-btn" (mousedown)="optionAction($event, favoriteLabel.bind(this, l))" aria-label="מועדף">
+                  <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, favoriteLabel.bind(this, l))" aria-label="מועדף">
                     <span nz-icon nzType="star" [nzTheme]="isFavorite('favoriteLabels', l) ? 'fill' : 'outline'"></span>
                   </button>
-                  <button type="button" class="opt-btn" (mousedown)="optionAction($event, pinLabel.bind(this, l))" aria-label="נעיצה">
+                  <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinLabel.bind(this, l))" aria-label="נעיצה">
                     <span nz-icon nzType="pushpin" [nzTheme]="isPinned('pinnedLabels', l) ? 'fill' : 'outline'"></span>
                   </button>
                 </span>

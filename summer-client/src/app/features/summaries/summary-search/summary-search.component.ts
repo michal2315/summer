@@ -41,17 +41,6 @@ const normalize = (s: ISummarySearch) =>
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 
-/** Cheat-sheet shown when the empty box is focused. */
-const SHORTCUTS: { example: string; hint: string; insert?: string }[] = [
-  { example: 'גרף וגם עץ', hint: 'שתי המילים (and)' },
-  { example: 'גרף או עץ', hint: 'אחת מהמילים (or)' },
-  { example: 'גרף לא מכוון', hint: 'בלי המילה (not)' },
-  { example: '@משתמש', hint: 'תמציות של משתמש', insert: '@' },
-  { example: ':שיעור', hint: 'סוג תוכן', insert: ':' },
-  { example: '#כמוסה', hint: 'קבוצת מילים שמורה', insert: '#' },
-  { example: '"ביטוי מדויק"', hint: 'ביטוי שלם' },
-];
-
 type Suggestion = { kind: 'user'; user: UserRef } | { kind: 'type'; type: IContentType } | { kind: 'capsule'; capsule: ICapsule };
 
 /** Capsule names in the search text (`#name` terms). */
@@ -87,8 +76,6 @@ export class SummarySearchComponent {
   private readonly input = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
   private readonly mirror = viewChild.required<ElementRef<HTMLElement>>('mirror');
 
-  readonly shortcuts = SHORTCUTS;
-  readonly segmentsOf = querySegments;
   readonly text = signal('');
   private readonly caret = signal(0);
   /** The caret before the last move, to know which way it travelled (capsules are skipped over as a whole). */
@@ -147,7 +134,7 @@ export class SummarySearchComponent {
     if (!this.focused() || this.dismissed() || this.advancedOpen()) return null;
     const ctx = this.context();
     if (ctx) return ctx.kind;
-    if (!this.text().trim()) return 'home';
+    if (!this.text().trim()) return this.pinned().length || this.recent().length ? 'home' : null;
     return this.textCapsules().length ? 'capsules' : null;
   });
 
@@ -329,15 +316,6 @@ export class SummarySearchComponent {
     event.preventDefault();
     event.stopPropagation();
     this.users.pinSearch(s, false).subscribe();
-  }
-
-  /** Start a @ / : / # shortcut from the cheat-sheet, opening its suggestions. */
-  startShortcut(sigil: string) {
-    const el = this.input().nativeElement;
-    el.value = sigil;
-    el.focus();
-    el.setSelectionRange(1, 1);
-    this.onInput();
   }
 
   readonly describe = describeSearch;

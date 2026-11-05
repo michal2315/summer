@@ -26,6 +26,8 @@ export interface IUser {
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
+  /** listed first wherever users are tagged or mentioned */
+  pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
 }

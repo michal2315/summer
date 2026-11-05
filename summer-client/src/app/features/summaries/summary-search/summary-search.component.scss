@@ -1,6 +1,6 @@
 @use 'tokens' as *;
 
-// Token colors, shared by the box, the popup titles and the cheat-sheet.
+// Token colors, shared by the box, and the popup titles.
 $tok-user: #1d39c4;
 $tok-user-bg: #e8edff;
 $tok-type: #08793a;
@@ -294,38 +294,6 @@ $tok-not-bg: #fde3e8;
     border: none;
     border-radius: 12px;
   }
-}
-
-.cheats {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 2px 8px;
-  padding: 0 0 4px;
-}
-
-.cheat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px;
-  border-radius: 8px;
-
-  &.clickable {
-    cursor: pointer;
-    &:hover {
-      background: $input-color;
-    }
-  }
-}
-
-.cheat-example {
-  font-size: 13px;
-  white-space: pre;
-}
-
-.cheat-hint {
-  font-size: 12px;
-  color: $gray;
 }
 
 @keyframes slideDown {

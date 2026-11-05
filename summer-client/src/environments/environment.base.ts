@@ -7,6 +7,8 @@ import { AppEnvironment } from '../app/core/config/app-config';
 export const baseEnvironment: AppEnvironment = {
   production: true,
   usersMail: ['support@example-university.edu'],
+  helpdeskUrl: '',
+  suggestionsUrl: '',
   summariesTableFields: [
     { name: 'eventDate', displayName: 'תאריך האירוע', width: '20%', type: 'date' },
     { name: 'title', displayName: 'כותרת', width: '20%', type: 'string' },

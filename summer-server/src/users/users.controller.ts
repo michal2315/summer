@@ -63,6 +63,11 @@ export class UsersController {
     return this.users.togglePinnedPermission(me, body?.permissionId);
   }
 
+  @Post('pinned-user')
+  pinUser(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
+    return this.users.togglePinnedUser(me, body?.userId);
+  }
+
   @Post('favorite-label')
   favoriteLabel(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
     return this.users.toggleLabel(me, 'favorite', body?.valueId);

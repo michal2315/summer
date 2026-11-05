@@ -54,13 +54,19 @@ export class CommentsComponent {
         debounceTime(200),
         switchMap(({ value }) => {
           this.searching.set(true);
-          if (!value) return of([]);
           const text = value.toLowerCase();
+          // Pinned users first; a bare "@" lists only them.
+          const pinned = (this.users.user()?.pinnedUsers ?? []).filter(
+            (u) => !text || u.fullName.toLowerCase().includes(text) || u.username.toLowerCase().startsWith(text),
+          );
+          if (!value) return of(pinned.map(userSuggestion));
           const groups = this.permissions
             .list()
             .filter((p) => p.name.toLowerCase().includes(text))
             .map(groupSuggestion);
-          return this.users.query(value).pipe(map((list) => [...list.map(userSuggestion), ...groups]));
+          return this.users.query(value).pipe(
+            map((list) => [...pinned, ...list.filter((u) => !pinned.some((p) => p._id === u._id))].map(userSuggestion).concat(groups)),
+          );
         }),
       )
       .subscribe((list) => {

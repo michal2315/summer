@@ -3,6 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { UserService } from '../../../core/auth/user.service';
@@ -14,11 +15,14 @@ import { ISummary, ISummarySearch, SearchType, SummaryKind } from '../../../shar
 import { colorGlow } from '../../../shared/models/colors';
 import { hierarchyParams } from '../../../shared/services/folder.service';
 import { DateFormatPipe, HighlightPipe, RelativeTimePipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
+import { FolderInfoComponent } from '../folder-info/folder-info.component';
 import { MatchSnippetsComponent } from '../match-snippets/match-snippets.component';
 import { SummaryActionsService } from '../summary-actions.service';
 import { SummaryListStore } from '../summary-list.store';
 
 const VISIBLE_LABELS = 4;
+/** Controls inside the card that do their own thing instead of opening it. */
+const INTERACTIVE = 'a, button, label, input, nz-tag, app-color-picker, [nz-dropdown]';
 
 @Component({
   selector: 'app-summary-card',
@@ -27,12 +31,14 @@ const VISIBLE_LABELS = 4;
     NzCheckboxModule,
     NzDropDownModule,
     NzIconModule,
+    NzPopoverModule,
     NzTagModule,
     NzToolTipModule,
     AvatarComponent,
     CapsuleCatchComponent,
     ColorPickerComponent,
     ContentTypeIconComponent,
+    FolderInfoComponent,
     DateFormatPipe,
     RelativeTimePipe,
     HighlightPipe,
@@ -84,6 +90,14 @@ export class SummaryCardComponent {
   openParent(id: string) {
     if (this.store?.runningInPlace()) this.router.navigate([], { relativeTo: this.route, queryParams: { runningId: id, summaryId: null }, queryParamsHandling: 'merge' });
     else this.router.navigate(['/running', id]);
+  }
+
+  /** Anywhere on the card opens it, except its own controls and when the user is selecting text. */
+  onCardClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (target.closest(INTERACTIVE) && !target.closest('.body')) return;
+    if (window.getSelection()?.toString()) return;
+    this.toggleOpen.emit(this.summary());
   }
 
   searchLabel(name: string, event: Event) {

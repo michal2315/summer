@@ -5,6 +5,7 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subscription } from 'rxjs';
@@ -19,6 +20,7 @@ import { FieldsType, ISummary, ISummaryField, ISummarySearch, SUMMARY_KIND_LABEL
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { hierarchyParams } from '../../../shared/services/folder.service';
 import { SummaryService } from '../../../shared/services/summary.service';
+import { FolderInfoComponent } from '../folder-info/folder-info.component';
 import { MatchNavComponent } from '../match-nav/match-nav.component';
 import { SummaryActionsService } from '../summary-actions.service';
 import { SumaroonListComponent } from '../running/sumaroon-list/sumaroon-list.component';
@@ -34,9 +36,11 @@ const SNAPSHOT_KEY = 'currSummary';
     NzCollapseModule,
     NzEmptyModule,
     NzIconModule,
+    NzPopoverModule,
     NzTagModule,
     NzToolTipModule,
     AvatarComponent,
+    FolderInfoComponent,
     SkeletonComponent,
     CapsuleCatchComponent,
     ColorPickerComponent,

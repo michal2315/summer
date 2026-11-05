@@ -11,6 +11,9 @@ export interface SummariesTableField {
 export interface AppEnvironment {
   production: boolean;
   usersMail: string[];
+  /** Sunny team (helpdesk) sites, opened from the side nav. Empty → that button is disabled. */
+  helpdeskUrl: string;
+  suggestionsUrl: string;
   summariesTableFields: SummariesTableField[];
   summariesLimit: number;
   /** Avatar image template; `{username}` is substituted. Empty → initials only. */

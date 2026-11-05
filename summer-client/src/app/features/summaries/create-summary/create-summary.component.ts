@@ -261,7 +261,22 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private readonly labelSearch$ = new Subject<string>();
 
   readonly userOptions = signal<UserRef[]>([]);
+  private readonly userQuery = signal('');
   private readonly userSearch$ = new Subject<string>();
+  /** Pinned users (those matching the typed text) come first, so they can be tagged without searching. */
+  private readonly taggedUserIds = toSignal(this.form.controls.taggedUsers.valueChanges.pipe(startWith(this.form.controls.taggedUsers.value)), {
+    requireSync: true,
+  });
+  readonly sortedUsers = computed(() => {
+    const q = this.userQuery().toLowerCase();
+    const tagged = new Set(this.taggedUserIds());
+    const pinned = (this.users.user()?.pinnedUsers ?? []).filter((u) => !q || matchesUser(u, q));
+    // Pinned and tagged, then pinned, then the rest.
+    return mergeById(
+      pinned.filter((u) => tagged.has(u._id)),
+      mergeById(pinned, this.userOptions()),
+    );
+  });
 
   readonly sortedPermissions = computed(() => {
     const pinned = new Set(this.users.user()?.pinnedPermissions ?? []);
@@ -730,6 +745,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   }
 
   onUserSearch(text: string) {
+    this.userQuery.set(text.trim());
     if (text.trim()) this.userSearch$.next(text.trim());
   }
 
@@ -751,6 +767,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   pinLabel = (l: string) => this.users.pinLabel(l).subscribe();
   favoriteLabel = (l: string) => this.users.favoriteEntity('label', l).subscribe();
   pinPermission = (id: string) => this.users.pinPermission(id).subscribe();
+  pinUser = (id: string) => this.users.pinUser(id).subscribe();
 
   permissionColor(id: string) {
     return this.permissionGroups.list().find((p) => p._id === id)?.color ?? '#ccc';
@@ -904,6 +921,10 @@ function reviveDates<T>(value: T): T {
   if (Array.isArray(value)) return value.map(reviveDates) as T;
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, reviveDates(v)])) as T;
   return value;
+}
+
+function matchesUser(u: UserRef, lowerText: string): boolean {
+  return u.fullName.toLowerCase().includes(lowerText) || u.username.toLowerCase().startsWith(lowerText);
 }
 
 function mergeById<T extends { _id: string }>(a: T[], b: T[]): T[] {

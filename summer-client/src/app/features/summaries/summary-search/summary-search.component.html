@@ -158,19 +158,6 @@
                 }
               </div>
             }
-            <div class="popup-title">קיצורי חיפוש</div>
-            <div class="cheats">
-              @for (c of shortcuts; track c.example) {
-                <div class="cheat" [class.clickable]="c.insert" (click)="c.insert && startShortcut(c.insert)">
-                  <span class="cheat-example">
-                    @for (s of segmentsOf(c.example); track $index) {
-                      <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
-                    }
-                  </span>
-                  <span class="cheat-hint">{{ c.hint }}</span>
-                </div>
-              }
-            </div>
           }
         }
       </div>

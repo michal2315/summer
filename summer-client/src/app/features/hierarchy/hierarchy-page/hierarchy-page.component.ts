@@ -30,8 +30,8 @@ const byName = (a: IFolder, b: IFolder) => a.name.localeCompare(b.name, 'he');
 export const NO_FOLDER = 'none';
 /** The tree lists regular and running summaries (a sumaroon lives inside its running summary). */
 const KINDS = [SummaryKind.Summary, SummaryKind.Running];
-/** Unfiled summaries listed in the tree itself; the "no folder" view lists them all. */
-const UNFILED_IN_TREE = 50;
+/** The tree lists every unfiled summary, fetched this many at a time (the server maximum). */
+const UNFILED_PAGE = 100;
 /** A folder's summaries render this many at a time as the tree scrolls. */
 const ITEMS_PAGE = 50;
 /** Hovering a collapsed folder this long while dragging opens it. */
@@ -212,12 +212,15 @@ export class HierarchyPageComponent implements OnInit {
     });
   }
 
-  private loadUnfiled() {
+  /** Every unfiled summary, a page at a time (shown as the pages arrive). */
+  private loadUnfiled(skip = 0, loaded: IFolderItem[] = []) {
     this.summaries
-      .search(this.users.userId() ?? '', { noFolder: true, kinds: KINDS, sort: 'title', limit: UNFILED_IN_TREE })
-      .subscribe((res) =>
-        this.unfiled.set({ items: res.summaries.map((s) => ({ _id: s._id, name: s.title, kind: s.kind })), total: res.lengths.summary }),
-      );
+      .search(this.users.userId() ?? '', { noFolder: true, kinds: KINDS, sort: 'title', limit: UNFILED_PAGE, skip })
+      .subscribe((res) => {
+        const items = [...loaded, ...res.summaries.map((s) => ({ _id: s._id, name: s.title, kind: s.kind }))];
+        this.unfiled.set({ items, total: res.lengths.summary });
+        if (res.summaries.length === UNFILED_PAGE && items.length < res.lengths.summary) this.loadUnfiled(items.length, items);
+      });
   }
 
   private loadItems(folderId: string) {

@@ -10,8 +10,8 @@ $duration: 2.4s;
   pointer-events: none;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 110%, rgba($star, 0.55) 0%, rgba($primary-orange, 0.35) 35%, transparent 70%),
-    linear-gradient(180deg, rgba(#7fd3ff, 0.35) 0%, rgba($orange-50, 0.5) 100%);
+    radial-gradient(circle at 50% 110%, rgba($star, 0.55) 0%, rgba($primary-orange-hex, 0.35) 35%, transparent 70%),
+    linear-gradient(180deg, rgba(#7fd3ff, 0.35) 0%, rgba($orange-50-hex, 0.5) 100%);
   animation: wash $duration ease-in-out forwards;
 }
 
