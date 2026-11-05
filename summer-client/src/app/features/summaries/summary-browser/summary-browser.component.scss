@@ -28,7 +28,8 @@
 .feed-scroller {
   height: 100%;
   overflow: auto;
-  // Room on the inline-end (left in RTL) for the scroll rail.
+  // A little room so the active card's border isn't clipped; more on the inline-end (left in RTL) for the scroll rail.
+  padding: 4px 4px 0;
   padding-inline-end: 18px;
 }
 
