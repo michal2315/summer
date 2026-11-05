@@ -7,8 +7,8 @@
 }
 
 .main {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 0; // takes what the aside leaves, not its content width
+  min-width: 260px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -33,11 +33,11 @@
 }
 
 .aside {
-  flex: 0 0 auto;
+  flex: 0 1 auto; // gives way before the list does, when a page has extra columns (hierarchy tree)
   display: flex;
   flex-direction: column;
-  max-width: 40vw;
-  min-width: 0;
+  max-width: min(40vw, 60%);
+  min-width: 300px;
   overflow: auto;
   background: $white;
   border-radius: 12px;
@@ -48,6 +48,12 @@
 .aside > ::ng-deep [aside] {
   flex: 1;
   min-height: 0;
+}
+
+// Nothing selected: the list takes the full width; the pane appears once something is opened.
+.handle:not(.open),
+.aside:not(.open) {
+  display: none;
 }
 
 // Narrow screens: list only; the aside appears as a full-screen overlay while a summary is open.

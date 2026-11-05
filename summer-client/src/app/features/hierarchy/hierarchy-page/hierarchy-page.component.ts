@@ -198,7 +198,8 @@ export class HierarchyPageComponent implements OnInit {
   }
 
   private setWidth(w: number) {
-    const max = Math.max(MIN_WIDTH, window.innerWidth * 0.5);
+    // Leaves the list and the summary side panel room to sit beside it.
+    const max = Math.max(MIN_WIDTH, Math.min(window.innerWidth * 0.3, 480));
     this.treeWidth.set(Math.round(Math.max(MIN_WIDTH, Math.min(w, max))));
   }
 

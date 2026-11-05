@@ -5,8 +5,6 @@
     <div aside>
       @if (openId(); as id) {
         <app-summary-detail [summaryId]="id" [search]="search()" [fullScreen]="fullScreenLink(id)" (closed)="close()" />
-      } @else {
-        <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו תמצית מהרשימה כדי לצפות בה כאן" />
       }
     </div>
   </app-resizable-page>
