@@ -24,7 +24,7 @@
     border-color: $border-strong;
   }
   &.focused {
-    border-color: rgba($primary-pink, 0.55);
+    border-color: $dark-blue;
     box-shadow: $focus-ring;
   }
   &.disabled {

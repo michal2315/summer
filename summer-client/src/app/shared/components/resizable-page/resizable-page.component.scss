@@ -15,31 +15,20 @@
 }
 
 .handle {
-  flex: 0 0 12px;
+  flex: 0 0 8px;
   cursor: col-resize;
   position: relative;
-  // A small grip in the middle; brightens on hover/focus.
   &::after {
     content: '';
     position: absolute;
-    top: 50%;
-    inset-inline: 4px;
-    height: 44px;
-    transform: translateY(-50%);
+    inset: 0 3px;
     border-radius: 2px;
-    background: $border-strong;
-    opacity: 0.6;
-    transition:
-      background $transition,
-      opacity $transition;
+    background: transparent;
+    transition: background 0.15s;
   }
   &:hover::after,
   &:focus-visible::after {
-    background: $primary-pink;
-    opacity: 1;
-  }
-  &:focus-visible {
-    outline: none;
+    background: $input-hover-color;
   }
 }
 
@@ -51,31 +40,14 @@
   min-width: 0;
   overflow: auto;
   background: $white;
-  border-radius: $radius-lg;
-  border: 1px solid $border-color;
+  border-radius: 12px;
   box-shadow: $card-shadow;
-  margin-bottom: 14px;
 }
 
 // The projected [aside] wrapper fills the pane, so empty states can centre vertically.
 .aside > ::ng-deep [aside] {
   flex: 1;
   min-height: 0;
-}
-
-// Nothing selected: the main column takes the full width; the pane slides in once something is opened.
-.handle:not(.open),
-.aside:not(.open) {
-  display: none;
-}
-.aside.open {
-  animation: asideIn 0.18s ease-out;
-}
-@keyframes asideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
 }
 
 // Narrow screens: list only; the aside appears as a full-screen overlay while a summary is open.
@@ -92,6 +64,5 @@
     width: auto !important;
     max-width: none;
     border-radius: 0;
-    margin: 0;
   }
 }

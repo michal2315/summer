@@ -10,6 +10,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { catchError, of } from 'rxjs';
+import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { IPermission } from '../../../shared/models';
@@ -37,6 +38,7 @@ const NEW_ID = '__new__';
     NzPopconfirmModule,
     NzToolTipModule,
     InViewDirective,
+    NotificationBellComponent,
     SkeletonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

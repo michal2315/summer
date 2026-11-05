@@ -69,7 +69,6 @@
 
 .filter {
   max-width: 360px;
-  border-radius: 999px;
 }
 
 .grid {
@@ -84,13 +83,12 @@
   gap: 10px;
   padding: 14px;
   background: $white;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  box-shadow: $card-shadow;
-  transition: box-shadow $transition;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
+  transition: box-shadow 0.15s;
 
   &:hover {
-    box-shadow: $card-shadow-hover;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
   }
 }
 

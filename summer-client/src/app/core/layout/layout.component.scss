@@ -1,20 +1,4 @@
-@use 'tokens' as *;
-
 :host { display: block; height: 100vh; }
-.shell { height: 100%; background: $white; }
+.shell { height: 100%; background: #fff; }
 .sider { height: 100%; overflow: auto; }
-// The content sits in a soft inset panel next to the nav.
-.content {
-  margin: 10px;
-  margin-inline-start: 0;
-  border-radius: $radius-lg;
-  border: 1px solid $border-color;
-  background: $app-background;
-  overflow: auto;
-  min-width: 0;
-  position: relative;
-}
-
-@media (max-width: 991px) {
-  .content { margin-inline-start: 10px; }
-}
+.content { margin: 8px; border-radius: 12px; background: #f7f7f7; overflow: auto; min-width: 0; position: relative; }

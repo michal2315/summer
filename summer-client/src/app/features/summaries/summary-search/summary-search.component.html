@@ -82,7 +82,7 @@
           aria-label="חיפוש מתקדם"
           [attr.aria-expanded]="advancedOpen()"
         >
-          <span nz-icon nzType="sliders"></span>
+          <span nz-icon nzType="apartment"></span>
         </button>
       </nz-badge>
     </div>
@@ -163,4 +163,8 @@
       </div>
     }
   </form>
+
+  @if (showBell()) {
+    <app-notification-bell />
+  }
 </div>

@@ -1,15 +1,14 @@
 @use 'tokens' as *;
 
-:host { display: block; padding: 20px 22px 72px; }
-.page { display: flex; flex-direction: column; gap: 18px; }
+:host { display: block; padding: 14px 18px 72px; }
+.page { display: flex; flex-direction: column; gap: 14px; }
 .header { display: flex; align-items: center; gap: 10px; }
-.page-title { display: inline-flex; gap: 8px; align-items: center; }
+.page-title { display: inline-flex; gap: 6px; align-items: center; }
 .spacer { flex: 1; }
 .group-title { font-size: 15px; font-weight: 800; margin: 0 0 10px; display: flex; gap: 6px; align-items: baseline; }
 .group-title a { color: $dark-blue; }
-.group-title a:hover { color: $pink-strong; }
 .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.fab { position: fixed; bottom: 24px; left: 24px; width: 52px; height: 52px; box-shadow: 0 8px 20px -6px rgba($primary-pink, 0.6); }
+.fab { position: fixed; bottom: 24px; left: 24px; width: 52px; height: 52px; box-shadow: 0 4px 16px rgba(255, 64, 86, .4); }
 .skeleton-title { width: 180px; margin-bottom: 12px; }
 app-skeleton.cubes { --tile-min: 220px; }
 .sentinel { height: 1px; }

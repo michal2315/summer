@@ -1,12 +1,7 @@
-@use 'tokens' as *;
-
 :host { display: inline-flex; }
-.dot { width: 16px; height: 16px; border-radius: 50%; border: none; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba($black, 0.08); transition: transform $transition; }
-.dot:hover { transform: scale(1.15); }
-.dot.empty { border: 2px dashed $border-strong; background: transparent; box-shadow: none; }
-.dot.empty:hover { border-color: $gray; }
+.dot { width: 16px; height: 16px; border-radius: 50%; border: none; cursor: pointer; padding: 0; }
+.dot.empty { border: 2px dashed #9b9bb1; background: transparent; }
 .palette { display: grid; grid-template-columns: repeat(3, 24px); gap: 8px; }
-.swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; transition: transform $transition; }
-.swatch:hover { transform: scale(1.1); }
-.swatch.selected { box-shadow: 0 0 0 2px $white, 0 0 0 4px $dark-blue; }
-.swatch.none { background: $white; border: 1px solid $border-strong; color: $gray; font-size: 11px; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.swatch.selected { border-color: #05043d; }
+.swatch.none { background: #fff; border: 1px solid #ccc; color: #9b9bb1; font-size: 11px; }

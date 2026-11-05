@@ -4,7 +4,6 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { catchError, of } from 'rxjs';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
-import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { WhatsNewService } from '../../../shared/components/whats-new';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { UserService } from '../../auth/user.service';
@@ -22,7 +21,7 @@ interface NavItem {
 
 @Component({
   selector: 'app-side-nav',
-  imports: [RouterLink, RouterLinkActive, NzIconModule, AvatarComponent, NotificationBellComponent, AltKeyDirective],
+  imports: [RouterLink, RouterLinkActive, NzIconModule, AvatarComponent, AltKeyDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './side-nav.component.html',
   styleUrl: './side-nav.component.scss',

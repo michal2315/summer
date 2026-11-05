@@ -10,15 +10,10 @@
   align-items: center;
   gap: 3px;
   max-width: 140px;
-  background: $orange-50;
-  color: $orange-strong;
-  border-radius: 999px;
-  padding: 1px 8px;
+  background: $gray-tag;
+  border-radius: 10px;
+  padding: 0 7px;
   font-weight: 700;
-  &:hover {
-    background: $orange-100;
-    color: $orange-strong;
-  }
 }
 .folder-name {
   overflow: hidden;
@@ -33,17 +28,14 @@
   font-size: 13px;
 }
 
-// Unread: a labelled brand pill at the row's end, instead of marking the read ones.
+// Unread: a small label at the row's end, instead of marking the read ones.
 .unread {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   margin-inline-start: 4px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: rgba($primary-pink, 0.1);
-  color: $pink-strong;
+  color: #ff6975;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -51,8 +43,7 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: $background;
-    box-shadow: 0 0 0 2px rgba($primary-pink, 0.2);
+    background: #ff6975;
   }
 }
 
@@ -80,12 +71,11 @@
   gap: 6px;
   font-size: 12px;
   color: $accent;
-  padding: 4px 12px;
-  margin: -8px -12px 4px;
-  border-radius: 11px 11px 0 0;
-  background: $surface-subtle;
-  border-bottom: 1px solid $border-color;
-  transition: background $transition;
+  padding: 4px 10px;
+  margin: -4px -4px 6px;
+  border-radius: $border-radius $border-radius 0 0;
+  background: $app-background;
+  border-bottom: 1px solid $input-color;
   .parent-title {
     font-weight: 700;
     overflow: hidden;
@@ -95,10 +85,13 @@
   &:hover {
     background: $input-color;
   }
+  &:focus-visible {
+    outline: 2px solid $accent;
+  }
 }
 // A running summary reads as a stack of three cards: two offset "sheets" behind it, a grey banner on top.
-$sheet-1: $border-strong;
-$sheet-2: $input-hover-color;
+$sheet-1: #d6d6dc;
+$sheet-2: #e4e4e8;
 $stack:
   -6px 6px 0 -1px $white,
   -6px 6px 0 0 $sheet-1,
@@ -108,24 +101,17 @@ $stack:
 :host(.running) {
   padding: 0 0 12px 12px;
   .card {
+    border-inline-start-color: $gray;
     box-shadow:
       $stack,
-      $card-shadow;
-    &::before {
-      border-inline-start-color: $gray;
-    }
+      0 1px 6px rgba(0, 0, 0, 0.07);
     // Keep the stack on hover (the shared card style swaps the shadow).
     &:hover {
       box-shadow:
         $stack,
-        $card-shadow-hover;
+        0 2px 12px rgba(0, 0, 0, 0.14);
     }
   }
-}
-:host(.running.active) .card {
-  box-shadow:
-    $stack,
-    0 0 0 3px rgba($primary-pink, 0.14);
 }
 .running-banner {
   display: flex;
@@ -133,11 +119,10 @@ $stack:
   gap: 6px;
   font-size: 12px;
   color: $dark-blue;
-  background: $surface-subtle;
-  border-bottom: 1px solid $border-color;
-  padding: 4px 12px;
+  background: $gray-tag;
+  padding: 3px 10px;
   margin: -8px -12px 4px;
-  border-radius: 11px 11px 0 0;
+  border-radius: 6px 6px 0 0;
   .range {
     color: $dark-gray;
   }
@@ -157,13 +142,12 @@ $stack:
 .sumaroon-preview {
   list-style: none;
   margin: 2px 0 4px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  background: $surface-subtle;
-  border: 1px solid $border-color;
-  border-radius: $border-radius;
+  gap: 2px;
+  background: $app-background;
+  border-radius: 6px;
   font-size: 12px;
   li {
     display: flex;
@@ -181,7 +165,7 @@ $stack:
     font-size: 11px;
     font-weight: 700;
     background: $white;
-    border: 1px solid $border-strong;
+    border: 1px solid $gray;
   }
   .t {
     overflow: hidden;

@@ -2,54 +2,37 @@
 
 :host {
   display: block;
+  background: $white;
   min-height: 100%;
 }
 
 .page {
-  max-width: 860px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 20px 20px 0;
+  padding: 16px 20px 32px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
 
   @media (max-width: $bp-mobile) {
-    padding: 14px 10px 0;
+    padding: 16px 12px 40px;
   }
 }
 
-// Each group of fields is its own white card.
+// Each group of fields — a plain block, as in the original form.
 .section {
-  background: $white;
-  border: 1px solid $border-color;
-  border-radius: $radius-lg;
-  box-shadow: $card-shadow;
-  padding: 14px 18px 4px;
+  margin-bottom: 6px;
   display: flex;
   flex-direction: column;
-
-  @media (max-width: $bp-mobile) {
-    padding: 12px 12px 2px;
-  }
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 15px;
+  gap: 6px;
+  font-size: 14px;
   font-weight: 800;
-  margin: 0 0 12px;
-  [nz-icon] {
-    color: $primary-pink;
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
-    display: grid;
-    place-items: center;
-    background: $background-soft;
-    font-size: 14px;
-  }
+  margin: 0 0 8px;
 }
 
 // Section title with controls at the far end (templates).
@@ -149,8 +132,8 @@
   gap: 10px;
   padding: 10px 14px;
   border-radius: $radius-md;
-  background: $background-soft;
-  border: 1px solid $pink-100;
+  background: $app-background;
+  border: 1px solid $border-color;
   .restore-icon {
     font-size: 18px;
     color: $primary-pink;
@@ -166,21 +149,12 @@
   }
 }
 
-.add-notes {
-  align-self: flex-start;
-  margin-bottom: 14px;
-}
-
-.drop {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 6px 0;
-  color: $dark-gray;
-  [nz-icon] {
-    font-size: 22px;
-    color: $primary-pink;
+.block {
+  margin-bottom: 6px;
+  .block-title {
+    font-size: 14px;
+    font-weight: 800;
+    margin: 0 0 8px;
   }
 }
 
@@ -188,7 +162,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0 16px;
-  align-items: start;
   nz-date-picker,
   nz-time-picker,
   nz-input-number,
@@ -217,7 +190,6 @@
 }
 
 .types {
-  margin-bottom: 14px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -238,7 +210,7 @@
   gap: 6px;
   padding: 3px 12px;
   border-radius: 16px;
-  border: 1px solid $border-strong;
+  border: 1px solid #d9d9d9;
   background: $white;
   font-weight: 700;
   transition: all 0.15s;
@@ -256,8 +228,8 @@
 
 .error-text {
   color: $error-color;
-  font-size: 13px;
-  margin: -8px 0 12px;
+  font-size: 14px;
+  margin-top: 4px;
 }
 
 .dup {
@@ -324,7 +296,6 @@
 }
 
 .extra-rows {
-  margin-bottom: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -353,64 +324,16 @@
   margin: 0 0 8px;
 }
 
-// Save bar: stays at the bottom of the screen while the form scrolls.
 .actions {
   position: sticky;
   bottom: 0;
-  z-index: 5;
+  background: $white;
   display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  margin: 4px -6px 0;
-  padding: 10px 14px;
-  background: rgba($white, 0.95);
-  backdrop-filter: blur(6px);
-  border: 1px solid $border-color;
-  border-bottom: none;
-  border-radius: $radius-lg $radius-lg 0 0;
-  box-shadow: 0 -8px 24px -14px rgba($dark-blue, 0.25);
-  .spacer {
-    flex: 1;
-  }
-  .reset {
-    color: $dark-gray;
-  }
-  .autosaved {
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  // What's still missing after a failed publish; clicking jumps to the first one.
-  .missing {
-    all: unset;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    max-width: 50%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: $error-color;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: rgba($error-color, 0.08);
-    &:hover {
-      background: rgba($error-color, 0.14);
-    }
-  }
-  @media (max-width: $bp-mobile) {
-    flex-wrap: wrap;
-    .missing {
-      max-width: 100%;
-      order: -1;
-      flex-basis: 100%;
-    }
-  }
+  padding: 12px 0;
+  border-top: 1px solid #f0f0f0;
+  z-index: 5;
 }
 
 .loading-more {
@@ -418,7 +341,10 @@
 }
 
 // ---- running summary / sumaroon ----
-
+.kind-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
 .inherited {
   display: flex;
   flex-wrap: wrap;

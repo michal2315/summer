@@ -34,35 +34,26 @@ $tok-not-bg: #fde3e8;
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 36px;
-  padding-inline: 16px 8px;
-  border: 1px solid $border-color;
-  border-radius: 999px;
+  height: 38px;
+  padding-inline: 14px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 24px;
   background: $white;
-  box-shadow: $card-shadow;
   transition:
-    border-color $transition,
-    box-shadow $transition;
+    border-color 0.15s,
+    box-shadow 0.15s;
 
   &:hover {
-    border-color: $border-strong;
-  }
-  &.open {
-    border-color: rgba($primary-pink, 0.55);
+    border-color: $gray;
   }
   &.focused {
-    border-color: rgba($primary-pink, 0.55);
-    box-shadow: $focus-ring;
+    border-color: $dark-blue;
+    box-shadow: 0 0 0 3px rgba(5, 4, 61, 0.08);
   }
 }
 
 .search-icon {
   color: $gray;
-  font-size: 14px;
-  transition: color $transition;
-  .focused & {
-    color: $primary-pink;
-  }
 }
 
 // The mirror and the input must lay out text identically: same font, no padding, no per-token spacing.
@@ -165,7 +156,7 @@ $tok-not-bg: #fde3e8;
 }
 
 .kbd {
-  border: 1px solid $border-color;
+  border: 1px solid #d9d9d9;
   border-radius: 4px;
   padding: 0 6px;
   font-size: 12px;
@@ -176,7 +167,7 @@ $tok-not-bg: #fde3e8;
 .divider {
   width: 1px;
   height: 18px;
-  background: $border-color;
+  background: #e4e4ec;
   margin-inline: 2px;
 }
 
@@ -188,7 +179,7 @@ $tok-not-bg: #fde3e8;
   border-radius: 50%;
   &.on {
     color: $white;
-    background: $background;
+    background: $accent;
     &:hover,
     &:focus-visible {
       color: $white;
@@ -216,7 +207,7 @@ $tok-not-bg: #fde3e8;
   inset-inline: 0;
   z-index: 12;
   background: $white;
-  border-radius: $radius-md;
+  border-radius: 12px;
   box-shadow: $shadow;
   padding: 8px;
   max-height: min(60vh, 420px);
@@ -249,7 +240,7 @@ $tok-not-bg: #fde3e8;
   cursor: pointer;
 
   &.active {
-    background: $pink-50;
+    background: $input-color;
   }
 }
 

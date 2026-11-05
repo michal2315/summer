@@ -4,7 +4,7 @@
   display: inline-block;
   min-width: 20px;
   padding: 0 6px;
-  border: 1px solid $border-strong;
+  border: 1px solid #d9d9d9;
   border-bottom-width: 2px;
   border-radius: 5px;
   background: $white;
@@ -110,7 +110,7 @@
   gap: 10px;
   padding: 12px 16px;
   background: $app-background;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid #ececf2;
 }
 
 .help-title {
@@ -162,7 +162,7 @@
   align-items: center;
   gap: 8px;
   padding: 5px 0;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid #f3f3f6;
 }
 
 .row-label {

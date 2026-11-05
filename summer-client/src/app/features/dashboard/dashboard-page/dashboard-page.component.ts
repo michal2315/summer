@@ -5,6 +5,7 @@ import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { UserService } from '../../../core/auth/user.service';
+import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { ISummary, SearchType } from '../../../shared/models';
@@ -28,7 +29,7 @@ export function getSummariesPerLabel(grouped: Record<string, ISummary[]>): Group
 /** /dashboard — grid of summary cubes per group (spec §10.10). */
 @Component({
   selector: 'app-dashboard-page',
-  imports: [RouterLink, NzButtonModule, NzEmptyModule, NzIconModule, NzToolTipModule, InViewDirective, SkeletonComponent, SummaryCubeComponent],
+  imports: [RouterLink, NzButtonModule, NzEmptyModule, NzIconModule, NzToolTipModule, InViewDirective, NotificationBellComponent, SkeletonComponent, SummaryCubeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss',

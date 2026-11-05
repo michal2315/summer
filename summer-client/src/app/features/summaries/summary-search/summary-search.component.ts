@@ -8,6 +8,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Router } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
+import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { CapsuleChipComponent } from '../../../shared/components/capsules/capsule-chip/capsule-chip.component';
 import { CapsuleSuggestComponent } from '../../../shared/components/capsules/capsule-suggest/capsule-suggest.component';
 import { ICapsule, IContentType, IQueryGroup, ISummarySearch, UserRef } from '../../../shared/models';
@@ -48,7 +49,7 @@ const capsuleNames = (text: string | undefined) => (text ? parseQuery(text).grou
 
 @Component({
   selector: 'app-summary-search',
-  imports: [NzBadgeModule, NzIconModule, NzTagModule, NzToolTipModule, AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent],
+  imports: [NzBadgeModule, NzIconModule, NzTagModule, NzToolTipModule, AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent, NotificationBellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-search.component.html',
   styleUrl: './summary-search.component.scss',
@@ -70,6 +71,7 @@ export class SummarySearchComponent {
 
   /** Currently applied search (from the URL). */
   readonly search = input<ISummarySearch>({});
+  readonly showBell = input(true);
   readonly placeholder = input('חיפוש תמציות');
   readonly searchChange = output<ISummarySearch>();
 

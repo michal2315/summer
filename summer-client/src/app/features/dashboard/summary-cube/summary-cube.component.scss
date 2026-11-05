@@ -1,13 +1,11 @@
-@use 'tokens' as *;
-
-.cube { display: flex; flex-direction: column; gap: 6px; height: 100%; padding: 12px 14px; background: $white; border: 1px solid $border-color; border-radius: $radius-md; border-top: 3px solid; box-shadow: $card-shadow; color: $dark-blue; transition: box-shadow $transition, transform $transition; }
-.cube:hover { box-shadow: $card-shadow-hover; transform: translateY(-1px); }
+.cube { display: flex; flex-direction: column; gap: 6px; height: 100%; padding: 10px 12px; background: #fff; border-radius: 10px; border-top: 3px solid; box-shadow: 0 2px 20px rgba(0,0,0,.06); color: #05043d; transition: box-shadow .15s; }
+.cube:hover { box-shadow: 0 2px 20px rgba(0,0,0,.18); }
 .head { display: flex; gap: 8px; align-items: center; }
 .who { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .who .name { font-size: 13px; font-weight: 700; }
-.who .meta { font-size: 11px; color: $gray; }
+.who .meta { font-size: 11px; color: #9b9bb1; }
 .title { font-size: 14px; font-weight: 800; margin: 0; }
-.preview { font-size: 12px; color: $dark-gray; margin: 0; flex: 1; }
-.foot { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: $dark-gray; }
+.preview { font-size: 12px; color: #666; margin: 0; flex: 1; }
+.foot { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #666; }
 .perms { display: flex; gap: 4px; }
 .perms .dot { width: 9px; height: 9px; border-radius: 50%; }

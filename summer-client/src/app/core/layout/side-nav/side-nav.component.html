@@ -4,16 +4,13 @@
   </a>
 
   @if (user(); as u) {
-    <div class="me">
-      <a class="user" [routerLink]="['/profile', u._id]" (click)="navigate.emit()">
-        <app-avatar [user]="u" [size]="28" />
-        <span class="who">
-          <span class="name">{{ u.fullName }}</span>
-          <span class="dept">{{ u.department }}</span>
-        </span>
-      </a>
-      <app-notification-bell />
-    </div>
+    <a class="user" [routerLink]="['/profile', u._id]" (click)="navigate.emit()">
+      <app-avatar [user]="u" [size]="32" />
+      <span class="who">
+        <span class="name">{{ u.fullName }}</span>
+        <span class="dept">{{ u.department }}</span>
+      </span>
+    </a>
   }
 
   <ul class="links">

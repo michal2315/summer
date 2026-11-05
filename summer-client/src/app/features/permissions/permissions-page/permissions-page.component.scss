@@ -2,7 +2,7 @@
 
 :host {
   display: block;
-  padding: 20px 22px;
+  padding: 14px 18px;
 }
 
 .page {
@@ -37,8 +37,7 @@
   margin: 0;
   padding: 0;
   background: $white;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
+  border-radius: 12px;
   box-shadow: $card-shadow;
   overflow: hidden;
 }
@@ -49,11 +48,11 @@
   gap: 10px;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid #f3f3f3;
   min-height: 48px;
 
   &.editing {
-    background: $orange-50;
+    background: #fffbe6;
   }
   .name {
     font-weight: 700;

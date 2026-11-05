@@ -5,6 +5,7 @@
     @if (isPermitted()) {
       <button nz-button nzType="primary" type="button" (click)="startNew()" [disabled]="editingId() === NEW_ID"><span nz-icon nzType="plus"></span> הרשאה חדשה</button>
     }
+    <app-notification-bell />
   </div>
 
   <div class="muted intro">קבוצות הרשאה קובעות מי רואה תמציות ותיקיות (למשל לפי פקולטה או קורס). הצבע של כל קבוצה מופיע בכל מקום שהיא מוצגת.</div>
