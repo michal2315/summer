@@ -11,6 +11,8 @@ $tok-or: #b54d00;
 $tok-or-bg: #ffead6;
 $tok-not: #c41d3a;
 $tok-not-bg: #fde3e8;
+$tok-phrase: #8a6400;
+$tok-phrase-bg: #fff3bf;
 
 :host {
   display: block;
@@ -127,6 +129,9 @@ $tok-not-bg: #fde3e8;
 .tok-not {
   @include pill($tok-not, $tok-not-bg);
 }
+.tok-phrase {
+  @include pill($tok-phrase, $tok-phrase-bg);
+}
 .tok-capsule {
   @include pill($capsule, $capsule-bg);
   // The name's underscores keep their width but read as spaces.
@@ -163,6 +168,35 @@ $tok-not-bg: #fde3e8;
   font-size: 12px;
   color: $gray;
   margin-inline-start: 4px;
+  cursor: help;
+}
+
+// Cheat-sheet popover (rendered in an overlay, but the template belongs to this component so its styles apply).
+.cheats {
+  display: flex;
+  flex-direction: column;
+  min-width: 300px;
+}
+
+.cheat {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 5px 0;
+  & + & {
+    border-top: 1px solid #f0f0f5;
+  }
+}
+
+.cheat-example {
+  flex: 0 0 130px;
+  font-size: 13px;
+  white-space: pre;
+}
+
+.cheat-hint {
+  font-size: 12px;
+  color: $dark-gray;
 }
 
 .divider {
@@ -292,5 +326,27 @@ $tok-not-bg: #fde3e8;
   from {
     opacity: 0;
     transform: translateY(-4px);
+  }
+}
+
+// Save-search popover (rendered in an overlay, but the template belongs to this component so its styles apply).
+.save-search {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.save-hint {
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.save-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  .spacer {
+    flex: 1;
   }
 }

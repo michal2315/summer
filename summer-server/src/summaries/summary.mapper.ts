@@ -43,7 +43,7 @@ export function toApiSummary(
     files: s.files.map((f) => f.fileName),
     taggedUsers: s.taggedUsers.map((t) => toRef(t.user)),
     taggedPermissions: sortedPermissions(s.taggedPermissions),
-    folder: s.folder && ctx.visibleFolders.has(s.folder.folderId) ? { _id: s.folder.folder.id, name: s.folder.folder.name } : null,
+    folders: s.folders.filter((f) => ctx.visibleFolders.has(f.folderId)).map((f) => ({ _id: f.folder.id, name: f.folder.name })),
     permissions: sortedPermissions(s.permissions),
     seenBy: s.seen.map((x) => x.userId),
     color: s.color,

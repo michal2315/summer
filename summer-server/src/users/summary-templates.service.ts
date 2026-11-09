@@ -15,7 +15,7 @@ const templateSchema = z.object({
   taggedUsers: z.array(zId).max(200).default([]),
   taggedPermissions: z.array(zId).max(100).default([]),
   labels: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
-  folder: zId.nullable().default(null),
+  folders: z.array(zId).max(50).default([]),
 });
 
 /** Personal summary-form templates. Every mutation returns the caller's refreshed list. */
@@ -40,7 +40,8 @@ export class SummaryTemplatesService {
       taggedUsers: r.data.taggedUsers.flatMap((id) => userById.get(id) ?? []),
       taggedPermissions: r.data.taggedPermissions ?? [],
       labels: r.data.labels,
-      folder: r.data.folder,
+      // Templates saved before a summary could be in several folders keep one in `folder`.
+      folders: r.data.folders ?? (r.data.folder ? [r.data.folder] : []),
     }));
   }
 
@@ -51,7 +52,7 @@ export class SummaryTemplatesService {
       taggedUsers: unique(v.taggedUsers),
       taggedPermissions: unique(v.taggedPermissions),
       labels: unique(v.labels),
-      folder: v.folder,
+      folders: unique(v.folders),
     };
     await this.database.transaction(async () => {
       if (!(await this.templates.exists(me.id, name)) && (await this.templates.countFor(me.id)) >= MAX_TEMPLATES)

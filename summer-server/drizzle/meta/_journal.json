@@ -113,6 +113,20 @@
       "when": 1793872752087,
       "tag": "0015_pinned_users",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793892130817,
+      "tag": "0016_multi_folder",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793892165735,
+      "tag": "0017_saved_search_names",
+      "breakpoints": true
     }
   ]
 }

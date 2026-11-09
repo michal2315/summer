@@ -29,7 +29,7 @@ export const summariesRelations = relations(summaries, ({ one, many }) => ({
   seen: many(summarySeen),
   files: many(summaryFiles),
   comments: many(comments),
-  folder: one(folderSummaries, { fields: [summaries.id], references: [folderSummaries.summaryId] }),
+  folders: many(folderSummaries),
 }));
 
 export const summaryPermissionsRelations = relations(summaryPermissions, ({ one }) => ({

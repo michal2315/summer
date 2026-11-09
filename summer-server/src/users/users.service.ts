@@ -12,6 +12,14 @@ import { UsersRepository } from './users.repository';
 
 const MAX_PINNED_SEARCH_BYTES = 4096;
 const MAX_PINNED_SEARCHES = 50;
+const MAX_SEARCH_NAME = 120;
+
+/** A blank name means "unnamed" (the client describes the search instead). */
+function searchName(name: unknown): string | null {
+  if (name === undefined || name === null) return null;
+  if (typeof name !== 'string') throw new BadRequestException('name must be a string');
+  return name.trim().slice(0, MAX_SEARCH_NAME) || null;
+}
 
 const bulkFavoriteSchema = z.object({ summaryIds: z.array(zId).min(1).max(BULK_MAX), favorite: z.boolean() });
 /** Keys that do not distinguish one saved search from another. */
@@ -45,18 +53,26 @@ export class UsersService {
 
   async pinSearch(me: CurrentUser, body: unknown): Promise<ApiUser> {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new BadRequestException();
-    const { isPin, ...search } = body as Record<string, unknown>;
+    const { isPin, name: rawName, ...search } = body as Record<string, unknown>;
     for (const k of ['skip', 'limit']) delete search[k];
     if (JSON.stringify(search).length > MAX_PINNED_SEARCH_BYTES) throw new BadRequestException('search too large');
+    const name = searchName(rawName);
     const key = searchKey(search);
     await this.database.transaction(async () => {
       const existing = await this.state.pinnedSearches(me.id);
-      for (const s of existing) if (searchKey(s.search) === key) await this.state.deletePinnedSearch(s.id);
+      const same = existing.filter((s) => searchKey(s.search) === key);
+      for (const s of same) await this.state.deletePinnedSearch(s.id);
       if (isPin === true || isPin === 'true') {
-        if (existing.length >= MAX_PINNED_SEARCHES) throw new BadRequestException('too many pinned searches');
-        await this.state.addPinnedSearch(me.id, search);
+        if (existing.length - same.length >= MAX_PINNED_SEARCHES) throw new BadRequestException('too many pinned searches');
+        // Saving the same search again moves it to the top and keeps its name unless a new one is given.
+        await this.state.addPinnedSearch(me.id, search, name ?? same.find((s) => s.name)?.name ?? null);
       }
     });
+    return this.me(me);
+  }
+
+  async renameSearch(me: CurrentUser, id: string, name: unknown): Promise<ApiUser> {
+    if (!(await this.state.renamePinnedSearch(me.id, id, searchName(name)))) throw new NotFoundException();
     return this.me(me);
   }
 

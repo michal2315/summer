@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
 import { userGuard } from '../core/auth/guards';
 import { LayoutComponent } from '../core/layout/layout.component';
-import { dashboardGuard } from '../features/dashboard/dashboard.guard';
 
 const status = (kind: string) => ({
   loadComponent: () => import('../core/pages/status-page/status-page.component').then((m) => m.StatusPageComponent),
@@ -29,22 +28,6 @@ export const routes: Routes = [
       // The hierarchy is the home page now (old links keep their query params).
       { path: 'hierarchy', redirectTo: 'summaries' },
       { path: 'notifications', loadChildren: () => import('./notifications.routes') },
-      {
-        path: 'capsules',
-        loadComponent: () => import('../features/capsules/capsules-page/capsules-page.component').then((m) => m.CapsulesPageComponent),
-        title: 'Summer · כמוסות',
-      },
-      {
-        path: 'permissions',
-        loadComponent: () => import('../features/permissions/permissions-page/permissions-page.component').then((m) => m.PermissionsPageComponent),
-        title: 'Summer · הרשאות',
-      },
-      {
-        path: 'dashboard',
-        canActivate: [dashboardGuard],
-        loadComponent: () => import('../features/dashboard/dashboard-page/dashboard-page.component').then((m) => m.DashboardPageComponent),
-        title: 'Summer · דשבורד',
-      },
       {
         path: 'extension',
         children: [

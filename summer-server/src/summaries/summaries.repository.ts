@@ -335,18 +335,18 @@ export class SummariesRepository {
   }
 
   /**
-   * Published summaries within `scope` the caller can see; those matching `search` (scope included) they can't, and per
-   * permission they lack how many of the hidden ones require it (a sumaroon also requires its running summary's).
+   * All published summaries within `scope`, visible or not; those matching `search` (scope included) the caller can't
+   * see, and per permission they lack how many of the hidden ones require it (a sumaroon also requires its running summary's).
    */
   async accessStats(me: CurrentUser, scope: SQL[], search: SQL[]) {
     const published = eq(summaries.isDraft, false);
     const hiddenWhere = and(published, not(this.visible(me)), ...search)!;
     const hidden = this.db.select({ id: summaries.id, parentId: summaries.parentId }).from(summaries).where(hiddenWhere);
     const [total, hiddenCount, missing] = await Promise.all([
-      this.count(and(published, this.visible(me), ...scope)!),
+      this.count(and(published, ...scope)!),
       this.count(hiddenWhere),
       this.db
-        .execute<{ permission_id: string; blocking: number; only_one: number }>(
+        .execute<{ permission_id: string; blocking: number }>(
           sql`with hidden as (${hidden}),
             missing as (
               select h.id, array_agg(distinct sp.permission_id) perms
@@ -354,7 +354,7 @@ export class SummariesRepository {
               where sp.permission_id <> all(${uuidArray(me.permissionIds)})
               group by h.id
             )
-            select p as permission_id, count(*)::int as blocking, (count(*) filter (where cardinality(perms) = 1))::int as only_one
+            select p as permission_id, count(*)::int as blocking
             from missing, unnest(perms) p
             group by p
             order by blocking desc`,
@@ -376,20 +376,6 @@ export class SummariesRepository {
     return row as Record<K, number>;
   }
 
-  /** Latest visible published summaries with their first label (dashboard grouping). */
-  async latestWithFirstLabel(where: SQL, limit: number): Promise<{ id: string; label: string | null }[]> {
-    return this.db
-      .select({
-        id: summaries.id,
-        label: sql<string | null>`(select l.name from summary_labels sl join labels l on l.id = sl.label_id
-                                   where sl.summary_id = "summaries"."id" order by sl.position limit 1)`,
-      })
-      .from(summaries)
-      .where(where)
-      .orderBy(...this.orderBy('-eventDate'))
-      .limit(limit);
-  }
-
   /** Everything a summary card/detail needs, loaded as nested JSON per summary (no join row explosion). */
   async loadFull(ids: string[]) {
     if (!ids.length) return [];
@@ -407,7 +393,7 @@ export class SummariesRepository {
         seen: { columns: { userId: true } },
         files: { columns: { fileName: true }, orderBy: (f, { asc }) => [asc(f.createdAt), asc(f.fileName)] },
         comments: { orderBy: (c, { asc }) => [asc(c.createdAt)], with: { author: { columns: refColumns } } },
-        folder: { with: { folder: { columns: { id: true, name: true } } } },
+        folders: { orderBy: (f, { asc }) => [asc(f.createdAt)], with: { folder: { columns: { id: true, name: true } } } },
       },
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -513,10 +499,10 @@ export class SummariesRepository {
     return result;
   }
 
-  /** The folder holding the summary, if any. */
-  async folderId(id: string): Promise<string | null> {
-    const [row] = await this.db.select({ id: folderSummaries.folderId }).from(folderSummaries).where(eq(folderSummaries.summaryId, id));
-    return row?.id ?? null;
+  /** The folders holding the summary. */
+  async folderIds(id: string): Promise<string[]> {
+    const rows = await this.db.select({ id: folderSummaries.folderId }).from(folderSummaries).where(eq(folderSummaries.summaryId, id));
+    return rows.map((r) => r.id);
   }
 
   async fileNames(id: string): Promise<string[]> {
@@ -582,14 +568,17 @@ export class SummariesRepository {
     if (permissionIds.length) await this.db.insert(summaryTaggedPermissions).values(permissionIds.map((permissionId) => ({ summaryId: id, permissionId })));
   }
 
-  /** Put the summary in `folderId` (moving it out of any other folder), or take it out of the hierarchy with null. */
-  async setFolder(id: string, folderId: string | null): Promise<void> {
-    if (!folderId) await this.db.delete(folderSummaries).where(eq(folderSummaries.summaryId, id));
-    else
+  /** Add the summary to these folders, keeping the ones it is already in. */
+  async addFolders(id: string, folderIds: string[]): Promise<void> {
+    if (folderIds.length)
       await this.db
         .insert(folderSummaries)
-        .values({ summaryId: id, folderId })
-        .onConflictDoUpdate({ target: folderSummaries.summaryId, set: { folderId, createdAt: new Date() } });
+        .values(folderIds.map((folderId) => ({ summaryId: id, folderId })))
+        .onConflictDoNothing();
+  }
+
+  async removeFolders(id: string, folderIds: string[]): Promise<void> {
+    if (folderIds.length) await this.db.delete(folderSummaries).where(and(eq(folderSummaries.summaryId, id), inArray(folderSummaries.folderId, folderIds)));
   }
 
   async addFiles(id: string, files: { fileName: string; size: number; mimeType: string }[]): Promise<void> {

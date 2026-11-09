@@ -18,8 +18,16 @@ export interface UserRef {
   isSystem?: boolean;
 }
 
+/** A saved search; without a name the client describes it from its filters. */
+export interface ApiSavedSearch {
+  _id: string;
+  name: string | null;
+  search: Record<string, unknown>;
+}
+
 export interface ApiUser extends UserRef {
-  pinnedSearches: Record<string, unknown>[];
+  /** newest first */
+  pinnedSearches: ApiSavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
@@ -65,7 +73,7 @@ export interface ApiSummaryTemplate {
   taggedUsers: UserRef[];
   taggedPermissions: string[];
   labels: string[];
-  folder: string | null;
+  folders: string[];
 }
 
 /** A sumaroon's running summary: what the sumaroon inherits (labels, permissions) and its date range. */
@@ -97,8 +105,8 @@ export interface ApiSummary {
   files: string[];
   taggedUsers: UserRef[];
   taggedPermissions: ApiPermission[];
-  /** null when not in a folder, or in one the caller cannot see */
-  folder: ApiFolderRef | null;
+  /** the folders it is in that the caller can see (empty = none) */
+  folders: ApiFolderRef[];
   permissions: ApiPermission[];
   seenBy: string[];
   color: string;
@@ -121,14 +129,14 @@ export interface ApiSummary {
 }
 
 /**
- * The home page counter: `total` = published summaries the caller can see in the scope (all, a folder with its
- * subfolders, or no folder); `hidden` = ones in the scope matching the search that permissions hide, and which missing
- * permissions hide them. A summary missing several permissions counts under each; `only` = hidden by that one alone.
+ * The home page counter: `total` = all published summaries in the scope (all, a folder with its subfolders, or no
+ * folder), including ones the caller can't see; `hidden` = ones in the scope matching the search that permissions hide,
+ * and which missing permissions hide them. A summary missing several permissions counts under each.
  */
 export interface ApiAccessStats {
   total: number;
   hidden: number;
-  missing: { permission: ApiPermission; blocking: number; only: number }[];
+  missing: { permission: ApiPermission; blocking: number }[];
 }
 
 /** Why a bulk action left a summary out. Hidden and nonexistent ids are both `not-found` (A7: non-disclosing). */

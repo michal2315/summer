@@ -101,7 +101,7 @@ export class ExcelService {
           eventDate: this.toDay(v.eventDate),
           department: v.department || me.department,
           labels: (v.labels ?? '').split(/[,،]/).map((l) => l.trim()).filter(Boolean),
-          folderId: req.folder,
+          folderIds: req.folder ? [req.folder] : [],
           permissions: req.permissions,
           taggedUsers: [],
           summaryFields: Object.entries(v)

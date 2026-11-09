@@ -51,8 +51,12 @@ export class UserService {
   }
 
   // ---- pins / favorites / follows (all return the updated IUser) ----
-  pinSearch(search: ISummarySearch, isPin: boolean) {
-    return this.update(this.http.post<IUser>(`${BASE}/pinned-search/`, { ...search, isPin }));
+  /** Saving a search that is already saved keeps its name unless `name` is given. */
+  pinSearch(search: ISummarySearch, isPin: boolean, name?: string) {
+    return this.update(this.http.post<IUser>(`${BASE}/pinned-search/`, { ...search, isPin, ...(name !== undefined ? { name } : {}) }));
+  }
+  renameSearch(id: string, name: string) {
+    return this.update(this.http.put<IUser>(`${BASE}/pinned-search/${id}`, { name }));
   }
   pinLabel(label: string) {
     return this.update(this.http.post<IUser>(`${BASE}/pinned-label/`, { label }));

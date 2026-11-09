@@ -1,7 +1,7 @@
 @let s = summary();
 <div class="info">
-  <div class="caption">תיקייה בהיררכיה</div>
-  <div class="path" role="list" aria-label="מיקום התיקייה">
+  <div class="caption">שיוך בהיררכיה</div>
+  <div class="path" role="list" aria-label="מיקום השיוך">
     @for (f of path(); track f._id; let last = $last) {
       <a role="listitem" class="crumb" [class.current]="last" [routerLink]="['/summaries']" [queryParams]="{ folderId: f._id }">
         @if (last) {
@@ -36,7 +36,7 @@
     }
   }
 
-  <a class="open" [routerLink]="['/summaries']" [queryParams]="hierarchyParams(s)">
+  <a class="open" [routerLink]="['/summaries']" [queryParams]="hierarchyParams(s, folderRef())">
     הצגה בהיררכיה <span nz-icon nzType="arrow-left"></span>
   </a>
 </div>

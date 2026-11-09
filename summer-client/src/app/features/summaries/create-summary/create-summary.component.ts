@@ -87,7 +87,7 @@ type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
 /** The running summary a sumaroon is written into, plus the content type it imposes. */
 type ParentInfo = ISummaryParent & { contentTypeId: string };
 /** The sharing-section values a template fills in. */
-type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'folder'>;
+type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'folders'>;
 const LABELS_PAGE = 20;
 
 @Component({
@@ -157,8 +157,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   readonly form = this.fb.group({
     kind: [SummaryKind.Summary],
-    /** hierarchy folder of the published summary (never a sumaroon's) */
-    folder: [null as string | null],
+    /** hierarchy folders of the published summary (never a sumaroon's); it is the same summary in each */
+    folders: [[] as string[]],
     /** sumaroon: its running summary */
     parent: [null as string | null],
     /** running: [from, to] */
@@ -211,29 +211,32 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private pendingTypeValues: Record<string, FieldValue> = {};
   readonly duplicates = signal<DuplicateHit[]>([]);
 
-  // ---- hierarchy folder (sumaroons live inside their running summary) ----
+  // ---- hierarchy folders (sumaroons live inside their running summary) ----
   private readonly folderService = inject(FolderService);
-  /** Every folder the user can see, and the ones they manage (only managers may move a summary in or out). */
+  /** Every folder the user can see, and the ones they manage (only managers may add a summary to one or take it out). */
   private readonly allFolders = signal<FolderPath[]>([]);
   private readonly managedFolders = signal<FolderPath[]>([]);
-  /** The folder the summary sits in (edit), if the user can see it. */
-  private readonly currentFolder = signal<IFolderRef | null>(null);
-  /** In a folder the user doesn't manage: shown, but it can't be changed here. */
-  readonly folderLocked = computed(() => {
-    const cur = this.currentFolder();
-    return !!cur && !this.managedFolders().some((f) => f._id === cur._id);
+  /** The folders the summary sits in (edit) that the user can see. */
+  private readonly currentFolders = signal<IFolderRef[]>([]);
+  /** Of those, the ones the user doesn't manage: shown, but they can't be removed here. */
+  readonly lockedFolders = computed(() => {
+    const managed = new Set(this.managedFolders().map((f) => f._id));
+    return this.currentFolders().filter((f) => !managed.has(f._id));
   });
-  readonly folderOptions = computed<FolderPath[]>(() => {
-    const cur = this.currentFolder();
-    if (!cur || !this.folderLocked()) return this.managedFolders();
-    return [this.allFolders().find((f) => f._id === cur._id) ?? { ...cur, path: cur.name }, ...this.managedFolders()];
-  });
+  readonly folderOptions = computed<(FolderPath & { locked?: boolean })[]>(() => [
+    ...this.lockedFolders().map((cur) => ({ ...(this.allFolders().find((f) => f._id === cur._id) ?? { ...cur, path: cur.name }), locked: true })),
+    ...this.managedFolders(),
+  ]);
   /** The catch-all "generic" type has to be filed somewhere — when the user manages a folder to file it in. */
   readonly folderRequired = computed(
     () => this.contentType()?.name === GENERIC && this.kind() !== SummaryKind.Sumaroon && this.managedFolders().length > 0,
   );
   readonly folderHint = computed(() =>
-    this.folderLocked() ? 'רק מנהלי התיקייה יכולים להוציא ממנה את התמצית' : this.folderRequired() ? 'לסוג "כללי" חובה לבחור תיקייה' : 'אופציונלי — מיקום בהיררכיה',
+    this.lockedFolders().length
+      ? 'רק מנהלי התיקייה יכולים להוציא ממנה את התמצית'
+      : this.folderRequired()
+        ? 'לסוג "כללי" חובה לבחור תיקייה'
+        : 'אופציונלי — אפשר לבחור כמה תיקיות; זו אותה תמצית בכל אחת',
   );
 
   // ---- kind (summary / running / sumaroon) ----
@@ -317,7 +320,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     check(c.content.invalid, 'תוכן');
     check(c.permissions.invalid, 'הרשאות');
     check(c.labels.invalid, 'תגיות');
-    check(c.folder.invalid, 'תיקייה');
+    check(c.folders.invalid, 'תיקייה');
     return out;
   });
 
@@ -330,7 +333,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly hasSharingValues = computed(() => {
     this.formTick();
     const v = this.form.getRawValue();
-    return !!(v.permissions.length || v.taggedUsers.length || v.taggedPermissions.length || v.labels.length || v.folder);
+    return !!(v.permissions.length || v.taggedUsers.length || v.taggedPermissions.length || v.labels.length || v.folders.length);
   });
 
   readonly editorPlaceholder = 'תתפרעו :) הוסיפו # לפני מילה בשביל להפוך אותה לתגית';
@@ -351,17 +354,14 @@ export class CreateSummaryComponent implements HasPendingChanges {
       });
     });
 
-    // A sumaroon never sits in a folder; "generic" needs one (folderRequired); a folder the user doesn't manage stays put.
+    // A sumaroon never sits in a folder; "generic" needs one (folderRequired). Folders the user doesn't manage stay (lockedFolders).
     effect(() => {
       const sumaroon = this.kind() === SummaryKind.Sumaroon;
       const required = this.folderRequired();
-      const locked = this.folderLocked();
       untracked(() => {
-        const c = this.form.controls.folder;
-        if (sumaroon && c.value) c.setValue(null);
+        const c = this.form.controls.folders;
+        if (sumaroon && c.value.length) c.setValue([]);
         c.setValidators(required ? Validators.required : null);
-        if (locked) c.disable({ emitEvent: false });
-        else c.enable({ emitEvent: false });
         c.updateValueAndValidity();
       });
     });
@@ -553,7 +553,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       title: s.title,
       content: s.content,
       labels: s.labels.map((l) => l.name),
-      folder: s.folder?._id ?? null,
+      folders: s.folders.map((f) => f._id),
       taggedUsers: s.taggedUsers.map((u) => u._id),
       taggedPermissions: s.taggedPermissions.map((p) => p._id),
       notes: s.notes ?? '',
@@ -567,7 +567,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.form.controls.extraFields.clear();
     for (const e of extra) this.addExtraRow(e.field, e.value);
     this.labelOptions.update((l) => this.withSelected(l, s.labels.map((x) => x.name)));
-    this.currentFolder.set(s.folder);
+    this.currentFolders.set(s.folders);
     this.userOptions.set(s.taggedUsers);
     this.existingFiles.set([...s.files]);
     this.notesOpen.set(!!s.notes);
@@ -605,14 +605,15 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const t = this.templates.list().find((x) => x._id === id);
     if (!t) return;
     const sumaroon = this.kind() === SummaryKind.Sumaroon;
-    const canPlace = !sumaroon && !this.folderLocked();
+    const canPlace = !sumaroon;
     const assignable = new Set(this.permissionGroups.assignable().map((p) => p._id));
     const permissions = t.permissions.filter((p) => assignable.has(p));
     const known = this.permissionGroups.byId();
     const taggedPermissions = t.taggedPermissions.filter((p) => known.has(p));
-    const folder = canPlace && this.managedFolders().some((f) => f._id === t.folder) ? t.folder : null;
+    const managed = new Set(this.managedFolders().map((f) => f._id));
+    const folders = canPlace ? t.folders.filter((f) => managed.has(f)) : [];
     const skipped =
-      t.permissions.length - permissions.length + t.taggedPermissions.length - taggedPermissions.length + (canPlace && t.folder && !folder ? 1 : 0);
+      t.permissions.length - permissions.length + t.taggedPermissions.length - taggedPermissions.length + (canPlace ? t.folders.length - folders.length : 0);
 
     this.templateUndo.set({ name: t.name, previousId: this.appliedTemplate(), values: this.sharingValues() });
     this.labelOptions.update((l) => this.withSelected(l, t.labels));
@@ -622,7 +623,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
       taggedUsers: t.taggedUsers.map((u) => u._id),
       taggedPermissions,
       labels: [...t.labels],
-      ...(canPlace ? { folder } : {}),
+      // Folders the user doesn't manage can't be taken out, so they stay next to the template's.
+      ...(canPlace ? { folders: [...new Set([...this.lockedFolders().map((f) => f._id), ...folders])] } : {}),
     });
     this.form.markAsDirty();
     this.appliedTemplate.set(t._id);
@@ -669,8 +671,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
   }
 
   private sharingValues(): SharingValues {
-    const { permissions, taggedUsers, taggedPermissions, labels, folder } = this.form.getRawValue();
-    return { permissions, taggedUsers, taggedPermissions, labels, folder };
+    const { permissions, taggedUsers, taggedPermissions, labels, folders } = this.form.getRawValue();
+    return { permissions, taggedUsers, taggedPermissions, labels, folders };
   }
 
   // ---- template helpers ----
@@ -830,7 +832,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     if (!valid) {
       this.form.markAllAsTouched();
       for (const ctrl of Object.values(c.typeFields.controls)) ctrl.markAsDirty();
-      for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.folder, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
+      for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.folders, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
       this.message.warning(isDraft ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
       this.scrollToFirstError();
       return;
@@ -862,8 +864,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
       eventSecTime: v.eventSecTime && kind !== SummaryKind.Running ? format(v.eventSecTime, 'HH:mm') : undefined,
       department: v.department,
       labels: v.labels,
-      // Drafts never sit in a folder; sending none leaves an existing placement alone.
-      folderId: kind !== SummaryKind.Sumaroon && !isDraft ? v.folder : undefined,
+      // Drafts never sit in a folder; sending none leaves existing placements alone. Folders the user can't leave always stay.
+      folderIds: kind !== SummaryKind.Sumaroon && !isDraft ? [...new Set([...this.lockedFolders().map((f) => f._id), ...v.folders])] : undefined,
       permissions: v.permissions,
       taggedUsers: v.taggedUsers,
       taggedPermissions: v.taggedPermissions,
@@ -880,7 +882,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
         this.saved = true;
         this.saving.set(false);
         this.clearLocalDraft();
-        if (isDraft && v.folder && kind !== SummaryKind.Sumaroon && !this.folderLocked())
+        if (isDraft && v.folders.length && kind !== SummaryKind.Sumaroon)
           this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
         this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
         if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });

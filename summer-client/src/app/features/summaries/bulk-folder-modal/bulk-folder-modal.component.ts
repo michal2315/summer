@@ -16,7 +16,7 @@ export interface BulkFolderData {
   note: string;
 }
 
-/** Move the selected summaries into one of the folders you manage. Closes with true after a change. */
+/** Add the selected summaries to one of the folders you manage (they keep their other folders). Closes with true after a change. */
 @Component({
   selector: 'app-bulk-folder-modal',
   imports: [FormsModule, NzButtonModule, NzSelectModule, SkeletonComponent],
@@ -42,7 +42,7 @@ export class BulkFolderModalComponent {
     });
   }
 
-  move() {
+  add() {
     const folderId = this.folder();
     if (!folderId) return;
     this.busy.set(true);
@@ -50,7 +50,7 @@ export class BulkFolderModalComponent {
       .addItems(folderId, this.data.summaryIds, true)
       .subscribe({
         next: (result) => {
-          const text = bulkResultMessage(result, 'תמציות הועברו לתיקייה');
+          const text = bulkResultMessage(result, 'תמציות נוספו לתיקייה');
           if (result.skipped.length) this.message.warning(text);
           else this.message.success(text);
           this.modal.close(true);

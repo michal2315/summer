@@ -60,7 +60,7 @@
             @if (s.link) {
               <a class="d-link" [href]="s.link" target="_blank" rel="noopener noreferrer"><span nz-icon nzType="link"></span> <span class="d-url" dir="ltr">{{ s.link }}</span></a>
             }
-            @if (s.folder; as f) {
+            @for (f of s.folders; track f._id) {
               <div><span nz-icon nzType="folder"></span> {{ f.name }}</div>
             }
             @for (f of s.summaryFields ?? []; track f.field._id) {

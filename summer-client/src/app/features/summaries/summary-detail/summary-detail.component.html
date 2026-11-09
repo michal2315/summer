@@ -98,23 +98,25 @@
         </nz-collapse-panel>
       }
 
-      @if (s.folder; as f) {
-        <nz-collapse-panel nzHeader="תיקייה">
+      @if (s.folders.length) {
+        <nz-collapse-panel nzHeader="שיוך">
           <ul class="files">
-            <li>
-              <a
-                [routerLink]="['/summaries']"
-                [queryParams]="hierarchyParams(s)"
-                nz-popover
-                nzPopoverTrigger="hover"
-                nzPopoverPlacement="bottom"
-                [nzPopoverMouseEnterDelay]="0.3"
-                [nzPopoverContent]="folderInfo"
-              >
-                <span nz-icon nzType="folder"></span> {{ f.name }}
-              </a>
-              <ng-template #folderInfo><app-folder-info [summary]="s" /></ng-template>
-            </li>
+            @for (f of s.folders; track f._id) {
+              <li>
+                <a
+                  [routerLink]="['/summaries']"
+                  [queryParams]="hierarchyParams(s, f)"
+                  nz-popover
+                  nzPopoverTrigger="hover"
+                  nzPopoverPlacement="bottom"
+                  [nzPopoverMouseEnterDelay]="0.3"
+                  [nzPopoverContent]="folderInfo"
+                >
+                  <span nz-icon nzType="folder"></span> {{ f.name }}
+                </a>
+                <ng-template #folderInfo><app-folder-info [summary]="s" [folderRef]="f" /></ng-template>
+              </li>
+            }
           </ul>
         </nz-collapse-panel>
       }

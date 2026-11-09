@@ -1,14 +1,12 @@
 @if (!store.selectMode()) {
   <button nz-button nzSize="small" type="button" appAltKey="selectMode" (click)="store.setSelectMode(true)"><span nz-icon nzType="check-square"></span> בחירה</button>
-  <!-- Everything Excel that doesn't need a selection lives behind one button. -->
-  <button nz-button nzSize="small" type="button" class="excel" nz-dropdown [nzDropdownMenu]="excel" nzTrigger="click" [nzLoading]="exporting()">
-    <span nz-icon nzType="file-excel"></span> Excel <span nz-icon nzType="down"></span>
-  </button>
-  <nz-dropdown-menu #excel="nzDropdownMenu">
-    <ul nz-menu>
-      <li nz-menu-item (click)="export(true)"><span nz-icon nzType="export"></span>&nbsp;ייצוא כל תוצאות החיפוש</li>
-      @if (excelActions()) {
-        <li nz-menu-divider></li>
+  @if (excelActions()) {
+    <!-- Excel import lives behind one button; exporting is done from selection mode. -->
+    <button nz-button nzSize="small" type="button" class="excel" nz-dropdown [nzDropdownMenu]="excel" nzTrigger="click">
+      <span nz-icon nzType="file-excel"></span> Excel <span nz-icon nzType="down"></span>
+    </button>
+    <nz-dropdown-menu #excel="nzDropdownMenu">
+      <ul nz-menu>
         <li nz-menu-item (click)="openUpload()"><span nz-icon nzType="upload"></span>&nbsp;העלאת Excel</li>
         <li nz-submenu nzTitle="הורדת תבנית Excel" nzIcon="download">
           <ul>
@@ -17,9 +15,9 @@
             }
           </ul>
         </li>
-      }
-    </ul>
-  </nz-dropdown-menu>
+      </ul>
+    </nz-dropdown-menu>
+  }
 } @else {
   <div class="selection">
     <label
@@ -48,7 +46,7 @@
 
   <!-- Edits: one compact icon group; each tooltip names the action and what part of the selection it applies to. -->
   <nz-button-group nzSize="small" class="edits">
-    <button nz-button type="button" [disabled]="!folderScope().ids.length" [nz-tooltip]="tip('העברה לתיקייה', folderScope())" aria-label="העברה לתיקייה" (click)="moveToFolder()">
+    <button nz-button type="button" [disabled]="!folderScope().ids.length" [nz-tooltip]="tip('הוספה לתיקייה', folderScope())" aria-label="הוספה לתיקייה" (click)="addToFolder()">
       <span nz-icon nzType="folder"></span>
     </button>
     <button nz-button type="button" [disabled]="!labelsScope().ids.length" [nz-tooltip]="tip('תגיות', labelsScope())" aria-label="תגיות" (click)="editLabels()">
@@ -94,7 +92,10 @@
   </button>
   <nz-dropdown-menu #exportMenu="nzDropdownMenu">
     <ul nz-menu>
-      <li nz-menu-item [nzDisabled]="!store.selectedCount()" (click)="store.selectedCount() && export(false)"><span nz-icon nzType="file-excel"></span>&nbsp;Excel – הנבחרות</li>
+      <!-- With nothing selected, Excel exports every result of the current search. -->
+      <li nz-menu-item (click)="export(!store.selectedCount())">
+        <span nz-icon nzType="file-excel"></span>&nbsp;Excel – {{ store.selectedCount() ? 'הנבחרות' : 'כל תוצאות החיפוש' }}
+      </li>
       <li nz-menu-item (click)="exportWord()"><span nz-icon nzType="file-word"></span>&nbsp;Word…</li>
     </ul>
   </nz-dropdown-menu>

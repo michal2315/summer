@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SQL, and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
-import { idsWhere } from '../common/sql';
+import { idsWhere, uuidArray } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
 import { folderEditors, folderPermissions, folderSummaries, folders, summaries } from '../database/schema';
 import { folderEditable, folderVisible } from './folder.access';
@@ -68,6 +68,29 @@ export class FoldersRepository {
     return counts;
   }
 
+  /**
+   * Distinct published summaries passing `summaryVisible` in each folder or anywhere below it. A summary in several of
+   * those folders counts once, like the folder's list on the home page.
+   */
+  async subtreeCounts(folderIds: string[], summaryVisible: SQL): Promise<Map<string, number>> {
+    const counts = new Map(folderIds.map((id) => [id, 0]));
+    if (!folderIds.length) return counts;
+    const { rows } = await this.db.execute<{ folder_id: string; n: number }>(sql`
+      with recursive up(folder_id, ancestor_id) as (
+        select ${folders.id}, ${folders.id} from ${folders}
+        union
+        select up.folder_id, f.parent_id from up join ${folders} f on f.id = up.ancestor_id where f.parent_id is not null
+      )
+      select up.ancestor_id as folder_id, count(distinct ${summaries.id})::int as n
+      from ${folderSummaries}
+      join up on up.folder_id = ${folderSummaries.folderId}
+      join ${summaries} on ${summaries.id} = ${folderSummaries.summaryId}
+      where up.ancestor_id = any(${uuidArray(folderIds)}) and ${summaries.isDraft} = false and ${summaryVisible}
+      group by up.ancestor_id`);
+    for (const r of rows) counts.set(r.folder_id, r.n);
+    return counts;
+  }
+
   /** Summaries directly in the folder that the caller may see, sorted by title. */
   items(folderId: string, summaryVisible: SQL) {
     return this.db
@@ -104,13 +127,13 @@ export class FoldersRepository {
     await this.db.insert(folderEditors).values(userIds.map((userId) => ({ folderId: id, userId })));
   }
 
-  /** Place items in `folderId`, moving them out of any folder that held them (one folder per item). */
+  /** Add items to `folderId`, keeping any other folders they are in (already there = no-op). */
   async place(folderId: string, summaryIds: string[]): Promise<void> {
     if (summaryIds.length)
       await this.db
         .insert(folderSummaries)
         .values(summaryIds.map((summaryId) => ({ summaryId, folderId })))
-        .onConflictDoUpdate({ target: folderSummaries.summaryId, set: { folderId, createdAt: new Date() } });
+        .onConflictDoNothing();
   }
 
   /** Take items out of `folderId` (only if they are in it). The items themselves are untouched. */

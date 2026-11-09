@@ -40,8 +40,22 @@
       </div>
 
       @if (search().text || filterCount()) {
-        <button type="button" class="icon-btn" appAltKey="pinSearch" (click)="togglePin()" [nz-tooltip]="isPinned() ? 'ביטול נעיצה' : 'נעיצת החיפוש'" aria-label="נעיצת החיפוש">
-          <span nz-icon nzType="pushpin" [nzTheme]="isPinned() ? 'fill' : 'outline'"></span>
+        <button
+          type="button"
+          class="icon-btn"
+          appAltKey="pinSearch"
+          nz-popover
+          nzPopoverTrigger="click"
+          nzPopoverPlacement="bottomRight"
+          [nzPopoverTitle]="savedMatch() ? 'חיפוש שמור' : 'שמירת החיפוש'"
+          [nzPopoverContent]="saveTpl"
+          [nzPopoverVisible]="saveOpen()"
+          (nzPopoverVisibleChange)="onSavePopover($event)"
+          [nz-tooltip]="savedMatch() ? 'החיפוש שמור: ' + savedName(savedMatch()!) : 'שמירת החיפוש'"
+          aria-label="שמירת החיפוש"
+          [attr.aria-pressed]="!!savedMatch()"
+        >
+          <span nz-icon nzType="pushpin" [nzTheme]="savedMatch() ? 'fill' : 'outline'"></span>
         </button>
       }
       @if (search().text || filterCount()) {
@@ -69,7 +83,7 @@
           <span nz-icon nzType="close-circle"></span>
         </button>
       }
-      <span class="kbd" nz-tooltip="יש ללחוץ על / כדי לעבור לתיבת החיפוש">/</span>
+      <span class="kbd" nz-popover nzPopoverTrigger="hover" nzPopoverPlacement="bottomLeft" nzPopoverTitle="קיצורי חיפוש" [nzPopoverContent]="cheatsTpl">/</span>
       <span class="divider"></span>
       <nz-badge [nzCount]="queryCount()" nzSize="small">
         <button
@@ -142,11 +156,11 @@
             <div class="popup-hint">לחיצה על כמוסה מציגה את המילים שבה · Enter לחיפוש</div>
           }
           @case ('home') {
-            @if (pinned().length) {
-              <div class="popup-title"><span nz-icon nzType="pushpin"></span> חיפושים נעוצים</div>
+            @if (saved().length) {
+              <div class="popup-title"><span nz-icon nzType="pushpin"></span> חיפושים שמורים</div>
               <div class="chips">
-                @for (p of pinned(); track $index) {
-                  <nz-tag class="chip" nzMode="closeable" (click)="apply(p)" (nzOnClose)="unpin(p, $event)">{{ describe(p) }}</nz-tag>
+                @for (p of saved(); track p._id) {
+                  <nz-tag class="chip" nzMode="closeable" (click)="apply(p.search)" (nzOnClose)="unsave(p, $event)">{{ savedName(p) }}</nz-tag>
                 }
               </div>
             }
@@ -163,6 +177,45 @@
       </div>
     }
   </form>
+
+  <ng-template #cheatsTpl>
+    <div class="cheats">
+      @for (c of shortcuts; track c.example) {
+        <div class="cheat">
+          <span class="cheat-example" dir="auto">
+            @for (s of segmentsOf(c.example); track $index) {
+              <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
+            }
+          </span>
+          <span class="cheat-hint">{{ c.hint }}</span>
+        </div>
+      }
+    </div>
+  </ng-template>
+
+  <ng-template #saveTpl>
+    <div class="save-search">
+      <input
+        nz-input
+        placeholder="שם החיפוש"
+        maxlength="120"
+        aria-label="שם החיפוש"
+        [ngModel]="saveName()"
+        (ngModelChange)="saveName.set($event)"
+        (keydown.enter)="$event.preventDefault(); saveSearch()"
+      />
+      <div class="save-hint">החיפושים השמורים מופיעים בתיבת החיפוש ובעמוד הפרופיל, ואפשר ליצור מהם התראות.</div>
+      <div class="save-actions">
+        @if (savedMatch()) {
+          <button nz-button nzDanger type="button" (click)="unsaveCurrent()">הסרה מהשמורים</button>
+        }
+        <span class="spacer"></span>
+        <button nz-button nzType="primary" type="button" [nzLoading]="saveBusy()" [disabled]="!saveName().trim()" (click)="saveSearch()">
+          {{ savedMatch() ? 'עדכון השם' : 'שמירה' }}
+        </button>
+      </div>
+    </div>
+  </ng-template>
 
   @if (showBell()) {
     <app-notification-bell />

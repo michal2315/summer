@@ -48,11 +48,6 @@ export class SummaryService {
       );
   }
 
-  /** Dashboard summaries grouped by key (label / group name). */
-  dashboard(userId: string): Observable<Record<string, ISummary[]>> {
-    return this.http.get<Record<string, ISummary[]>>(`${BASE}/user/${userId}/dashboard`);
-  }
-
   create(payload: SummaryPayload, files: File[]): Observable<ISummary> {
     return this.http.post<ISummary>(BASE, this.formData(payload, files)).pipe(tap((s) => this.changed$.next(s)));
   }

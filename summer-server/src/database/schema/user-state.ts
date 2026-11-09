@@ -84,13 +84,14 @@ export const userPinnedUsers = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.pinnedUserId] }), check('user_pinned_users_not_self', sql`${t.userId} <> ${t.pinnedUserId}`)],
 );
 
-/** Saved searches: an opaque client search object (ISummarySearch minus paging). */
+/** Saved searches: an opaque client search object (ISummarySearch minus paging), optionally named by the user. */
 export const userPinnedSearches = pgTable(
   'user_pinned_searches',
   {
     id: id(),
     userId: userFk(),
     search: jsonb().$type<Record<string, unknown>>().notNull(),
+    name: text(),
     createdAt: createdAt(),
   },
   (t) => [index().on(t.userId, t.createdAt)],
@@ -103,7 +104,9 @@ export interface SummaryTemplateData {
   /** absent in templates saved before groups could be tagged */
   taggedPermissions?: string[];
   labels: string[];
-  folder: string | null;
+  folders?: string[];
+  /** templates saved before a summary could be in several folders */
+  folder?: string | null;
 }
 
 /** Personal templates for the summary form's sharing section. References are not FKs: stale ones are dropped on read. */

@@ -17,6 +17,8 @@ export interface ApiFolder {
   name: string;
   parentId: string | null;
   itemCount: number;
+  /** Distinct summaries the caller can see in the folder and all its subfolders (one in several of them counts once). */
+  subtreeCount: number;
   /** Summaries placed directly in the folder that the caller lacks permissions to see. */
   hiddenCount: number;
   permissions: ReturnType<typeof toApiPermission>[];
@@ -110,7 +112,7 @@ export class FoldersService {
     return folder ?? {};
   }
 
-  /** Move items into the folder (out of any previous folder). Needs folder management AND edit rights on each item. */
+  /** Add items to the folder, keeping the folders they are already in. Needs folder management AND edit rights on each item. */
   /**
    * Strict (default): every item must be placeable, else 403 (not its editor) / 400 (a draft or a sumaroon), and nothing
    * is placed. `partial`: places the placeable ones and reports the rest.
@@ -180,15 +182,17 @@ export class FoldersService {
   }
 
   private async hydrate(me: CurrentUser, ids: string[]): Promise<ApiFolder[]> {
-    const [rows, counts] = await Promise.all([
+    const [rows, counts, subtree] = await Promise.all([
       this.repo.loadFull(ids),
       this.repo.itemCounts(ids, this.summaries.visible(me)),
+      this.repo.subtreeCounts(ids, this.summaries.visible(me)),
     ]);
     return rows.map((f) => ({
       _id: f.id,
       name: f.name,
       parentId: f.parentId,
       itemCount: counts.get(f.id)?.visible ?? 0,
+      subtreeCount: subtree.get(f.id) ?? 0,
       hiddenCount: counts.get(f.id)?.hidden ?? 0,
       permissions: f.permissions.map((p) => toApiPermission(p.permission)).sort((a, b) => a.name.localeCompare(b.name, 'he')),
       managers: f.editors.map((e) => e.userId),

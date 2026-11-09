@@ -257,7 +257,7 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
     const place = async (key: string, courseIdx: number[], summaryIdx: number[]) => {
       const folderId = folderIds.get(key)!;
       const ids = [...courseIdx.flatMap((c) => courseSummaries.get(c) ?? []), ...summaryIdx.map((i) => summaryIds[i])].filter((sid) => !draftIds.has(sid));
-      // A summary sits in one folder: the first placement wins.
+      // A summary may sit in several folders; placing it twice in one folder is a no-op.
       for (const summaryId of ids) await tx.insert(s.folderSummaries).values({ folderId, summaryId }).onConflictDoNothing();
     };
     await place('fd4', [0, 1], [0, 1]);

@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { SQL, and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../auth/identity-provider';
 import { CapsulesService } from '../capsules/capsules.service';
 import { ApiAccessStats, ApiBulkResult, ApiSummary, SummaryLengths, toApiPermission } from '../common/api-types';
@@ -41,8 +40,8 @@ const payloadSchema = z.object({
   eventSecTime: z.string().nullish(),
   department: z.string().trim().max(200).default(''),
   labels: z.array(z.string()).max(MAX_LABELS).default([]),
-  /** hierarchy folder: absent = leave as is, null = take out of the hierarchy. Published regular/running summaries only. */
-  folderId: zId.nullish(),
+  /** hierarchy folders (a summary can be in several): absent = leave as is, [] = take out of the hierarchy. Published regular/running summaries only. */
+  folderIds: z.array(zId).max(50).nullish(),
   permissions: z.array(zId).max(100).default([]),
   taggedUsers: z.array(zId).max(200).default([]),
   /** permission groups whose members count as tagged */
@@ -83,8 +82,6 @@ const COLOR_RE = /^(#[0-9a-f]{3,8})?$/i;
 
 const bulkIdsSchema = z.object({ summaryIds: z.array(zId).min(1).max(BULK_MAX) });
 const bulkColorSchema = bulkIdsSchema.extend({ color: z.string().regex(COLOR_RE, 'invalid color') });
-const DASHBOARD_SCAN = 500;
-const DASHBOARD_PER_GROUP = 8;
 
 interface ValidInput {
   values: Omit<SummaryValues, 'createdBy'>;
@@ -93,7 +90,7 @@ interface ValidInput {
   fieldValues: { fieldId: string; value: string }[];
   taggedUserIds: string[];
   taggedPermissionIds: string[];
-  folderId: string | null | undefined;
+  folderIds: string[] | undefined;
   keepFiles: string[];
 }
 
@@ -112,7 +109,6 @@ export class SummariesService {
     private readonly users: UsersRepository,
     private readonly files: FilesService,
     private readonly notifications: NotificationsService,
-    private readonly auth: AuthService,
     private readonly permissions: PermissionsRepository,
     private readonly capsules: CapsulesService,
   ) {}
@@ -126,7 +122,7 @@ export class SummariesService {
     const [favorites, editable, visibleFolders, parents, counts, previews] = await Promise.all([
       this.repo.favoriteIds(me.id, ids),
       this.repo.visibleIds(me, ids, 'edit'),
-      this.repo.visibleFolderIds(me, unique(rows.flatMap((r) => (r.folder ? [r.folder.folderId] : [])))),
+      this.repo.visibleFolderIds(me, unique(rows.flatMap((r) => r.folders.map((f) => f.folderId)))),
       // A visible sumaroon implies a visible running summary (summary.access.ts).
       this.repo.parents(unique(rows.flatMap((r) => (r.parentId ? [r.parentId] : [])))),
       this.repo.sumaroonCounts(runningIds, this.repo.visible(me)),
@@ -176,7 +172,7 @@ export class SummariesService {
   }
 
   /**
-   * The home page counter: visible summaries in the scope of `f` (folders / noFolder), and the ones matching the whole
+   * The home page counter: all published summaries in the scope of `f` (folders / noFolder), and the ones matching the whole
    * search that permissions hide. By product decision this reveals that hidden summaries match a search (never which).
    */
   async accessStats(me: CurrentUser, f: SummarySearch): Promise<ApiAccessStats> {
@@ -188,7 +184,7 @@ export class SummariesService {
       hidden: stats.hidden,
       missing: stats.missing.flatMap((m) => {
         const p = byId.get(m.permission_id);
-        return p ? [{ permission: toApiPermission(p), blocking: m.blocking, only: m.only_one }] : [];
+        return p ? [{ permission: toApiPermission(p), blocking: m.blocking }] : [];
       }),
     };
   }
@@ -213,23 +209,6 @@ export class SummariesService {
     await this.repo.markSeen(id, me.id);
     const [summary] = await this.hydrate(me, [id]);
     return summary;
-  }
-
-  /** Dashboard: latest visible published summaries grouped by their first label. */
-  async dashboard(me: CurrentUser): Promise<Record<string, ApiSummary[]>> {
-    if (!this.auth.inAnyGroup(me, this.config.access.dashboardGroups)) throw new ForbiddenException();
-    const rows = await this.repo.latestWithFirstLabel(
-      and(this.repo.visible(me), this.repo.bucketCondition('SUMMARY', { ownerId: me.id, isProfile: false }))!,
-      DASHBOARD_SCAN,
-    );
-    const groups = new Map<string, string[]>();
-    for (const r of rows) {
-      const key = r.label ?? 'ללא תגית';
-      const list = groups.get(key) ?? [];
-      if (list.length < DASHBOARD_PER_GROUP) groups.set(key, [...list, r.id]);
-    }
-    const byId = new Map((await this.hydrate(me, [...groups.values()].flat())).map((s) => [s._id, s]));
-    return Object.fromEntries([...groups].map(([key, ids]) => [key, ids.map((id) => byId.get(id)!)]));
   }
 
   async assertVisible(me: CurrentUser, id: string): Promise<void> {
@@ -284,7 +263,7 @@ export class SummariesService {
         createdId = id;
         await this.repo.addEditor(id, me.id);
         await this.writeRelations(id, input);
-        if (input.folderId) await this.repo.setFolder(id, input.folderId);
+        await this.repo.addFolders(id, input.folderIds ?? []);
         await this.repo.addFiles(id, await this.files.store(id, uploads));
         if (!input.values.isDraft) {
           await this.notifyTagged(me, id, input.values.title, input.taggedUserIds, input.taggedPermissionIds);
@@ -319,7 +298,7 @@ export class SummariesService {
 
         if (!(await this.repo.update(id, input.values, payload.version))) throw new ConflictException('summary was changed by someone else');
         await this.writeRelations(id, input);
-        await this.syncFolder(me, id, input.folderId);
+        await this.syncFolders(me, id, input.folderIds);
 
         const dropped = await this.repo.removeFilesExcept(id, input.keepFiles);
         const stored = await this.files.store(id, uploads);
@@ -363,7 +342,7 @@ export class SummariesService {
         const id = await this.repo.insert({ ...input.values, createdBy: me.id });
         await this.repo.addEditor(id, me.id);
         await this.writeRelations(id, input);
-        if (input.folderId) await this.repo.setFolder(id, input.folderId);
+        await this.repo.addFolders(id, input.folderIds ?? []);
       }
     });
     return inputs.length;
@@ -384,7 +363,7 @@ export class SummariesService {
 
   /**
    * Add and/or remove labels on many summaries. Applies to every summary the caller may edit and reports the rest.
-   * Added labels go after the existing ones, so a summary's first label (dashboard group) only changes if it is removed.
+   * Added labels go after the existing ones, so a summary's first label only changes if it is removed.
    * Like Excel import, bulk edits do not fan out follower/rule notifications.
    */
   async bulkLabels(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
@@ -519,20 +498,18 @@ export class SummariesService {
   }
 
   /**
-   * Move the summary to `desired` (validated: a folder the editor manages, or null). Leaving a folder needs its managers
-   * too, like on the hierarchy page. A folder hidden from the editor stays put when they send null (the client never
-   * received it, so its absence is not a removal request).
+   * Make the summary's folders `desired`: joining or leaving a folder needs its managers, like on the hierarchy page.
+   * Folders hidden from the editor stay (the client never received them, so their absence is not a removal request).
    */
-  private async syncFolder(me: CurrentUser, id: string, desired: string | null | undefined): Promise<void> {
+  private async syncFolders(me: CurrentUser, id: string, desired: string[] | undefined): Promise<void> {
     if (desired === undefined) return;
-    const current = await this.repo.folderId(id);
-    if (current === desired) return;
-    if (current) {
-      if (desired === null && !(await this.repo.visibleFolderIds(me, [current])).has(current)) return;
-      await this.assertManagesFolder(me, current);
-    }
-    if (desired) await this.assertManagesFolder(me, desired);
-    await this.repo.setFolder(id, desired);
+    const current = await this.repo.folderIds(id);
+    const visible = await this.repo.visibleFolderIds(me, current);
+    const toAdd = desired.filter((f) => !current.includes(f));
+    const toRemove = current.filter((f) => visible.has(f) && !desired.includes(f));
+    for (const f of [...toAdd, ...toRemove]) await this.assertManagesFolder(me, f);
+    await this.repo.addFolders(id, toAdd);
+    await this.repo.removeFolders(id, toRemove);
   }
 
   private async assertManagesFolder(me: CurrentUser, folderId: string): Promise<void> {
@@ -610,12 +587,12 @@ export class SummariesService {
     const taggedPermissionIds = unique(p.taggedPermissions);
     if ((await this.permissions.byIds(taggedPermissionIds)).length !== taggedPermissionIds.length) throw new BadRequestException('unknown tagged group');
 
-    const folderId = p.folderId;
-    if (folderId) {
+    const folderIds = p.folderIds == null ? undefined : unique(p.folderIds);
+    if (folderIds?.length) {
       if (isSumaroon) throw new BadRequestException(SUMAROON_ONLY_INSIDE);
       if (p.isDraft) throw new BadRequestException('drafts cannot be placed in a folder');
-      // On edit, only a change of folder needs its managers (see syncFolder).
-      if (!existing) await this.assertManagesFolder(me, folderId);
+      // On edit, only joining or leaving a folder needs its managers (see syncFolders).
+      if (!existing) for (const f of folderIds) await this.assertManagesFolder(me, f);
     }
 
     let eventDate: Date | null = null;
@@ -651,7 +628,7 @@ export class SummariesService {
       fieldValues,
       taggedUserIds,
       taggedPermissionIds,
-      folderId,
+      folderIds,
       keepFiles: unique(p.files),
     };
   }

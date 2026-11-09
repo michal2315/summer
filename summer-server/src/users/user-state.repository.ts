@@ -100,7 +100,17 @@ export class UserStateRepository {
     await this.db.delete(userPinnedSearches).where(eq(userPinnedSearches.id, id));
   }
 
-  async addPinnedSearch(userId: string, search: Record<string, unknown>): Promise<void> {
-    await this.db.insert(userPinnedSearches).values({ userId, search });
+  async addPinnedSearch(userId: string, search: Record<string, unknown>, name: string | null): Promise<void> {
+    await this.db.insert(userPinnedSearches).values({ userId, search, name });
+  }
+
+  /** False when the search is not the user's. */
+  async renamePinnedSearch(userId: string, id: string, name: string | null): Promise<boolean> {
+    const rows = await this.db
+      .update(userPinnedSearches)
+      .set({ name })
+      .where(and(eq(userPinnedSearches.id, id), eq(userPinnedSearches.userId, userId)))
+      .returning({ id: userPinnedSearches.id });
+    return rows.length > 0;
   }
 }

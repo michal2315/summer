@@ -22,7 +22,6 @@ export class TourService {
 
   readonly topics = TOUR_TOPICS;
   readonly core = TOUR_TOPICS.find((t) => t.core);
-  readonly advanced = TOUR_TOPICS.filter((t) => !t.core);
   private readonly topicOfStep = new Map<TourStep, TourTopic>(TOUR_TOPICS.flatMap((t) => t.steps.map((s) => [s, t] as const)));
   private readonly allSteps = TOUR_TOPICS.flatMap((t) => t.steps);
 
@@ -57,21 +56,12 @@ export class TourService {
     return step === WELCOME_STEP ? (this.core?.title ?? '') : (this.topicOfStep.get(step)?.title ?? '');
   }
 
-  newCount(topic: TourTopic): number {
-    const unseen = this.unseenNew();
-    return topic.steps.filter((s) => unseen.includes(s)).length;
-  }
-
   start(steps: TourStep[]) {
     this.closeHub();
     this.nudgeOpen.set(false);
     if (!steps.length) return;
     this.index.set(0);
     this.steps.set(steps);
-  }
-
-  startTopic(topic: TourTopic) {
-    this.start(topic.steps);
   }
 
   startNew() {

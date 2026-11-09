@@ -1,7 +1,7 @@
 <nz-layout class="shell">
   <nz-sider
     class="sider"
-    nzWidth="180px"
+    [nzWidth]="width()"
     nzTheme="light"
     nzBreakpoint="lg"
     [nzCollapsedWidth]="0"
@@ -10,6 +10,18 @@
   >
     <app-side-nav (navigate)="onNavigate()" />
   </nz-sider>
+  @if (!collapsed()) {
+    <div
+      class="nav-handle"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="שינוי רוחב התפריט"
+      tabindex="0"
+      (pointerdown)="startDrag($event)"
+      (keydown.arrowleft)="nudge(24)"
+      (keydown.arrowright)="nudge(-24)"
+    ></div>
+  }
   <nz-content class="content">
     <router-outlet />
   </nz-content>

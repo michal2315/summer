@@ -1,6 +1,6 @@
 import { AltKeyDirective } from '../../keyboard/alt-key.directive';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
@@ -15,7 +15,7 @@ import { SkeletonComponent } from '../skeleton/skeleton.component';
 
 @Component({
   selector: 'app-notification-bell',
-  imports: [AltKeyDirective, NzBadgeModule, NzButtonModule, NzIconModule, NzPopoverModule, NzEmptyModule, InViewDirective, SkeletonComponent, RelativeTimePipe],
+  imports: [AltKeyDirective, RouterLink, NzBadgeModule, NzButtonModule, NzIconModule, NzPopoverModule, NzEmptyModule, InViewDirective, SkeletonComponent, RelativeTimePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './notification-bell.component.html',
   styleUrl: './notification-bell.component.scss',

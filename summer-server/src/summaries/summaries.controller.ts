@@ -65,11 +65,6 @@ export class SummariesController {
     return new StreamableFile(stream, { type: meta.mimeType, length: meta.size, disposition: contentDisposition(meta.fileName) });
   }
 
-  @Get('user/:userId/dashboard')
-  dashboard(@Me() me: CurrentUser): Promise<Record<string, ApiSummary[]>> {
-    return this.summaries.dashboard(me);
-  }
-
   /** Feed (own id, isProfile=false) and profile tabs (isProfile=true, any user's id). */
   @Get('user/:userId')
   search(@Me() me: CurrentUser, @Param('userId', IdPipe) userId: string, @Query() query: unknown): Promise<{ summaries: ApiSummary[]; lengths: SummaryLengths }> {

@@ -120,9 +120,9 @@ export class NotificationsSettingsService {
     return this.rules()?.find((r) => r.search && sameAlertSearch(r.search, search));
   }
 
-  /** "Notify me about new results": a rule holding the search, named after it. */
-  addAlert(search: ISummarySearch): Observable<INotificationSettings> {
+  /** "Notify me about new results": a rule holding the search, named after it (or after the saved search's name). */
+  addAlert(search: ISummarySearch, name?: string | null): Observable<INotificationSettings> {
     const s = alertSearch(search);
-    return this.save({ name: describeSearch(s).slice(0, 120), conditions: [], search: s, isNotify: true, isMail: false, isDigest: false });
+    return this.save({ name: (name || describeSearch(s)).slice(0, 120), conditions: [], search: s, isNotify: true, isMail: false, isDigest: false });
   }
 }

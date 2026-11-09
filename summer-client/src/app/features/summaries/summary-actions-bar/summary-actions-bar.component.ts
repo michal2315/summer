@@ -24,9 +24,9 @@ import { ExportWordData, ExportWordModalComponent } from '../word/export-word-mo
 import { SummaryListStore } from '../summary-list.store';
 
 /**
- * Toolbar over a summaries list (spec "export-buttons-row"). Outside selection mode: "select" plus one Excel menu
- * (export all results; on the feed also upload and templates). In selection mode: a selection chip, the bulk actions
- * (folder, labels, colour, timeline, export menu, and favourites / to-draft / delete behind ⋯), then exit. Each applies to the part of the selection it may (edits: summaries you may edit;
+ * Toolbar over a summaries list (spec "export-buttons-row"). Outside selection mode: "select", plus (on the feed) one
+ * Excel menu for upload and templates. In selection mode: a selection chip, the bulk actions (folder, labels, colour,
+ * timeline, export menu — Excel / Word, all results when nothing is selected — and favourites / to-draft / delete behind ⋯), then exit. Each applies to the part of the selection it may (edits: summaries you may edit;
  * to-draft and delete: your own) and reports the rest. After a bulk change the list reloads and selection mode ends.
  */
 @Component({
@@ -86,12 +86,12 @@ export class SummaryActionsBarComponent {
   readonly mineIds = computed(() => this.store.selectedRows().filter((r) => r.summary?.user?._id === this.users.userId()).map((r) => r.id));
   readonly draftIds = computed(() => this.store.selectedRows().filter((r) => r.summary?.user?._id === this.users.userId() && !r.summary.isDraft).map((r) => r.id));
 
-  moveToFolder() {
+  addToFolder() {
     const scope = this.folderScope();
     if (!scope.ids.length) return;
     this.modal
       .create<BulkFolderModalComponent, BulkFolderData, boolean>({
-        nzTitle: 'העברה לתיקייה',
+        nzTitle: 'הוספה לתיקייה',
         nzContent: BulkFolderModalComponent,
         nzData: { summaryIds: scope.ids, note: scopeNote(scope) },
         nzFooter: null,

@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, inject, input, signal } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { CRX_URL, ExtensionService } from '../../../features/extension/extension.service';
 import { AltKeysService } from '../../keyboard/alt-keys.service';
 import { TourService } from '../tour.service';
 
 const GAP = 12;
 const EDGE = 8;
 
-/** The "סיור ועזרה" panel: basics, what's new, and every advanced topic. Opens beside its anchor button. */
+/** The "סיור ועזרה" panel: what's new and the basics tour. Opens beside its anchor button. */
 @Component({
   selector: 'app-tour-hub',
   imports: [NzIconModule],
@@ -17,6 +18,9 @@ const EDGE = 8;
 })
 export class TourHubComponent {
   readonly tour = inject(TourService);
+  /** The download link shows once the server reports a published extension package. */
+  readonly extension = inject(ExtensionService);
+  readonly crxUrl = CRX_URL;
   private readonly altKeys = inject(AltKeysService);
   readonly anchor = input.required<HTMLElement>();
 

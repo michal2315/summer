@@ -14,7 +14,7 @@
   }
 </nz-select>
 
-<div class="muted note">תמצית שכבר נמצאת בתיקייה אחרת תועבר אל "{{ data.folderName }}".</div>
+<div class="muted note">תמצית שכבר נמצאת בתיקיות אחרות תישאר גם בהן.</div>
 <div class="footer">
   <button nz-button type="button" (click)="modal.close(false)">ביטול</button>
   <button nz-button nzType="primary" type="button" [disabled]="!summaries().length" [nzLoading]="busy()" (click)="add()">

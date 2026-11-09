@@ -9,7 +9,7 @@
         <nz-option [nzValue]="f._id" [nzLabel]="f.path" />
       }
     </nz-select>
-    <div class="muted hint">תמצית שכבר נמצאת בתיקייה אחרת תועבר לתיקייה שנבחרה.</div>
+    <div class="muted hint">תמצית שכבר נמצאת בתיקיות אחרות תישאר גם בהן.</div>
   } @else {
     <div class="muted empty">אין תיקיות שאתם מנהלים. אפשר ליצור תיקייה בעמוד ההיררכיה.</div>
   }
@@ -18,5 +18,5 @@
 }
 <div class="footer">
   <button nz-button type="button" (click)="modal.close(false)">ביטול</button>
-  <button nz-button nzType="primary" type="button" [disabled]="!folder()" [nzLoading]="busy()" (click)="move()">העברה</button>
+  <button nz-button nzType="primary" type="button" [disabled]="!folder()" [nzLoading]="busy()" (click)="add()">הוספה</button>
 </div>

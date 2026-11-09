@@ -10,10 +10,11 @@ import { SkeletonComponent } from '../../shared/components/skeleton/skeleton.com
 import { UserRef } from '../../shared/models';
 import { SummaryBrowserComponent } from '../summaries/summary-browser/summary-browser.component';
 import { EmptyState } from '../summaries/summary-list/summary-list.component';
+import { SavedSearchesComponent } from './saved-searches/saved-searches.component';
 
 @Component({
   selector: 'app-profile',
-  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, AvatarComponent, CardSkeletonComponent, SkeletonComponent, SummaryBrowserComponent],
+  imports: [AltKeyDirective, RouterLink, NzButtonModule, NzIconModule, AvatarComponent, CardSkeletonComponent, SkeletonComponent, SummaryBrowserComponent, SavedSearchesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss',

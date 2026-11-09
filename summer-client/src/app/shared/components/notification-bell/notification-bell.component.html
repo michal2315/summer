@@ -21,9 +21,12 @@
 <ng-template #title>
   <div class="head">
     <span>התראות</span>
-    @if (service.unread()) {
-      <button type="button" nz-button nzType="link" nzSize="small" (click)="service.markAllViewed()">סמן הכל כנקרא</button>
-    }
+    <span class="head-actions">
+      @if (service.unread()) {
+        <button type="button" nz-button nzType="link" nzSize="small" (click)="service.markAllViewed()">סמן הכל כנקרא</button>
+      }
+      <a nz-button nzType="link" nzSize="small" routerLink="/notifications" (click)="open.set(false)"><span nz-icon nzType="setting"></span> ניהול התראות</a>
+    </span>
   </div>
 </ng-template>
 <ng-template #list>

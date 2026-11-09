@@ -22,7 +22,8 @@ export interface IUser {
   fullName: string;
   department?: string;
   isSystem?: boolean;
-  pinnedSearches: ISummarySearch[];
+  /** saved searches, newest first */
+  pinnedSearches: ISavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
@@ -30,6 +31,13 @@ export interface IUser {
   pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
+}
+
+/** A search the user saved; unnamed ones are shown by `describeSearch`. */
+export interface ISavedSearch {
+  _id: string;
+  name: string | null;
+  search: ISummarySearch;
 }
 
 export type UserRef = Pick<IUser, '_id' | 'username' | 'fullName' | 'department' | 'isSystem'>;
@@ -100,7 +108,7 @@ export interface ISummaryTemplate {
   taggedUsers: UserRef[];
   taggedPermissions: string[];
   labels: string[];
-  folder: string | null;
+  folders: string[];
 }
 
 export type SummaryTemplatePayload = Omit<ISummaryTemplate, '_id' | 'taggedUsers'> & { taggedUsers: string[] };
@@ -149,8 +157,8 @@ export interface ISummary {
   taggedUsers: UserRef[];
   /** permission groups whose members count as tagged */
   taggedPermissions: IPermission[];
-  /** null when not in a folder, or in one the viewer cannot see */
-  folder: IFolderRef | null;
+  /** the folders it is in that the viewer can see (empty = none); the same summary in each, not copies */
+  folders: IFolderRef[];
   permissions: IPermission[];
   seenBy: string[];
   color: string;
@@ -176,14 +184,14 @@ export interface ISummary {
 export type BulkSkipReason = 'not-found' | 'not-editor' | 'sumaroon' | 'too-many-labels' | 'draft';
 
 /**
- * Home page counter: `total` = published summaries the user can see in the scope (all, a folder with its subfolders, or
- * no folder); `hidden` = ones matching the search that permissions hide, and the missing permissions behind them. A
- * summary missing several counts under each; `only` = hidden by that permission alone.
+ * Home page counter: `total` = all published summaries in the scope (all, a folder with its subfolders, or no folder),
+ * including ones the user can't see; `hidden` = ones matching the search that permissions hide, and the missing
+ * permissions behind them. A summary missing several counts under each.
  */
 export interface IAccessStats {
   total: number;
   hidden: number;
-  missing: { permission: IPermission; blocking: number; only: number }[];
+  missing: { permission: IPermission; blocking: number }[];
 }
 
 export interface IBulkResult {
@@ -304,6 +312,8 @@ export interface IFolder {
   parentId: string | null;
   /** summaries directly in this folder (not counting subfolders) */
   itemCount: number;
+  /** distinct summaries the user can see in this folder and all its subfolders (one in several of them counts once) */
+  subtreeCount: number;
   /** summaries directly in this folder the user lacks permissions to see */
   hiddenCount: number;
   permissions: IPermission[];
@@ -398,8 +408,8 @@ export interface SummaryPayload {
   eventSecTime?: string;
   department: string;
   labels: string[];
-  /** hierarchy folder: omitted = leave as is, null = take out. Not for drafts or sumaroons. */
-  folderId?: string | null;
+  /** hierarchy folders: omitted = leave as is, [] = take out of every one. Not for drafts or sumaroons. */
+  folderIds?: string[];
   permissions: string[];
   taggedUsers: string[];
   taggedPermissions: string[];

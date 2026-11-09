@@ -26,20 +26,13 @@
   </button>
 }
 
-<div class="section">נושאים</div>
-@for (t of tour.advanced; track t.id) {
-  <button type="button" class="topic" (click)="tour.startTopic(t)">
-    <span class="topic-title">
-      {{ t.title }}
-      @if (tour.newCount(t)) {
-        <span class="new">חדש</span>
-      }
-    </span>
-    <span class="topic-desc">{{ t.desc }}</span>
-  </button>
-}
-
 <div class="foot">
+  @if (extension.info()) {
+    <a class="link" [href]="crxUrl">
+      הורדת התוסף לדפדפן
+      <span nz-icon nzType="download"></span>
+    </a>
+  }
   <button type="button" class="link" (click)="showShortcuts()">
     כל קיצורי המקלדת
     <span class="combo" dir="ltr"><span class="kbd">Alt</span><span class="plus">+</span><span class="kbd">/</span></span>

@@ -337,11 +337,11 @@
       <!-- A sumaroon lives only inside its running summary: no folder. -->
       @if (kind() !== K.Sumaroon) {
         <nz-form-item>
-          <nz-form-label nzFor="folder" [nzRequired]="folderRequired()">תיקייה</nz-form-label>
+          <nz-form-label nzFor="folders" [nzRequired]="folderRequired()">תיקיות</nz-form-label>
           <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור תיקייה" [nzExtra]="folderHint()">
-            <nz-select nzId="folder" formControlName="folder" nzShowSearch nzAllowClear nzPlaceHolder="חיפוש תיקייה">
+            <nz-select nzId="folders" formControlName="folders" nzMode="multiple" nzShowSearch nzPlaceHolder="חיפוש תיקייה">
               @for (f of folderOptions(); track f._id) {
-                <nz-option [nzValue]="f._id" [nzLabel]="f.path" />
+                <nz-option [nzValue]="f._id" [nzLabel]="f.path" [nzDisabled]="!!f.locked" />
               }
             </nz-select>
           </nz-form-control>
@@ -352,7 +352,7 @@
 
   <!-- 5. More: notes, extra fields, files -->
   <div class="section">
-    <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="paper-clip"></span> נוסף</div>
+    <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="paper-clip"></span> נוספים ונספחים</div>
 
     @if (notesOpen()) {
       <nz-form-item>

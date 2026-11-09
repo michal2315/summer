@@ -111,53 +111,6 @@
   box-shadow: 0 4px 12px -4px rgba($primary-pink, 0.55);
 }
 
-.section {
-  padding: 12px 8px 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: $gray;
-}
-
-.topic {
-  all: unset;
-  box-sizing: border-box;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  padding: 7px 8px;
-  border-radius: $border-radius;
-  transition: background $transition;
-  &:hover,
-  &:focus-visible {
-    background: $app-background;
-  }
-}
-
-.topic-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: $dark-blue;
-}
-
-.topic-desc {
-  font-size: 12.5px;
-  color: $dark-gray;
-}
-
-.new {
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 17px;
-  padding: 0 8px;
-  border-radius: 999px;
-  color: $white;
-  background: $background;
-}
-
 .foot {
   margin-top: 8px;
   padding-top: 6px;

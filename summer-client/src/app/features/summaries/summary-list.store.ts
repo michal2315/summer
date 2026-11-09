@@ -121,6 +121,17 @@ export class SummaryListStore {
     this.selection.set(next);
   }
 
+  /** Select all of `ids` (up to the export cap), or clear them if they are all selected already (a bundle row). */
+  toggleSelectedMany(ids: string[]) {
+    const all = ids.every((id) => this.selection().has(id));
+    const next = new Map(this.selection());
+    for (const id of ids) {
+      if (all) next.delete(id);
+      else if (next.size < this.maxSelection && !next.has(id)) next.set(id, this.summaries().find((s) => s._id === id));
+    }
+    this.selection.set(next);
+  }
+
   /** Select every loaded row (up to the export cap), or clear if they are all selected already. */
   toggleSelectAllLoaded() {
     const rows = this.summaries();

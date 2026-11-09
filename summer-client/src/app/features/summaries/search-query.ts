@@ -1,5 +1,5 @@
 import { Params } from '@angular/router';
-import { IQueryGroup, ISummarySearch, SearchType, SortKey } from '../../shared/models';
+import { IQueryGroup, ISavedSearch, ISummarySearch, SearchType, SortKey } from '../../shared/models';
 import { countConditions } from './advanced-search/query-tree';
 
 /** Search state ⇄ URL query params, so searches are linkable, survive reloads and work with back/forward. */
@@ -105,3 +105,6 @@ export function describeSearch(s: ISummarySearch): string {
   ].filter(Boolean);
   return parts.join(' · ') || 'חיפוש ללא טקסט';
 }
+
+/** A saved search's label: its name, or a description of its filters. */
+export const savedSearchName = (s: Pick<ISavedSearch, 'name' | 'search'>) => s.name || describeSearch(s.search);

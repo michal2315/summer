@@ -75,14 +75,15 @@ export function parseQuery(text: string): ParsedQuery {
 
 export interface QuerySegment {
   text: string;
-  kind: TokenKind | null;
+  /** 'phrase': a "quoted phrase" term */
+  kind: TokenKind | 'phrase' | null;
 }
 
 /** Is `name` (from #name) a known capsule? */
 export type IsCapsule = (name: string) => boolean;
 
 /**
- * The text split for display: active operators, @users, :types and #capsules get a kind, the rest is plain.
+ * The text split for display: active operators, @users, :types, #capsules and "phrases" get a kind, the rest is plain.
  * With `isCapsule`, only known capsules are marked; without it every #name is (examples).
  */
 export function querySegments(text: string, isCapsule?: IsCapsule): QuerySegment[] {
@@ -90,10 +91,11 @@ export function querySegments(text: string, isCapsule?: IsCapsule): QuerySegment
   let last = 0;
   for (const t of parseQuery(text).tokens) {
     const capsule = t.kind === 'capsule' && (!isCapsule || isCapsule(text.slice(t.start + 1, t.end)));
-    const marked = t.kind === 'user' || t.kind === 'type' || t.active || capsule;
+    const phrase = t.kind === 'term' && text[t.start] === '"';
+    const marked = t.kind === 'user' || t.kind === 'type' || t.active || capsule || phrase;
     if (!marked) continue;
     if (t.start > last) out.push({ text: text.slice(last, t.start), kind: null });
-    out.push({ text: text.slice(t.start, t.end), kind: t.kind });
+    out.push({ text: text.slice(t.start, t.end), kind: phrase ? 'phrase' : t.kind });
     last = t.end;
   }
   if (last < text.length) out.push({ text: text.slice(last), kind: null });

@@ -113,7 +113,7 @@ export const summaryLabels = pgTable(
     labelId: uuid()
       .notNull()
       .references(() => labels.id, { onDelete: 'restrict' }),
-    /** Client order; the first label groups the dashboard. */
+    /** Client order. */
     position: integer().notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.summaryId, t.labelId] }), index().on(t.labelId)],

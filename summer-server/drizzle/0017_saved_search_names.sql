@@ -1,0 +1,1 @@
+ALTER TABLE "user_pinned_searches" ADD COLUMN "name" text;

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, injec
 import { format } from 'date-fns';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { CardSkeletonComponent } from '../../../shared/components/card-skeleton/card-skeleton.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
@@ -33,7 +34,7 @@ const BUNDLE_PREVIEW = 3;
 
 @Component({
   selector: 'app-summary-list',
-  imports: [NzButtonModule, NzDividerModule, NzIconModule, RouterLink, CardSkeletonComponent, InViewDirective, LoadingQuipComponent, SummaryCardComponent, SummyComponent],
+  imports: [NzButtonModule, NzCheckboxModule, NzDividerModule, NzIconModule, RouterLink, CardSkeletonComponent, InViewDirective, LoadingQuipComponent, SummaryCardComponent, SummyComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     tabindex: '0',
@@ -115,6 +116,16 @@ export class SummaryListComponent {
       }
     });
     return items;
+  }
+
+  idsOf(summaries: ISummary[]): string[] {
+    return summaries.map((s) => s._id);
+  }
+
+  /** How many of a bundle's sumaroons are selected, for its checkbox. */
+  bundlePicked(summaries: ISummary[]): 'all' | 'some' | 'none' {
+    const n = summaries.filter((s) => this.store.selected().has(s._id)).length;
+    return n === summaries.length ? 'all' : n ? 'some' : 'none';
   }
 
   openRunning(id: string) {

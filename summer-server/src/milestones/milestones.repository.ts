@@ -73,7 +73,7 @@ export class MilestonesRepository {
         (select count(distinct sl.label_id) from summary_labels sl join mine on mine.id = sl.summary_id) >= 10 as "labels",
         exists (select 1 from mine m where (select count(*) from summary_files f where f.summary_id = m.id) >= 3) as "files",
         exists (select 1 from mine m where (select count(*) from summary_tagged_users t where t.summary_id = m.id) >= 5) as "team",
-        (select count(*) from mine m join folder_summaries fs on fs.summary_id = m.id) >= 3 as "organized",
+        (select count(distinct m.id) from mine m join folder_summaries fs on fs.summary_id = m.id) >= 3 as "organized",
 
         exists (select 1 from mine where length(trim(content_text)) > 5000) as "epic",
         exists (select 1 from mine where length(trim(content_text)) between 1 and 139) as "tldr",

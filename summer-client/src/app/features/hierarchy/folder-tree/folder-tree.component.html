@@ -1,0 +1,222 @@
+<!-- One row: the search (folder name and summary title, not content), then the tree's small actions. -->
+<div class="tree-head">
+  <div class="tree-search">
+    <span class="search-icon" nz-icon nzType="search" aria-hidden="true"></span>
+    <input type="search" placeholder="חיפוש תיקייה או תמצית" aria-label="חיפוש בעץ לפי שם תיקייה או שם תמצית" [value]="query()" (input)="query.set($any($event.target).value)" (keydown.escape)="query.set('')" />
+    @if (query()) {
+      <button type="button" class="clear" (click)="query.set('')" aria-label="ניקוי החיפוש"><span nz-icon nzType="close"></span></button>
+    }
+  </div>
+  <button type="button" class="head-action" (click)="collapseAll()" nz-tooltip="כיווץ הכל" aria-label="כיווץ הכל">
+    <span nz-icon nzType="minus-square"></span>
+  </button>
+  @if (DRAG_ENABLED) {
+    <button
+      type="button"
+      class="head-action"
+      [class.on]="dragMode()"
+      (click)="toggleDragMode()"
+      [nz-tooltip]="dragMode() ? 'סיום מצב גרירה' : 'מצב גרירה — העברת תיקיות ותמציות'"
+      aria-label="מצב גרירה"
+      [attr.aria-pressed]="dragMode()"
+    >
+      <span nz-icon nzType="drag"></span>
+    </button>
+  }
+</div>
+
+<!-- Only the tree body scrolls (the search stays put), with the app's scroll rail beside it. -->
+<div class="body">
+  <div class="scroller" #scroller>
+    @if (dragMode()) {
+      <div class="drag-hint">גררו תיקייה או תמצית אל תיקייה אחרת. תיקייה שנגררת אל "כל התמציות" עוברת לרמה העליונה; תמצית שנגררת אל "תמציות ללא שיוך" יוצאת מהתיקייה.</div>
+    }
+
+    @if (!store.treeLoaded()) {
+      <app-skeleton class="loader" variant="tree" [count]="8" />
+    } @else {
+      <ul class="branch" role="tree" aria-label="עץ התיקיות">
+        <li role="treeitem" aria-expanded="true" [attr.aria-selected]="isView(null)">
+          <div
+            class="node root"
+            [class.active]="isView(null)"
+            [class.drop]="dropTarget() === 'root'"
+            (dragover)="onDragOver($event, null)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event, null)"
+          >
+            <span class="twisty"></span>
+            <a class="link" routerLink="/summaries">
+              <span class="icon root-icon" nz-icon nzType="home"></span>
+              <span class="label">כל התמציות</span>
+            </a>
+            @if (!dragMode()) {
+              <button type="button" class="more" (click)="create(null)" nz-tooltip="תיקייה חדשה" aria-label="תיקייה חדשה">
+                <span nz-icon nzType="folder-add"></span>
+              </button>
+            }
+          </div>
+
+          <!-- Summaries in no folder: one row that opens them in the feed; they aren't listed in the tree (nor searched). -->
+          <ul class="branch" role="group" [hidden]="term()">
+            <li role="treeitem" [attr.aria-selected]="isView(NO_FOLDER)">
+              <div
+                class="node"
+                [class.active]="isView(NO_FOLDER)"
+                [class.drop]="dropTarget() === NO_FOLDER"
+                (dragover)="onDragOver($event, NO_FOLDER)"
+                (dragleave)="onDragLeave($event)"
+                (drop)="onDrop($event, NO_FOLDER)"
+              >
+                <span class="twisty"></span>
+                <a class="link" routerLink="/summaries" [queryParams]="{ folderId: NO_FOLDER }">
+                  <span class="icon folder" nz-icon nzType="inbox"></span>
+                  <span class="label">תמציות ללא שיוך</span>
+                  @if (store.unfiledCount() !== null) {
+                    <span class="count">{{ store.unfiledCount() }}</span>
+                  }
+                </a>
+              </div>
+            </li>
+          </ul>
+
+          <ng-container *ngTemplateOutlet="branch; context: { $implicit: null }" />
+        </li>
+      </ul>
+      @if (visible()?.size === 0 && searchItems()) {
+        <div class="no-results">לא נמצאו תיקיות או תמציות בשם הזה</div>
+      }
+    }
+  </div>
+  <app-scroll-rail [scroller]="scroller" />
+</div>
+
+<!-- While searching, only matching folders (and the ones leading to matches) show, all open, with just the matching summaries. -->
+<ng-template #branch let-parent>
+  @let searching = !!term();
+  <ul class="branch" role="group">
+    @for (f of childFolders(parent); track f._id) {
+      @let open = searching || expanded().has(f._id);
+      @let expandable = !searching && canExpand(f);
+      @let manager = isManager(f);
+      @let movable = dragMode() && canMove(f);
+      <li role="treeitem" [attr.aria-expanded]="expandable ? open : null" [attr.aria-selected]="isView(f._id)">
+        <div
+          class="node"
+          [class.active]="isView(f._id)"
+          [class.drop]="dropTarget() === f._id"
+          [class.dragging]="isDraggingFolder(f._id)"
+          [class.movable]="movable"
+          [attr.draggable]="movable ? 'true' : null"
+          (dragstart)="movable && onDragStart($event, { type: 'folder', folder: f })"
+          (dragend)="endDrag()"
+          (dragover)="onDragOver($event, f._id)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event, f._id)"
+        >
+          @if (expandable) {
+            <button type="button" class="twisty" (click)="toggle(f._id)" [attr.aria-label]="open ? 'כיווץ' : 'הרחבה'">
+              <span nz-icon [nzType]="open ? 'down' : 'left'"></span>
+            </button>
+          } @else {
+            <span class="twisty"></span>
+          }
+          <a class="link" routerLink="/summaries" [queryParams]="{ folderId: f._id }" (click)="expand(f._id)">
+            <span class="icon folder" nz-icon [nzType]="open ? 'folder-open' : 'folder'"></span>
+            <span class="label" [class.match]="isMatch(f.name)">{{ f.name }}</span>
+            @if (f.hiddenCount) {
+              <span
+                class="hidden-count"
+                [nz-tooltip]="f.hiddenCount + ' תמציות בתיקייה הזו מוסתרות ממך כי חסרות לך הרשאות. בחרו בתיקייה כדי לראות אילו.'"
+                [attr.aria-label]="f.hiddenCount + ' תמציות מוסתרות'"
+                ><span nz-icon nzType="lock"></span>{{ f.hiddenCount }}</span
+              >
+            }
+            @if (!manager) {
+              <span class="lock" nz-icon nzType="lock" nz-tooltip="צפייה בלבד"></span>
+            }
+          </a>
+          @if (movable) {
+            <span class="grip" nz-icon nzType="holder" aria-hidden="true"></span>
+          } @else if (manager && !dragMode()) {
+            <button type="button" class="more" (click)="create(f)" nz-tooltip="תיקיית משנה" [attr.aria-label]="'תיקיית משנה ב' + f.name">
+              <span nz-icon nzType="folder-add"></span>
+            </button>
+            <button
+              type="button"
+              class="more"
+              nz-dropdown
+              nzTrigger="click"
+              [nzDropdownMenu]="menu"
+              nzPlacement="bottomLeft"
+              [attr.aria-label]="'פעולות על ' + f.name"
+            >
+              <span nz-icon nzType="more"></span>
+            </button>
+            <nz-dropdown-menu #menu="nzDropdownMenu">
+              <ul nz-menu>
+                <li nz-menu-item (click)="addItems(f)"><span nz-icon nzType="plus"></span> הוספת תמציות</li>
+                <li nz-menu-item (click)="edit(f)"><span nz-icon nzType="edit"></span> עריכה והרשאות</li>
+                <li nz-menu-divider></li>
+                <li nz-menu-item nzDanger (click)="remove(f)"><span nz-icon nzType="delete"></span> מחיקה</li>
+              </ul>
+            </nz-dropdown-menu>
+          }
+        </div>
+
+        @if (searching) {
+          <ng-container *ngTemplateOutlet="branch; context: { $implicit: f._id }" />
+          <ul class="branch" role="group">
+            @for (item of searchItems()?.get(f._id) ?? []; track item._id) {
+              <ng-container *ngTemplateOutlet="summaryItem; context: { $implicit: item, folderId: f._id, folder: manager && !dragMode() ? f : null }" />
+            }
+          </ul>
+        } @else if (open && expandable) {
+          <ng-container *ngTemplateOutlet="branch; context: { $implicit: f._id }" />
+          <ul class="branch" role="group">
+            @if (store.items().get(f._id); as list) {
+              @let shown = shownCount(f._id);
+              @for (item of list.slice(0, shown); track item._id) {
+                <ng-container *ngTemplateOutlet="summaryItem; context: { $implicit: item, folderId: f._id, folder: manager && !dragMode() ? f : null }" />
+              }
+              @if (list.length > shown) {
+                <li class="sentinel" aria-hidden="true" (appInView)="showMoreItems(f._id)" [appInViewKey]="shown"></li>
+              }
+            } @else if (f.itemCount) {
+              <li class="loading" aria-hidden="true"><app-skeleton variant="tree" [count]="f.itemCount < 3 ? f.itemCount : 3" /></li>
+            }
+          </ul>
+        }
+      </li>
+    }
+  </ul>
+</ng-template>
+
+<!-- A summary row inside a folder. `folder`: set when the user may take the summary out of it. -->
+<ng-template #summaryItem let-item let-folderId="folderId" let-folder="folder">
+  @let movable = dragMode() && canMoveSummary(folderId);
+  <li role="treeitem" [attr.aria-selected]="isOpen(item)">
+    <div
+      class="node"
+      [class.active]="isOpen(item)"
+      [class.movable]="movable"
+      [class.dragging]="isDraggingItem(item._id)"
+      [attr.draggable]="movable ? 'true' : null"
+      (dragstart)="movable && onDragStart($event, { type: 'summary', item, from: folderId })"
+      (dragend)="endDrag()"
+    >
+      <span class="twisty"></span>
+      <a class="link" routerLink="/summaries" [queryParams]="itemParams(folderId, item)">
+        <span class="icon" [class]="item.kind === 'running' ? 'running' : 'summary'" nz-icon [nzType]="itemIcon(item)" [nz-tooltip]="item.kind === 'running' ? 'תמצית רצף' : null"></span>
+        <span class="label" [class.match]="isMatch(item.name)">{{ item.name }}</span>
+      </a>
+      @if (movable) {
+        <span class="grip" nz-icon nzType="holder" aria-hidden="true"></span>
+      } @else if (folder) {
+        <button type="button" class="more" (click)="removeItem(folder, item)" nz-tooltip="הוצאה מהתיקייה" [attr.aria-label]="'הוצאת ' + item.name + ' מהתיקייה'">
+          <span nz-icon nzType="close"></span>
+        </button>
+      }
+    </div>
+  </li>
+</ng-template>

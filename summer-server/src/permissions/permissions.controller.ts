@@ -37,12 +37,6 @@ export class PermissionsController {
     return (await this.permissions.byGroupNames(me.groupKeys)).map(toApiPermission);
   }
 
-  /** Groups whose members may open the dashboard (DASHBOARD_GROUPS). */
-  @Get('dashboard')
-  async dashboard(): Promise<ApiPermission[]> {
-    return (await this.permissions.byGroupNames(this.config.access.dashboardGroups)).map(toApiPermission);
-  }
-
   @Get('permitted')
   permitted(@Me() me: CurrentUser): boolean {
     return this.canManage(me);

@@ -24,6 +24,9 @@
           {{ isPinned() ? 'נעוץ' : 'נעיצה' }}
         </button>
       }
+      @if (isOwn()) {
+        <app-saved-searches />
+      }
     </div>
   </app-summary-browser>
 } @else {

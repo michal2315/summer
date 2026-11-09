@@ -24,7 +24,6 @@ const envSchema = z.object({
   AUTH_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).default(60),
 
   PERMISSION_ADMIN_GROUPS: csv,
-  DASHBOARD_GROUPS: csv,
 
   APP_TIMEZONE: z.string().default('Asia/Jerusalem'),
 
@@ -93,7 +92,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     },
     access: {
       permissionAdminGroups: e.PERMISSION_ADMIN_GROUPS,
-      dashboardGroups: e.DASHBOARD_GROUPS,
     },
     timezone: e.APP_TIMEZONE,
     files: { uploadDir: e.UPLOAD_DIR, maxFileBytes: Math.round(e.MAX_FILE_MB * 1024 * 1024), maxFiles: e.MAX_FILES_PER_SUMMARY },

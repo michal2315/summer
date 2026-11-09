@@ -13,7 +13,7 @@ import { ColorPickerComponent } from '../../../shared/components/color-picker/co
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { ISummary, ISummarySearch, SearchType, SummaryKind } from '../../../shared/models';
 import { colorGlow } from '../../../shared/models/colors';
-import { hierarchyParams } from '../../../shared/services/folder.service';
+import { SUMMARY_DRAG_TYPE, hierarchyParams } from '../../../shared/services/folder.service';
 import { DateFormatPipe, HighlightPipe, RelativeTimePipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { FolderInfoComponent } from '../folder-info/folder-info.component';
 import { MatchSnippetsComponent } from '../match-snippets/match-snippets.component';
@@ -85,6 +85,23 @@ export class SummaryCardComponent {
   readonly unread = computed(() => !this.isMine() && !this.summary().seenBy?.includes(this.users.userId() ?? ''));
   readonly visibleLabels = computed(() => this.summary().labels.slice(0, VISIBLE_LABELS));
   readonly hiddenLabels = computed(() => this.summary().labels.slice(VISIBLE_LABELS));
+  /** One folder on the card; the rest behind a "+N". */
+  readonly visibleFolders = computed(() => this.summary().folders.slice(0, 1));
+  readonly hiddenFolders = computed(() => this.summary().folders.slice(1));
+
+  /** Can be dragged onto a folder in the tree to add it there: published, yours to edit, and not a sumaroon. */
+  readonly placeable = computed(() => {
+    const s = this.summary();
+    return s.canEdit && !s.isDraft && s.kind !== SummaryKind.Sumaroon;
+  });
+
+  onDragStart(e: DragEvent) {
+    const s = this.summary();
+    if (!e.dataTransfer) return;
+    e.dataTransfer.setData(SUMMARY_DRAG_TYPE, JSON.stringify({ _id: s._id, title: s.title }));
+    e.dataTransfer.setData('text/plain', s.title);
+    e.dataTransfer.effectAllowed = 'copy';
+  }
 
   /** A sumaroon's running summary has its own page. */
   openParent(id: string) {

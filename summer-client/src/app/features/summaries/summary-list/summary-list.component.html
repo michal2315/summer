@@ -4,6 +4,19 @@
   }
   @for (item of group.items; track item.key) {
     @if (item.type === 'bundle') {
+      <!-- In select mode the bundle's checkbox selects all of its sumaroons. -->
+      <div class="bundle-row">
+      @if (store.selectMode()) {
+        @let picked = bundlePicked(item.sumaroons);
+        <label
+          nz-checkbox
+          class="bundle-check"
+          [nzChecked]="picked === 'all'"
+          [nzIndeterminate]="picked === 'some'"
+          (nzCheckedChange)="store.toggleSelectedMany(idsOf(item.sumaroons))"
+          [attr.aria-label]="'בחירת ' + item.sumaroons.length + ' התמציתוניות מתוך ' + item.parent.title"
+        ></label>
+      }
       <button type="button" class="bundle" (click)="openRunning(item.parent._id)" [attr.data-summary-id]="item.sumaroons[0]._id">
         <span class="bundle-head">
           <span nz-icon nzType="unordered-list"></span>
@@ -19,6 +32,7 @@
           }
         </span>
       </button>
+      </div>
     } @else {
     <app-summary-card
       [summary]="item.summary"

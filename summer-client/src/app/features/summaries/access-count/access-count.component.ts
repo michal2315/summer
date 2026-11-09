@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { Subscription } from 'rxjs';
@@ -6,8 +6,8 @@ import { IAccessStats, ISummarySearch } from '../../../shared/models';
 import { SummaryService } from '../../../shared/services/summary.service';
 
 /**
- * "מוצגות X מתוך Y" for a scope, plus how many summaries matching the search permissions hide. Hovering the hidden count
- * shows the permissions map: each missing permission, how many hidden summaries need it, and how many it alone hides.
+ * "מוצגות X מתוך Y" for a scope (Y counts the summaries permissions hide too), plus how many summaries matching the
+ * search permissions hide. Hovering the hidden count lists each missing permission and how many hidden summaries need it.
  */
 @Component({
   selector: 'app-access-count',
@@ -28,8 +28,6 @@ export class AccessCountComponent {
   readonly searching = input(false);
 
   readonly stats = signal<IAccessStats | null>(null);
-  /** The longest bar in the map. */
-  readonly maxBlocking = computed(() => Math.max(1, ...(this.stats()?.missing.map((m) => m.blocking) ?? [])));
 
   constructor() {
     let request: Subscription | undefined;

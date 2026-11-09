@@ -124,11 +124,11 @@ export class UsersRepository {
 
     const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, pinnedUsers, following] = await Promise.all([
       this.db
-        .select({ search: userPinnedSearches.search })
+        .select({ _id: userPinnedSearches.id, name: userPinnedSearches.name, search: userPinnedSearches.search })
         .from(userPinnedSearches)
         .where(eq(userPinnedSearches.userId, userId))
         .orderBy(asc(userPinnedSearches.createdAt))
-        .then((rows) => rows.map((r) => r.search).reverse()),
+        .then((rows) => rows.reverse()),
       labelNames(userPinnedLabels),
       labelNames(userFavLabels),
       ids(userPinnedPermissions, userPinnedPermissions.permissionId),

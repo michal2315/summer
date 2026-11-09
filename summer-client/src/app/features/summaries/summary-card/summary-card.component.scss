@@ -5,7 +5,9 @@
   cursor: pointer;
 }
 
-.folder {
+// Folder chips and the draft badge share one tag look.
+.folder,
+.draft-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -13,7 +15,16 @@
   background: $gray-tag;
   border-radius: 10px;
   padding: 0 7px;
+  line-height: 18px;
+  font-size: 11.5px;
   font-weight: 700;
+  color: $dark-blue;
+}
+
+.meta .date {
+  color: $gray;
+  font-size: 11px;
+  margin-inline-start: 2px;
 }
 .folder-name {
   overflow: hidden;
@@ -28,23 +39,37 @@
   font-size: 13px;
 }
 
-// Unread: a small label at the row's end, instead of marking the read ones.
+// Controls in fixed-width slots at the row's end: an absent control leaves its slot empty instead of shifting the rest.
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.slot {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+
+// Unread: a dot before the title, instead of marking the read ones.
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  .title {
+    flex: 1;
+    min-width: 0;
+  }
+}
 .unread {
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-inline-start: 4px;
-  color: #ff6975;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #ff6975;
-  }
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff6975;
+  transform: translateY(-1px);
 }
 
 // No colour yet: the picker appears only while the card is hovered or focused.
@@ -117,11 +142,12 @@ $stack:
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: $dark-blue;
   background: $gray-tag;
-  padding: 3px 10px;
-  margin: -8px -12px 4px;
+  min-height: 30px;
+  padding: 5px 12px;
+  margin: -8px -12px 6px;
   border-radius: 6px 6px 0 0;
   .range {
     color: $dark-gray;

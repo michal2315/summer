@@ -11,7 +11,7 @@ import { FolderService, hierarchyParams } from '../../../shared/services/folder.
 const VISIBLE_MANAGERS = 3;
 
 /**
- * Hover popup for a summary's folder chip: the folder's path in the tree (each level opens it in the hierarchy), how
+ * Hover popup for one of a summary's folder chips: the folder's path in the tree (each level opens it in the hierarchy), how
  * many summaries it holds, its managers, and a link to the summary inside it. Rendered only while the popup is open.
  */
 @Component({
@@ -25,22 +25,23 @@ export class FolderInfoComponent {
   private readonly folders = inject(FolderService);
   private readonly users = inject(UserService);
 
-  readonly summary = input.required<Pick<ISummary, '_id' | 'kind' | 'folder'>>();
+  readonly summary = input.required<Pick<ISummary, '_id' | 'kind' | 'folders'>>();
+  /** The chip's folder (a summary can be in several). */
+  readonly folderRef = input.required<IFolderRef>();
 
   readonly hierarchyParams = hierarchyParams;
   /** null while loading; on failure the popup falls back to the folder's name alone. */
   private readonly tree = toSignal<IFolder[] | null>(this.folders.cachedTree().pipe(catchError(() => of([]))), { initialValue: null });
 
   readonly folder = computed(() => {
-    const id = this.summary().folder?._id;
+    const id = this.folderRef()._id;
     return this.tree()?.find((f) => f._id === id) ?? null;
   });
   /** Root first, ending with the summary's folder; just the folder when the tree hasn't loaded or lacks it. */
   readonly path = computed<IFolderRef[]>(() => {
-    const own = this.summary().folder;
+    const own = this.folderRef();
     const tree = this.tree();
     const start = this.folder();
-    if (!own) return [];
     if (!tree || !start) return [own];
     const byId = new Map(tree.map((f) => [f._id, f]));
     const chain: IFolderRef[] = [];

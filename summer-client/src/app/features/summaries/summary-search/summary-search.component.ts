@@ -1,7 +1,11 @@
 import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
+import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -11,7 +15,7 @@ import { UserService } from '../../../core/auth/user.service';
 import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { CapsuleChipComponent } from '../../../shared/components/capsules/capsule-chip/capsule-chip.component';
 import { CapsuleSuggestComponent } from '../../../shared/components/capsules/capsule-suggest/capsule-suggest.component';
-import { ICapsule, IContentType, IQueryGroup, ISummarySearch, UserRef } from '../../../shared/models';
+import { ICapsule, IContentType, IQueryGroup, ISavedSearch, ISummarySearch, UserRef } from '../../../shared/models';
 import { CapsuleService, capsuleSuggestions } from '../../../shared/services/capsule.service';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { SearchHistoryService, stripPaging } from '../../../shared/services/search-history.service';
@@ -32,7 +36,7 @@ import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { AdvancedSearchComponent } from '../advanced-search/advanced-search.component';
 import { countConditions } from '../advanced-search/query-tree';
 import { NotificationsSettingsService } from '../../notifications/notification-rules';
-import { activeFilterCount, alertSearch, describeSearch, searchToParams } from '../search-query';
+import { activeFilterCount, alertSearch, describeSearch, savedSearchName, searchToParams } from '../search-query';
 
 const sameSearch = (a: ISummarySearch, b: ISummarySearch) => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
 const normalize = (s: ISummarySearch) =>
@@ -42,14 +46,38 @@ const normalize = (s: ISummarySearch) =>
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 
-type Suggestion = { kind: 'user'; user: UserRef } | { kind: 'type'; type: IContentType } | { kind: 'capsule'; capsule: ICapsule };
+/** Cheat-sheet in the popover over the "/" key. */
+const SHORTCUTS: { example: string; hint: string }[] = [
+  { example: 'גרף וגם עץ', hint: 'שתי המילים (גם and)' },
+  { example: 'גרף או עץ', hint: 'אחת מהמילים (גם or)' },
+  { example: 'גרף לא מכוון', hint: 'בלי המילה (גם ולא, בלי, not)' },
+  { example: '"ביטוי מדויק"', hint: 'ביטוי שלם, או מילה כמו "או" עצמה' },
+  { example: '@משתמש', hint: 'תמציות של משתמש' },
+  { example: ':שיעור', hint: 'סינון לפי סוג תוכן' },
+  { example: '#כמוסה', hint: 'כמוסה: קבוצת מילים שמורה' },
+  { example: '#שם_עם_רווחים', hint: '_ במקום רווח בשמות' },
+  { example: '/', hint: 'מעבר לתיבת החיפוש מכל מקום' },
+  { example: '↑ ↓ Enter', hint: 'בחירה מההצעות (גם Tab)' },
+  { example: 'Esc', hint: 'סגירת ההצעות' },
+];
+
+type Suggestion ={ kind: 'user'; user: UserRef } | { kind: 'type'; type: IContentType } | { kind: 'capsule'; capsule: ICapsule };
 
 /** Capsule names in the search text (`#name` terms). */
 const capsuleNames = (text: string | undefined) => (text ? parseQuery(text).groups.flat().flatMap((t) => (t.capsule ? [t.term] : [])) : []);
 
 @Component({
   selector: 'app-summary-search',
-  imports: [NzBadgeModule, NzIconModule, NzTagModule, NzToolTipModule, AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent, NotificationBellComponent],
+  imports: [
+    FormsModule,
+    NzBadgeModule,
+    NzButtonModule,
+    NzIconModule,
+    NzInputModule,
+    NzPopoverModule,
+    NzTagModule,
+    NzToolTipModule,
+    AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent, NotificationBellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-search.component.html',
   styleUrl: './summary-search.component.scss',
@@ -78,6 +106,8 @@ export class SummarySearchComponent {
   private readonly input = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
   private readonly mirror = viewChild.required<ElementRef<HTMLElement>>('mirror');
 
+  readonly shortcuts = SHORTCUTS;
+  readonly segmentsOf = querySegments;
   readonly text = signal('');
   private readonly caret = signal(0);
   /** The caret before the last move, to know which way it travelled (capsules are skipped over as a whole). */
@@ -104,10 +134,14 @@ export class SummarySearchComponent {
     if (this.ranges().some((r) => caret > r.start && caret <= r.end)) return null;
     return shortcutAt(this.text(), caret);
   });
-  readonly pinned = computed(() => this.users.user()?.pinnedSearches ?? []);
+  readonly saved = computed(() => this.users.user()?.pinnedSearches ?? []);
   readonly recent = computed(() => this.history.recent().slice(0, 5));
   readonly filterCount = computed(() => activeFilterCount(this.search()));
-  readonly isPinned = computed(() => this.pinned().some((p) => sameSearch(p, this.search())));
+  /** The saved search the applied search matches, if any. */
+  readonly savedMatch = computed(() => this.saved().find((p) => sameSearch(p.search, this.search())));
+  readonly saveOpen = signal(false);
+  readonly saveName = signal('');
+  readonly saveBusy = signal(false);
 
   private readonly userResults = signal<UserRef[]>([]);
   private readonly userQuery$ = new Subject<string>();
@@ -136,7 +170,7 @@ export class SummarySearchComponent {
     if (!this.focused() || this.dismissed() || this.advancedOpen()) return null;
     const ctx = this.context();
     if (ctx) return ctx.kind;
-    if (!this.text().trim()) return this.pinned().length || this.recent().length ? 'home' : null;
+    if (!this.text().trim()) return this.saved().length || this.recent().length ? 'home' : null;
     return this.textCapsules().length ? 'capsules' : null;
   });
 
@@ -291,7 +325,7 @@ export class SummarySearchComponent {
       this.alerts.delete(existing._id).subscribe({ next: () => this.message.success('ההתראה על החיפוש בוטלה'), complete: done, error: done });
     } else {
       this.alerts
-        .addAlert(this.search())
+        .addAlert(this.search(), this.savedMatch()?.name)
         .subscribe({ next: () => this.message.success('תתקבל התראה על תמציות חדשות שמתאימות לחיפוש'), complete: done, error: done });
     }
   }
@@ -309,18 +343,46 @@ export class SummarySearchComponent {
     }
   }
 
-  togglePin() {
-    this.users.pinSearch(stripPaging(this.search()), !this.isPinned()).subscribe();
+  /** The save popover starts from the saved name, or a description of the search to edit. */
+  onSavePopover(open: boolean) {
+    this.saveOpen.set(open);
+    if (open) this.saveName.set(this.savedMatch()?.name ?? describeSearch(this.search()));
   }
 
-  unpin(s: ISummarySearch, event: Event) {
+  /** Saves the applied search under the typed name (renames it when already saved). */
+  saveSearch() {
+    const name = this.saveName().trim();
+    if (this.saveBusy() || !name) return;
+    const existing = this.savedMatch();
+    const req = existing ? this.users.renameSearch(existing._id, name) : this.users.pinSearch(stripPaging(this.search()), true, name);
+    this.saveBusy.set(true);
+    const done = () => this.saveBusy.set(false);
+    req.subscribe({
+      next: () => {
+        this.saveOpen.set(false);
+        this.message.success(existing ? 'שם החיפוש עודכן' : 'החיפוש נשמר — אפשר למצוא אותו גם בעמוד הפרופיל');
+      },
+      complete: done,
+      error: done,
+    });
+  }
+
+  unsaveCurrent() {
+    const existing = this.savedMatch();
+    if (!existing) return;
+    this.saveOpen.set(false);
+    this.users.pinSearch(existing.search, false).subscribe();
+  }
+
+  unsave(s: ISavedSearch, event: Event) {
     // Let the refreshed user.pinnedSearches drive removal instead of nz-tag removing its own DOM.
     event.preventDefault();
     event.stopPropagation();
-    this.users.pinSearch(s, false).subscribe();
+    this.users.pinSearch(s.search, false).subscribe();
   }
 
   readonly describe = describeSearch;
+  readonly savedName = savedSearchName;
 
   /** "/" anywhere focuses the search input. */
   onGlobalKey(e: KeyboardEvent) {

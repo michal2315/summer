@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, shareReplay, tap } from 'rxjs';
-import { FolderPayload, IBulkResult, IFolder, IFolderItem, ISummary, SummaryKind } from '../models';
+import { FolderPayload, IBulkResult, IFolder, IFolderItem, IFolderRef, ISummary, SummaryKind } from '../models';
 
 const BASE = '/api/folder';
 
@@ -50,7 +50,7 @@ export class FolderService {
   }
 
   /**
-   * Moves the summaries into the folder (out of whatever folder held them before). `partial`: move the placeable ones
+   * Adds the summaries to the folder, keeping the folders they are already in. `partial`: add the placeable ones
    * and report the rest (drafts, sumaroons, not yours), instead of failing the whole request.
    */
   addItems(folderId: string, summaryIds: string[], partial = false): Observable<IBulkResult> {
@@ -62,9 +62,12 @@ export class FolderService {
   }
 }
 
-/** Home page query params that open a summary (or running summary) inside its folder. */
-export function hierarchyParams(s: Pick<ISummary, '_id' | 'kind' | 'folder'>) {
-  return { folderId: s.folder?._id, [s.kind === SummaryKind.Running ? 'runningId' : 'summaryId']: s._id };
+/** Drag data of a summary card dragged onto a folder in the tree (adds it there): JSON `{ _id, title }`. */
+export const SUMMARY_DRAG_TYPE = 'application/x-summer-summary';
+
+/** Home page query params that open a summary (or running summary) inside one of its folders (default: the first). */
+export function hierarchyParams(s: Pick<ISummary, '_id' | 'kind' | 'folders'>, folder: IFolderRef | undefined = s.folders[0]) {
+  return { folderId: folder?._id, [s.kind === SummaryKind.Running ? 'runningId' : 'summaryId']: s._id };
 }
 
 export interface FolderPath {

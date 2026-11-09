@@ -1,12 +1,21 @@
 @use 'tokens' as *;
 
+// Fixed to the viewport height: the folder tree takes the rest and scrolls, the footer stays at the bottom.
 .nav {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 100vh;
+  height: 100vh;
   padding: 14px 10px;
   gap: 10px;
+}
+
+.tree {
+  flex: 1;
+}
+
+.logo,
+.user {
+  flex: none;
 }
 
 .logo img {
@@ -22,6 +31,9 @@
   color: $dark-blue;
   &:hover {
     background: $app-background;
+  }
+  &.active {
+    background: #efefef;
   }
   .who {
     display: flex;
@@ -45,34 +57,8 @@
   }
 }
 
-.links {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-
-  a {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 12px;
-    font-size: 16px;
-    color: $dark-blue;
-    border-radius: 5px;
-    &:hover {
-      background: $app-background;
-    }
-    &.active {
-      background: #efefef;
-      font-weight: 700;
-    }
-  }
-}
-
 .footer {
-  margin-top: auto;
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
