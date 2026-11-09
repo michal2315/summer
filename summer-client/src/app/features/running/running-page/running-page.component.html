@@ -1,0 +1,65 @@
+@if (running(); as r) {
+  <div class="columns">
+    <!-- The running summary itself, in full: heading, title, metadata, content, labels and permissions. -->
+    <div class="running" role="region" aria-label="תמצית רצף">
+      <div class="top-row">
+        @if (!embedded()) {
+          <button type="button" class="back-link" (click)="back(r)"><span nz-icon nzType="arrow-right"></span> חזרה</button>
+        }
+        <span class="spacer"></span>
+        <button nz-button nzType="text" nzShape="circle" type="button" (click)="actions.toggleFavorite(r)" [nz-tooltip]="r.isFavorite ? 'הסרה ממועדפים' : 'הוספה למועדפים'">
+          <span nz-icon nzType="star" [nzTheme]="r.isFavorite ? 'fill' : 'outline'"></span>
+        </button>
+        @if (isMine()) {
+          <a nz-button nzType="text" nzShape="circle" [routerLink]="['/summaries', r._id, 'edit']" nz-tooltip="עריכה" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
+          <button nz-button nzType="text" nzShape="circle" nzDanger type="button" (click)="remove(r)" nz-tooltip="מחיקה" aria-label="מחיקה"><span nz-icon nzType="delete"></span></button>
+        }
+      </div>
+
+      <div class="heading" role="heading" aria-level="2"><span nz-icon nzType="unordered-list"></span> תמצית רצף</div>
+      <div class="title" role="heading" aria-level="1" [innerHTML]="r.title | highlight: appliedSearch() : T.Title"></div>
+
+      <div class="meta">
+        <div class="meta-row who"><app-avatar [user]="r.user" [size]="20" /> <a [routerLink]="['/profile', r.user._id]">{{ r.user.fullName }}</a></div>
+        <div class="meta-row"><span nz-icon nzType="calendar"></span> {{ r.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ r.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</div>
+        <div class="meta-row"><app-content-type-icon [type]="r.contentType" /> {{ r.contentType.displayName }}</div>
+        <div class="meta-row"><span nz-icon nzType="ordered-list"></span> {{ r.sumaroonCount ?? 0 }} תמציתוניות</div>
+        @for (f of r.summaryFields ?? []; track f.field._id) {
+          <div class="meta-row"><span class="field-name">{{ f.field.name }}:</span> {{ f.value }}</div>
+        }
+      </div>
+
+      @if (r.labels.length || r.permissions.length) {
+        <div class="chips">
+          @for (l of r.labels; track l.name) {
+            <nz-tag class="label-chip"><span [innerHTML]="l.name | highlight: appliedSearch() : T.Label"></span></nz-tag>
+          }
+          @for (p of r.permissions; track p._id) {
+            <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
+          }
+        </div>
+      }
+
+      @if (hasContent()) {
+        <div class="content ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.content | richHtml: appliedSearch() : T.Content"></div></div>
+      }
+
+      <a class="add" nz-button nzType="primary" routerLink="/summaries/new" [queryParams]="{ parentId: r._id }"><span nz-icon nzType="plus"></span> תמציתונית</a>
+    </div>
+
+    <app-summary-browser
+      class="sumaroons"
+      [ownerId]="userId()!"
+      [runningId]="r._id"
+      [fullScreenBase]="embedded() ? null : ['/running', r._id, 's']"
+      [detailAside]="!embedded()"
+      [searchPlaceholder]="'חיפוש בתוך ' + r.title"
+      [empty]="empty"
+    />
+  </div>
+} @else {
+  <div class="columns">
+    <div class="running"><app-skeleton variant="detail" /></div>
+    <app-skeleton class="timeline-skeleton" variant="timeline" [count]="5" />
+  </div>
+}

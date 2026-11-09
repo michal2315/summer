@@ -4,13 +4,38 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import DOMPurify from 'dompurify';
 import { ISummarySearch, SearchType } from '../models';
+import { CapsuleService } from '../services/capsule.service';
 import { highlightHtml, highlightText, regexFor } from './highlight';
 
+/**
+ * The match regex for a search, recomputed only when the search, the field or the known capsules change.
+ * The highlight pipes are impure so that capsules arriving after the first render still get highlighted.
+ */
+class RegexMemo {
+  private readonly capsules = inject(CapsuleService);
+  private last?: { search: unknown; type: unknown; known: unknown; re: RegExp | null };
+
+  get(search: ISummarySearch | null | undefined, type: SearchType | undefined): RegExp | null {
+    const known = this.capsules.cache();
+    const l = this.last;
+    if (l && l.search === search && l.type === type && l.known === known) return l.re;
+    const re = type ? regexFor(search, type, this.capsules) : null;
+    this.last = { search, type, known, re };
+    return re;
+  }
+}
+
 /** Plain text with search hits wrapped. Output is escaped HTML — bind with [innerHTML]. */
-@Pipe({ name: 'highlight' })
+@Pipe({ name: 'highlight', pure: false })
 export class HighlightPipe implements PipeTransform {
+  private readonly regex = new RegexMemo();
+  private last?: { text: unknown; re: RegExp | null; out: string };
+
   transform(text: string | null | undefined, search: ISummarySearch | null | undefined, type: SearchType): string {
-    return highlightText(text ?? '', regexFor(search, type));
+    const re = this.regex.get(search, type);
+    let last = this.last;
+    if (!last || last.text !== text || last.re !== re) last = this.last = { text, re, out: highlightText(text ?? '', re) };
+    return last.out;
   }
 }
 
@@ -18,14 +43,20 @@ export class HighlightPipe implements PipeTransform {
  * Stored Quill HTML → sanitized (DOMPurify), optionally highlighted, then trusted.
  * Sanitizing first is what makes the trust safe; the old client trusted raw HTML.
  */
-@Pipe({ name: 'richHtml' })
+@Pipe({ name: 'richHtml', pure: false })
 export class RichHtmlPipe implements PipeTransform {
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly regex = new RegexMemo();
+  private last?: { html: unknown; re: RegExp | null; out: SafeHtml };
 
   transform(html: string | null | undefined, search?: ISummarySearch | null, type?: SearchType): SafeHtml {
-    const clean = DOMPurify.sanitize(html ?? '', { ADD_ATTR: ['target'] });
-    const re = type ? regexFor(search, type) : null;
-    return this.sanitizer.bypassSecurityTrustHtml(highlightHtml(clean, re));
+    const re = this.regex.get(search, type);
+    let last = this.last;
+    if (!last || last.html !== html || last.re !== re) {
+      const clean = DOMPurify.sanitize(html ?? '', { ADD_ATTR: ['target'] });
+      last = this.last = { html, re, out: this.sanitizer.bypassSecurityTrustHtml(highlightHtml(clean, re)) };
+    }
+    return last.out;
   }
 }
 

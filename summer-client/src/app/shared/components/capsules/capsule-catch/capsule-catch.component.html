@@ -1,0 +1,3 @@
+@for (h of hits(); track h.capsule._id) {
+  <span class="tag" [nz-tooltip]="h.tip" [attr.aria-label]="h.tip"><span nz-icon nzType="experiment"></span><bdi class="name">{{ h.capsule.name }}</bdi></span>
+}

@@ -1,0 +1,37 @@
+@if (profile(); as p) {
+  <app-summary-browser [ownerId]="p._id" [isProfile]="true" [showTabs]="isOwn()" [searchPlaceholder]="'חיפוש בתמציות של ' + p.fullName" [empty]="empty()">
+    <div browser-header class="header">
+      <app-avatar [user]="p" [size]="56" />
+      <div class="who">
+        <div class="page-title" role="heading" aria-level="1">{{ p.fullName }}</div>
+        <span class="muted">{{ p.department }}</span>
+      </div>
+      <span class="spacer"></span>
+      @if (isOwn()) {
+        <a nz-button nzType="primary" routerLink="/summaries/new" appAltKey="newSummary"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
+      } @else {
+        <button nz-button [nzType]="isFollowing() ? 'default' : 'primary'" [nzLoading]="busy()" (click)="toggleFollow(p._id)">
+          {{ isFollowing() ? 'הסר עוקב' : 'עקוב' }}
+        </button>
+        <button
+          nz-button
+          [nzLoading]="pinBusy()"
+          (click)="togglePin(p._id)"
+          [attr.aria-pressed]="isPinned()"
+          [title]="isPinned() ? 'הסרת הנעיצה' : 'נעיצה: יופיע ראשון בתיוג משתמשים'"
+        >
+          <span nz-icon nzType="pushpin" [nzTheme]="isPinned() ? 'fill' : 'outline'"></span>
+          {{ isPinned() ? 'נעוץ' : 'נעיצה' }}
+        </button>
+      }
+      @if (isOwn()) {
+        <app-saved-searches />
+      }
+    </div>
+  </app-summary-browser>
+} @else {
+  <div class="loading">
+    <app-skeleton variant="header" />
+    <app-card-skeleton [count]="4" />
+  </div>
+}

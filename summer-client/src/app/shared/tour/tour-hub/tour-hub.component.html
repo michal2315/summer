@@ -1,0 +1,40 @@
+@let unseen = tour.unseenNew();
+
+<div class="head">
+  <div class="head-title" role="heading" aria-level="2"><span nz-icon nzType="compass"></span> סיור ועזרה</div>
+  <button type="button" class="close" (click)="tour.closeHub()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+</div>
+
+@if (unseen.length) {
+  <button type="button" class="core" (click)="tour.startNew()">
+    <span class="core-title">מה חדש · {{ unseen.length }}</span>
+    <span class="core-desc">
+      @for (s of unseen.slice(0, 3); track s.id) {
+        {{ s.title }}{{ $last ? '' : ', ' }}
+      }
+      {{ unseen.length > 3 ? '…' : '' }}
+    </span>
+    <span class="core-go">התחלה</span>
+  </button>
+}
+
+@if (tour.core; as core) {
+  <button type="button" class="core" [class.secondary]="unseen.length" (click)="tour.welcome()">
+    <span class="core-title">{{ core.title }}</span>
+    <span class="core-desc">{{ core.desc }}</span>
+    <span class="core-go">התחלה</span>
+  </button>
+}
+
+<div class="foot">
+  @if (extension.info()) {
+    <a class="link" [href]="crxUrl">
+      הורדת התוסף לדפדפן
+      <span nz-icon nzType="download"></span>
+    </a>
+  }
+  <button type="button" class="link" (click)="showShortcuts()">
+    כל קיצורי המקלדת
+    <span class="combo" dir="ltr"><span class="kbd">Alt</span><span class="plus">+</span><span class="kbd">/</span></span>
+  </button>
+</div>

@@ -1,0 +1,22 @@
+<div class="fields">
+  <nz-radio-group [ngModel]="all()" (ngModelChange)="all.set($event)" aria-label="אילו תמציות">
+    <label nz-radio [nzValue]="false" [nzDisabled]="!data.selectedIds.length">הנבחרים ({{ data.selectedIds.length }})</label>
+    <label nz-radio [nzValue]="true">כל תוצאות החיפוש הנוכחי</label>
+  </nz-radio-group>
+  <label>
+    <span>כותרת המסמך</span>
+    <input nz-input [ngModel]="title()" (ngModelChange)="title.set($event)" maxlength="500" placeholder="לא חובה" />
+  </label>
+  <label>
+    <span>טקסט לפני הטבלה</span>
+    <textarea nz-input [ngModel]="intro()" (ngModelChange)="intro.set($event)" [nzAutosize]="{ minRows: 3, maxRows: 10 }" maxlength="50000" placeholder="לא חובה"></textarea>
+  </label>
+  <label>
+    <span>טקסט אחרי הטבלה</span>
+    <textarea nz-input [ngModel]="outro()" (ngModelChange)="outro.set($event)" [nzAutosize]="{ minRows: 2, maxRows: 10 }" maxlength="50000" placeholder="לא חובה"></textarea>
+  </label>
+</div>
+<div class="footer">
+  <button nz-button type="button" (click)="modal.close(false)">ביטול</button>
+  <button nz-button nzType="primary" type="button" [nzLoading]="busy()" (click)="create()"><span nz-icon nzType="file-word"></span> יצירת מסמך</button>
+</div>

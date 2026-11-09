@@ -1,0 +1,81 @@
+@use 'tokens' as *;
+
+:host {
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  max-width: 100%;
+  padding-inline: 8px 5px;
+  border-radius: 999px;
+  background: $capsule-bg;
+  color: $capsule;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow $transition;
+
+  &:hover,
+  &:focus-visible,
+  &.ant-popover-open {
+    outline: none;
+    box-shadow: 0 0 0 1.5px $capsule-line;
+  }
+
+  &.missing {
+    color: $gray;
+    background: $input-color;
+    cursor: default;
+    text-decoration: line-through;
+  }
+}
+
+:host(.sm) .chip {
+  height: 21px;
+  font-size: 11.5px;
+}
+
+.hash {
+  font-size: 13px;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: $capsule;
+  color: $white;
+  font-size: 10.5px;
+  line-height: 15px;
+}
+
+.remove {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  opacity: 0.6;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    background: rgba(11, 127, 134, 0.14);
+  }
+}

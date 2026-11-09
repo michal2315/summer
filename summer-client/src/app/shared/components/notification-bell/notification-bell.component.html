@@ -1,0 +1,52 @@
+<button
+  type="button"
+  nz-button
+  nzType="text"
+  nzShape="circle"
+  nz-popover
+  appAltKey="notificationsBell"
+  nzPopoverTrigger="click"
+  nzPopoverPlacement="bottomLeft"
+  [nzPopoverTitle]="title"
+  [nzPopoverContent]="list"
+  [(nzPopoverVisible)]="open"
+  [attr.aria-label]="service.unread() ? 'התראות, ' + service.unread() + ' חדשות' : 'התראות'"
+>
+  <!-- Badge wraps the icon (not the button) so the count sits on the bell, not on the button's padded corner. -->
+  <nz-badge [nzCount]="service.unread()" [nzOverflowCount]="99" nzSize="small" [nzOffset]="[2, 2]">
+    <span nz-icon nzType="bell" class="bell"></span>
+  </nz-badge>
+</button>
+
+<ng-template #title>
+  <div class="head">
+    <span>התראות</span>
+    <span class="head-actions">
+      @if (service.unread()) {
+        <button type="button" nz-button nzType="link" nzSize="small" (click)="service.markAllViewed()">סמן הכל כנקרא</button>
+      }
+      <a nz-button nzType="link" nzSize="small" routerLink="/notifications" (click)="open.set(false)"><span nz-icon nzType="setting"></span> ניהול התראות</a>
+    </span>
+  </div>
+</ng-template>
+<ng-template #list>
+  @if (!service.loaded()) {
+    <app-skeleton class="rows" variant="rows" [count]="3" />
+  } @else {
+    <ul class="rows">
+      @for (n of rows.items(); track n._id) {
+        <li>
+          <button type="button" class="row" [class.unread]="!n.isViewed" (click)="openNotification(n)">
+            <span class="text">{{ n.text }}</span>
+            <span class="time">{{ n.creationDate | relativeTime }}</span>
+          </button>
+        </li>
+      } @empty {
+        <nz-empty nzNotFoundContent="אין התראות חדשות" />
+      }
+      @if (rows.hasMore()) {
+        <li class="sentinel" aria-hidden="true" (appInView)="rows.more()" [appInViewKey]="rows.items().length" rootMargin="100px"></li>
+      }
+    </ul>
+  }
+</ng-template>

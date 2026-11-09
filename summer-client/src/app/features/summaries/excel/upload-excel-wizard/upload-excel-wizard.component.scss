@@ -1,0 +1,67 @@
+.steps {
+  margin-bottom: 16px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 220px;
+}
+
+.error {
+  margin-bottom: 4px;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.req::after {
+  content: ' *';
+  color: #e74d3d;
+}
+
+.mapping {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 14px;
+  align-items: center;
+}
+
+.preview {
+  overflow-x: auto;
+}
+.cell {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.footer {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 16px;
+  padding-top: 12px;
+  .spacer {
+    flex: 1;
+  }
+}
+
+// Replaces the browser defaults of the former <p>/<strong>.
+.step-hint { margin: 0 0 1em; }
+.row-count { font-weight: 700; }

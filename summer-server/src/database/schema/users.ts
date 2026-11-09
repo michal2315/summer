@@ -16,6 +16,10 @@ export const users = pgTable(
     /** The built-in "Summer" account. */
     isSystem: boolean().notNull().default(false),
     isActive: boolean().notNull().default(true),
+    /** E-mail for notification-rule matches (each rule also picks immediate and/or digest). */
+    mailAlerts: boolean().notNull().default(true),
+    /** E-mail for activity: tags, comments, mentions, followed users publishing. */
+    mailActivity: boolean().notNull().default(true),
     /**
      * Last group keys the identity provider reported. A cache, not an authority: used only to pre-filter
      * notifications for other users; every read re-authorizes with fresh groups.

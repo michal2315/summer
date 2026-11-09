@@ -1,18 +1,24 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Pipe, PipeTransform, inject, signal } from '@angular/core';
 import { Observable, map, tap } from 'rxjs';
-import { FieldsType, INotificationSettings, INotificationSettingsCondition, NotificationsFunctionsOptions as F } from '../../shared/models';
+import { FieldsType, IField, IMailPreferences, INotificationSettings, INotificationSettingsCondition, ISummarySearch, NotificationsFunctionsOptions as F } from '../../shared/models';
+import { alertSearch, describeSearch, sameAlertSearch } from '../summaries/search-query';
 
 export interface NotificationOption {
   label: string;
   value: F;
 }
 
+/** Not a catalog field: rules on it read the summary's title, content and notes (the server knows the same id). */
+export const SUMMARY_TEXT_FIELD: IField = { _id: 'summary-text', name: 'תוכן התמצית', type: FieldsType.String };
+
 /** Operators offered per field type (spec §8.1). Hour fields compare as strings. */
 export const OPTIONS_BY_TYPE: Record<FieldsType, NotificationOption[]> = {
   [FieldsType.String]: [
     { label: 'מכיל', value: F.StringContains },
     { label: 'לא מכיל', value: F.StringNotContains },
+    { label: 'תואם לכמוסה', value: F.CapsuleMatches },
+    { label: 'לא תואם לכמוסה', value: F.CapsuleNotMatches },
   ],
   [FieldsType.Hour]: [
     { label: 'מכיל', value: F.StringContains },
@@ -38,10 +44,13 @@ export const OPTIONS_BY_TYPE: Record<FieldsType, NotificationOption[]> = {
 const LABELS = new Map(Object.values(OPTIONS_BY_TYPE).flat().map((o) => [o.value, o.label]));
 
 export const isBetween = (f: F | null | undefined) => f === F.NumberBetween || f === F.DateBetween;
+/** content: [capsule id, capsule name] */
+export const isCapsuleFunc = (f: F | null | undefined) => f === F.CapsuleMatches || f === F.CapsuleNotMatches;
 
-/** Rule → readable Hebrew, e.g. «שם הקורס מכיל "אלגוריתמים" וגם מספר הרצאה בין 3 ל-∞». */
-export function describeRule(rule: Pick<INotificationSettings, 'conditions'>): string {
-  return rule.conditions.map(describeCondition).join(' וגם ');
+/** Rule → readable Hebrew, e.g. «שם הקורס מכיל "אלגוריתמים" וגם מספר הרצאה בין 3 ל-∞», or «חיפוש: …» for a search alert. */
+export function describeRule(rule: Pick<INotificationSettings, 'conditions' | 'matchAny' | 'search'>): string {
+  if (rule.search) return `תמציות שמתאימות לחיפוש: ${describeSearch(rule.search)}`;
+  return rule.conditions.map(describeCondition).join(rule.matchAny ? ' או ' : ' וגם ');
 }
 
 export function describeCondition(c: INotificationSettingsCondition): string {
@@ -51,26 +60,42 @@ export function describeCondition(c: INotificationSettingsCondition): string {
     return typeof v === 'string' ? `"${v}"` : String(v);
   };
   const op = LABELS.get(c.funcName) ?? c.funcName;
+  if (isCapsuleFunc(c.funcName)) return `${c.field.name} ${op} #${c.content[1] ?? c.content[0]}`;
   if (isBetween(c.funcName)) return `${c.field.name} ${op} ${fmt(c.content[0])} ל-${fmt(c.content[1])}`;
   return `${c.field.name} ${op} ${c.content.map(fmt).join(', ')}`;
 }
 
 @Pipe({ name: 'notificationName' })
 export class NotificationNamePipe implements PipeTransform {
-  transform(rule: Pick<INotificationSettings, 'conditions'>): string {
+  transform(rule: Pick<INotificationSettings, 'conditions' | 'matchAny' | 'search'>): string {
     return describeRule(rule);
   }
 }
 
-/** Notification-rule admin state (spec §11.2): rules + a text filter. */
+/** Notification-rule admin state (spec §11.2): rules + a text filter, and the user's e-mail switches. */
 @Injectable({ providedIn: 'root' })
 export class NotificationsSettingsService {
   private readonly http = inject(HttpClient);
   readonly rules = signal<INotificationSettings[] | null>(null);
   readonly filter = signal('');
+  readonly preferences = signal<IMailPreferences | null>(null);
 
   load(): void {
     this.http.get<INotificationSettings[]>('/api/notifications/settings').subscribe((r) => this.rules.set(r));
+  }
+
+  loadPreferences(): void {
+    this.http.get<IMailPreferences>('/api/notifications/preferences').subscribe((p) => this.preferences.set(p));
+  }
+
+  /** Optimistic; the server's answer replaces the local copy, a failure restores it. */
+  setPreference(key: 'mailAlerts' | 'mailActivity', value: boolean): void {
+    const before = this.preferences();
+    if (before) this.preferences.set({ ...before, [key]: value });
+    this.http.put<IMailPreferences>('/api/notifications/preferences', { [key]: value }).subscribe({
+      next: (p) => this.preferences.set(p),
+      error: () => this.preferences.set(before),
+    });
   }
 
   /** The API has no single-rule endpoint; read the list and pick the rule. */
@@ -88,5 +113,16 @@ export class NotificationsSettingsService {
 
   delete(id: string): Observable<unknown> {
     return this.http.delete(`/api/notifications/${id}`).pipe(tap(() => this.load()));
+  }
+
+  /** The alert rule saved for this search, if any (needs `load()` first). */
+  alertFor(search: ISummarySearch): INotificationSettings | undefined {
+    return this.rules()?.find((r) => r.search && sameAlertSearch(r.search, search));
+  }
+
+  /** "Notify me about new results": a rule holding the search, named after it (or after the saved search's name). */
+  addAlert(search: ISummarySearch, name?: string | null): Observable<INotificationSettings> {
+    const s = alertSearch(search);
+    return this.save({ name: (name || describeSearch(s)).slice(0, 120), conditions: [], search: s, isNotify: true, isMail: false, isDigest: false });
   }
 }

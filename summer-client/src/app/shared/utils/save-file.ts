@@ -10,3 +10,4 @@ export function saveFile(data: Blob | ArrayBuffer, fileName: string, type = 'app
 }
 
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';

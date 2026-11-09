@@ -1,0 +1,10 @@
+@if (rows().length) {
+  <div class="snippets" role="group" aria-label="איפה נמצאה ההתאמה">
+    @for (r of rows(); track r.where) {
+      <div class="row">
+        <span class="where">{{ r.where }}</span>
+        <span class="text" [innerHTML]="r.html"></span>
+      </div>
+    }
+  </div>
+}

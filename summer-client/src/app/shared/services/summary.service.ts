@@ -1,8 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, map, tap } from 'rxjs';
-import { ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
-import { XLSX_MIME, saveFile } from '../utils/save-file';
+import { IAccessStats, IBulkResult, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
+import { DOCX_MIME, XLSX_MIME, saveFile } from '../utils/save-file';
 import { toHttpParams } from './http-params';
 
 const BASE = '/api/summary';
@@ -21,6 +21,21 @@ export class SummaryService {
     return this.http.get<ISummary>(`${BASE}/${id}/${isMine}`);
   }
 
+  /** Summaries (visible to the user) whose custom field `fieldId` equals `value`. */
+  byField(fieldId: string, value: string): Observable<Pick<ISummary, '_id' | 'title'>[]> {
+    return this.http.get<Pick<ISummary, '_id' | 'title'>[]>('/api/field/summaries', { params: { fieldId, value } });
+  }
+
+  /** How many published summaries `search` would find. */
+  count(search: ISummarySearch): Observable<number> {
+    return this.http.get<{ count: number }>(`${BASE}/count`, { params: toHttpParams(search) }).pipe(map((res) => res.count));
+  }
+
+  /** Visible summaries in the search's scope, and the ones matching it that permissions hide. */
+  accessStats(scope: ISummarySearch): Observable<IAccessStats> {
+    return this.http.get<IAccessStats>(`${BASE}/access-stats`, { params: toHttpParams(scope) });
+  }
+
   search(userId: string, search: ISummarySearch): Observable<ISummariesResponse> {
     return this.http
       .get<{ summaries: ISummary[]; lengths: ISummariesLength | number }>(`${BASE}/user/${userId}`, { params: toHttpParams(search) })
@@ -31,11 +46,6 @@ export class SummaryService {
           lengths: typeof res.lengths === 'number' ? { ...EMPTY_LENGTHS, summary: res.lengths } : { ...EMPTY_LENGTHS, ...res.lengths },
         })),
       );
-  }
-
-  /** Dashboard summaries grouped by key (label / group name). */
-  dashboard(userId: string): Observable<Record<string, ISummary[]>> {
-    return this.http.get<Record<string, ISummary[]>>(`${BASE}/user/${userId}/dashboard`);
   }
 
   create(payload: SummaryPayload, files: File[]): Observable<ISummary> {
@@ -56,6 +66,24 @@ export class SummaryService {
 
   toDraft(summary: ISummary): Observable<unknown> {
     return this.http.put(`${BASE}/to-draft`, { id: summary._id }).pipe(tap(() => this.changed$.next({ ...summary, isDraft: true })));
+  }
+
+  /** Add/remove labels on many summaries; applies to the ones you may edit and reports the rest. Callers reload their list. */
+  bulkLabels(summaryIds: string[], add: string[], remove: string[]): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/labels`, { summaryIds, add, remove });
+  }
+
+  /** '' clears the colour. Like the other bulk calls, callers reload their list. */
+  bulkColor(summaryIds: string[], color: string): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/color`, { summaryIds, color });
+  }
+
+  bulkToDraft(summaryIds: string[]): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/to-draft`, { summaryIds });
+  }
+
+  bulkDelete(summaryIds: string[]): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/bulk/delete`, { summaryIds }).pipe(tap((r) => r.applied.forEach((id) => this.removed$.next(id))));
   }
 
   /** Local-only change notification (e.g. favorite toggled via UserService, comment added). */
@@ -83,12 +111,19 @@ export class SummaryService {
       .pipe(map((buf) => saveFile(buf, `summer-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME)));
   }
 
+  /** Same selection as exportExcel, as a Word table between the user's title/intro/outro (plain text). */
+  exportWord(body: { summariesId: string[]; all: boolean; search?: ISummarySearch; title: string; intro: string; outro: string }): Observable<void> {
+    return this.http
+      .post(`${BASE}/download/word`, body, { responseType: 'arraybuffer' })
+      .pipe(map((buf) => saveFile(buf, `summer-${new Date().toISOString().slice(0, 10)}.docx`, DOCX_MIME)));
+  }
+
   /** Bulk import. headersMap: Excel column header → summary field key (title/content/labels/… or a field id). */
-  uploadExcel(req: { file: File; type: string; collections: string[]; permissions: string[]; headersMap: Record<string, string> }) {
+  uploadExcel(req: { file: File; type: string; folder: string | null; permissions: string[]; headersMap: Record<string, string> }) {
     const fd = new FormData();
     fd.append('file', req.file, req.file.name);
     fd.append('type', req.type);
-    for (const c of req.collections) fd.append('collections', c);
+    if (req.folder) fd.append('folder', req.folder);
     for (const p of req.permissions) fd.append('permissions', p);
     fd.append('headersMap', JSON.stringify(req.headersMap));
     return this.http.post<{ created: number }>(`${BASE}/upload/excel`, fd);

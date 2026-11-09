@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { SQL, and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
-import { collectionEditable } from '../collections/collection.access';
-import { idsWhere } from '../common/sql';
+import { idsWhere, uuidArray } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
-import { collections, folderCollections, folderEditors, folderPermissions, folderSummaries, folders, summaries } from '../database/schema';
+import { folderEditors, folderPermissions, folderSummaries, folders, summaries } from '../database/schema';
 import { folderEditable, folderVisible } from './folder.access';
 
 const refColumns = { id: true, username: true, fullName: true, department: true, isSystem: true } as const;
@@ -20,11 +19,6 @@ export class FoldersRepository {
   /** The subset of folder `ids` the caller may view (or edit) — see folder.access.ts. */
   visibleIds(me: CurrentUser, ids: string[], mode: 'view' | 'edit' = 'view'): Promise<Set<string>> {
     return idsWhere(this.db, folders, folders.id, ids, mode === 'view' ? folderVisible(me) : folderEditable(me));
-  }
-
-  /** The subset of collection `ids` the caller manages (placing a collection in a folder needs that). */
-  editableCollectionIds(me: CurrentUser, ids: string[]): Promise<Set<string>> {
-    return idsWhere(this.db, collections, collections.id, ids, collectionEditable(me));
   }
 
   async ids(where: SQL): Promise<string[]> {
@@ -56,45 +50,55 @@ export class FoldersRepository {
     return rows.length > 0;
   }
 
-  /** Items placed directly in each folder that pass the given visibility predicates (published summaries only). */
-  async itemCounts(folderIds: string[], summaryVisible: SQL, collectionVisible: SQL): Promise<Map<string, number>> {
-    const counts = new Map<string, number>(folderIds.map((id) => [id, 0]));
+  /** Published summaries placed directly in each folder: how many pass `summaryVisible` and how many don't. */
+  async itemCounts(folderIds: string[], summaryVisible: SQL): Promise<Map<string, { visible: number; hidden: number }>> {
+    const counts = new Map(folderIds.map((id) => [id, { visible: 0, hidden: 0 }]));
     if (!folderIds.length) return counts;
-    const [s, c] = await Promise.all([
-      this.db
-        .select({ folderId: folderSummaries.folderId, n: sql<number>`count(*)::int` })
-        .from(folderSummaries)
-        .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
-        .where(and(inArray(folderSummaries.folderId, folderIds), eq(summaries.isDraft, false), summaryVisible))
-        .groupBy(folderSummaries.folderId),
-      this.db
-        .select({ folderId: folderCollections.folderId, n: sql<number>`count(*)::int` })
-        .from(folderCollections)
-        .innerJoin(collections, eq(collections.id, folderCollections.collectionId))
-        .where(and(inArray(folderCollections.folderId, folderIds), collectionVisible))
-        .groupBy(folderCollections.folderId),
-    ]);
-    for (const r of [...s, ...c]) counts.set(r.folderId, (counts.get(r.folderId) ?? 0) + r.n);
+    const rows = await this.db
+      .select({
+        folderId: folderSummaries.folderId,
+        visible: sql<number>`(count(*) filter (where ${summaryVisible}))::int`,
+        hidden: sql<number>`(count(*) filter (where not ${summaryVisible}))::int`,
+      })
+      .from(folderSummaries)
+      .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
+      .where(and(inArray(folderSummaries.folderId, folderIds), eq(summaries.isDraft, false)))
+      .groupBy(folderSummaries.folderId);
+    for (const r of rows) counts.set(r.folderId, { visible: r.visible, hidden: r.hidden });
     return counts;
   }
 
-  /** Collections then summaries directly in the folder, each filtered by its own visibility and sorted by name. */
-  async items(folderId: string, summaryVisible: SQL, collectionVisible: SQL) {
-    const [cols, sums] = await Promise.all([
-      this.db
-        .select({ id: collections.id, name: collections.name })
-        .from(folderCollections)
-        .innerJoin(collections, eq(collections.id, folderCollections.collectionId))
-        .where(and(eq(folderCollections.folderId, folderId), collectionVisible))
-        .orderBy(asc(collections.name)),
-      this.db
-        .select({ id: summaries.id, name: summaries.title, kind: summaries.kind })
-        .from(folderSummaries)
-        .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
-        .where(and(eq(folderSummaries.folderId, folderId), eq(summaries.isDraft, false), summaryVisible))
-        .orderBy(asc(summaries.title)),
-    ]);
-    return { collections: cols, summaries: sums };
+  /**
+   * Distinct published summaries passing `summaryVisible` in each folder or anywhere below it. A summary in several of
+   * those folders counts once, like the folder's list on the home page.
+   */
+  async subtreeCounts(folderIds: string[], summaryVisible: SQL): Promise<Map<string, number>> {
+    const counts = new Map(folderIds.map((id) => [id, 0]));
+    if (!folderIds.length) return counts;
+    const { rows } = await this.db.execute<{ folder_id: string; n: number }>(sql`
+      with recursive up(folder_id, ancestor_id) as (
+        select ${folders.id}, ${folders.id} from ${folders}
+        union
+        select up.folder_id, f.parent_id from up join ${folders} f on f.id = up.ancestor_id where f.parent_id is not null
+      )
+      select up.ancestor_id as folder_id, count(distinct ${summaries.id})::int as n
+      from ${folderSummaries}
+      join up on up.folder_id = ${folderSummaries.folderId}
+      join ${summaries} on ${summaries.id} = ${folderSummaries.summaryId}
+      where up.ancestor_id = any(${uuidArray(folderIds)}) and ${summaries.isDraft} = false and ${summaryVisible}
+      group by up.ancestor_id`);
+    for (const r of rows) counts.set(r.folder_id, r.n);
+    return counts;
+  }
+
+  /** Summaries directly in the folder that the caller may see, sorted by title. */
+  items(folderId: string, summaryVisible: SQL) {
+    return this.db
+      .select({ id: summaries.id, name: summaries.title, kind: summaries.kind })
+      .from(folderSummaries)
+      .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
+      .where(and(eq(folderSummaries.folderId, folderId), eq(summaries.isDraft, false), summaryVisible))
+      .orderBy(asc(summaries.title));
   }
 
   async insert(values: { name: string; parentId: string | null; createdBy: string }): Promise<string> {
@@ -123,29 +127,43 @@ export class FoldersRepository {
     await this.db.insert(folderEditors).values(userIds.map((userId) => ({ folderId: id, userId })));
   }
 
-  /** Place items in `folderId`, moving them out of any folder that held them (one folder per item). */
-  async place(folderId: string, summaryIds: string[], collectionIds: string[]): Promise<void> {
-    const now = new Date();
+  /** Add items to `folderId`, keeping any other folders they are in (already there = no-op). */
+  async place(folderId: string, summaryIds: string[]): Promise<void> {
     if (summaryIds.length)
       await this.db
         .insert(folderSummaries)
         .values(summaryIds.map((summaryId) => ({ summaryId, folderId })))
-        .onConflictDoUpdate({ target: folderSummaries.summaryId, set: { folderId, createdAt: now } });
-    if (collectionIds.length)
-      await this.db
-        .insert(folderCollections)
-        .values(collectionIds.map((collectionId) => ({ collectionId, folderId })))
-        .onConflictDoUpdate({ target: folderCollections.collectionId, set: { folderId, createdAt: now } });
+        .onConflictDoNothing();
   }
 
   /** Take items out of `folderId` (only if they are in it). The items themselves are untouched. */
-  async unplace(folderId: string, summaryIds: string[], collectionIds: string[]): Promise<void> {
+  async unplace(folderId: string, summaryIds: string[]): Promise<void> {
     if (summaryIds.length)
       await this.db.delete(folderSummaries).where(and(eq(folderSummaries.folderId, folderId), inArray(folderSummaries.summaryId, summaryIds)));
-    if (collectionIds.length)
-      await this.db
-        .delete(folderCollections)
-        .where(and(eq(folderCollections.folderId, folderId), inArray(folderCollections.collectionId, collectionIds)));
+  }
+
+  /** Serializes folder moves for the rest of the transaction, so two concurrent moves cannot form a cycle. */
+  async lockMoves(): Promise<void> {
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtext('summer:folder-move'))`);
+  }
+
+  /** `folderId` is `ancestorId` or somewhere below it. */
+  async isWithin(folderId: string, ancestorId: string): Promise<boolean> {
+    const { rows } = await this.db.execute<{ hit: boolean }>(sql`
+      with recursive chain(id, parent_id) as (
+        select id, parent_id from ${folders} where id = ${folderId}
+        union all
+        select f.id, f.parent_id from ${folders} f join chain c on f.id = c.parent_id
+      )
+      select exists (select 1 from chain where id = ${ancestorId}) as hit`);
+    return rows[0].hit;
+  }
+
+  async setParent(id: string, parentId: string | null): Promise<void> {
+    await this.db
+      .update(folders)
+      .set({ parentId, updatedAt: new Date(), version: sql`${folders.version} + 1` })
+      .where(eq(folders.id, id));
   }
 
   /** Deletes the folder and (FK cascade) its whole subtree and their placements. */

@@ -1,0 +1,31 @@
+@if (resolved(); as c) {
+  <span
+    class="chip"
+    nz-popover
+    [nzPopoverContent]="words"
+    nzPopoverTrigger="click"
+    nzPopoverPlacement="bottomRight"
+    nzPopoverOverlayClassName="capsule-popover"
+    (click)="$event.stopPropagation()"
+    (mousedown)="$event.stopPropagation()"
+    role="button"
+    tabindex="0"
+    [attr.aria-label]="'כמוסה ' + c.name + ' — הצגת המילים'"
+  >
+    <span class="hash" nz-icon nzType="experiment"></span>
+    <bdi class="name">{{ c.name }}</bdi>
+    <span class="count">{{ c.words.length }}</span>
+    @if (removable()) {
+      <button type="button" class="remove" (click)="remove($event)" aria-label="הסרת הכמוסה"><span nz-icon nzType="close"></span></button>
+    }
+  </span>
+  <ng-template #words><app-capsule-words [capsule]="c" /></ng-template>
+} @else {
+  <span class="chip missing" title="כמוסה שלא נמצאה">
+    <span class="hash" nz-icon nzType="experiment"></span>
+    <bdi class="name">{{ capsuleId() }}</bdi>
+    @if (removable()) {
+      <button type="button" class="remove" (click)="remove($event)" aria-label="הסרת הכמוסה"><span nz-icon nzType="close"></span></button>
+    }
+  </span>
+}

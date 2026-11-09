@@ -1,0 +1,88 @@
+@use 'tokens' as *;
+
+// Matches FLASHES.summer.ms in easter-eggs.service.ts.
+$duration: 2.4s;
+
+.flash {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 110%, rgba($star, 0.55) 0%, rgba($primary-orange-hex, 0.35) 35%, transparent 70%),
+    linear-gradient(180deg, rgba(#7fd3ff, 0.35) 0%, rgba($orange-50-hex, 0.5) 100%);
+  animation: wash $duration ease-in-out forwards;
+}
+
+.sun {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  translate: -50% 0;
+  animation: rise $duration cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+}
+
+.floater {
+  position: absolute;
+  bottom: -60px;
+  font-size: 40px;
+  animation: float-up $duration ease-out forwards;
+}
+
+.waves {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  height: 70px;
+  fill: rgba(#36b6f0, 0.55);
+  animation: surf 1.2s linear infinite;
+}
+
+@keyframes wash {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  0% {
+    transform: translateY(220px);
+  }
+  35%,
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes float-up {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    transform: translateY(-75vh) rotate(25deg);
+  }
+}
+@keyframes surf {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+// Reduced motion: a still warm wash only, no movement.
+@media (prefers-reduced-motion: reduce) {
+  .sun,
+  .floater,
+  .waves {
+    animation: none;
+  }
+  .floater {
+    display: none;
+  }
+}

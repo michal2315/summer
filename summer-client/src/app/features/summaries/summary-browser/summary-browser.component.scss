@@ -10,44 +10,83 @@
   }
 }
 
+// Search, header and toolbar stay put; only .feed-scroller scrolls.
 .main {
   height: 100%;
-  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 2px 6px 0;
 }
 
+.feed {
+  position: relative; // anchors the scroll rail
+  flex: 1;
+  min-height: 0;
+}
+
+.feed-scroller {
+  height: 100%;
+  overflow: auto;
+  // A little room so the active card's border isn't clipped; more on the inline-end (left in RTL) for the scroll rail.
+  padding: 4px 4px 0;
+  padding-inline-end: 18px;
+}
+
 .search-row {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: $app-background;
-  padding-bottom: 4px;
+  position: relative;
+  z-index: 20; // the advanced-search panel overlays the feed
 }
 
 .tabs {
   margin-bottom: -8px;
 }
 
-.no-selection {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  margin: 0;
-}
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: 10px 12px;
+  padding: 2px 0 4px;
+  // Title and its counts read as one line.
+  .title-group {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-inline-end: 8px;
+  }
+  .count-pill {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    background: $gray-tag;
+  }
   .count {
     font-weight: 700;
   }
   .spacer {
     flex: 1;
+  }
+}
+
+.tabs ::ng-deep .ant-tabs-nav {
+  margin-bottom: 4px;
+}
+
+// The search row and the projected header scroll away together, or stay pinned together (stickyHeader).
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  &.sticky {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: $app-background;
+    padding-bottom: 8px;
   }
 }

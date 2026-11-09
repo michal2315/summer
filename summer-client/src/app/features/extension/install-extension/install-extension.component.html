@@ -1,0 +1,13 @@
+<a routerLink="/extension" class="back-link"><span nz-icon nzType="arrow-right"></span> חזרה לפרטי התוסף</a>
+<div class="title" role="heading" aria-level="1">התקנת התוסף</div>
+<div class="lead">בדפדפן ארגוני (Chrome / Edge) לחיצה על "הוספה לדפדפן" פותחת חלון אישור של הדפדפן — לוחצים "הוספת תוסף" וזהו.</div>
+@if (info()) {
+  <a nz-button nzType="primary" [href]="crxUrl"><span nz-icon nzType="plus"></span> הוספה לדפדפן</a>
+}
+<div class="subtitle" role="heading" aria-level="2">הקובץ ירד במקום להיפתח חלון התקנה?</div>
+<div class="lead">הדפדפן שלכם עוד לא מוגדר לאפשר התקנה מסאמר. פנו לצוות התמיכה, או התקינו ידנית:</div>
+<nz-steps nzDirection="vertical" [nzCurrent]="-1">
+  <nz-step nzTitle="פתיחת דף התוספים" nzDescription="היכנסו ל-chrome://extensions (או edge://extensions) והפעילו את 'מצב מפתח'." />
+  <nz-step nzTitle="גרירת הקובץ" nzDescription="גררו את הקובץ summer-extension.crx שירד אל הדף, ואשרו את ההוספה." />
+  <nz-step nzTitle="התחברות" nzDescription="בפעם הראשונה ששולחים טקסט, התוסף מתחבר לסאמר עם החשבון שלכם." />
+</nz-steps>

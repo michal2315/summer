@@ -13,16 +13,18 @@ import { summarySearchSchema } from './summary-search';
 
 const templateBody = z.object({ fieldNames: z.array(z.string().max(200)).max(200).default([]) });
 
-const exportBody = z.object({
+export const exportBody = z.object({
   summariesId: z.array(zId).max(10_000).default([]),
   all: z.boolean().default(false),
   search: summarySearchSchema.optional(),
 });
+type ExportRequest = z.infer<typeof exportBody>;
 
 /** headersMap: Excel column header → target key (title/content/labels/eventDate/notes/department or a field id). */
 const importFields = z.object({
   type: zId,
-  collections: z.array(zId).default([]),
+  /** every imported summary goes into this folder (the importer must manage it) */
+  folder: z.preprocess((v) => v || null, zId.nullable()).default(null),
   permissions: z.array(zId).default([]),
   headersMap: z.record(z.string(), z.string()),
 });
@@ -44,7 +46,11 @@ export class ExcelService {
   }
 
   async export(me: CurrentUser, body: unknown): Promise<Buffer> {
-    const req = parse(exportBody, body);
+    return this.workbook(await this.rows(me, parse(exportBody, body)));
+  }
+
+  /** Header row + one row per requested visible summary (shared with the Word export). */
+  async rows(me: CurrentUser, req: ExportRequest): Promise<string[][]> {
     const cap = this.config.excel.exportMax;
     let ids: string[];
     if (req.all) {
@@ -55,11 +61,11 @@ export class ExcelService {
       ids = wanted.filter((id) => visible.has(id));
     }
 
-    const rows: unknown[][] = [['כותרת', 'מחבר', 'סוג', 'תאריך האירוע', 'תגיות', 'תוכן']];
+    const rows: string[][] = [['כותרת', 'מחבר', 'סוג', 'תאריך האירוע', 'תגיות', 'תוכן']];
     for (let i = 0; i < ids.length; i += EXPORT_CHUNK) {
       for (const s of await this.summaries.hydrate(me, ids.slice(i, i + EXPORT_CHUNK))) rows.push(this.exportRow(s));
     }
-    return this.workbook(rows);
+    return rows;
   }
 
   async import(me: CurrentUser, file: { buffer: Buffer } | undefined, fields: Record<string, unknown>): Promise<{ created: number }> {
@@ -70,7 +76,7 @@ export class ExcelService {
     } catch {
       throw new BadRequestException('headersMap must be JSON');
     }
-    const req = parse(importFields, { ...fields, collections: asList(fields.collections), permissions: asList(fields.permissions), headersMap });
+    const req = parse(importFields, { ...fields, permissions: asList(fields.permissions), headersMap });
 
     let sheetRows: Record<string, unknown>[];
     try {
@@ -95,7 +101,7 @@ export class ExcelService {
           eventDate: this.toDay(v.eventDate),
           department: v.department || me.department,
           labels: (v.labels ?? '').split(/[,،]/).map((l) => l.trim()).filter(Boolean),
-          collectionIds: req.collections,
+          folderIds: req.folder ? [req.folder] : [],
           permissions: req.permissions,
           taggedUsers: [],
           summaryFields: Object.entries(v)
@@ -109,7 +115,7 @@ export class ExcelService {
     return { created: await this.summaries.importMany(me, payloads) };
   }
 
-  private exportRow(s: ApiSummary): unknown[] {
+  private exportRow(s: ApiSummary): string[] {
     const date = s.eventDate ? zonedDate(new Date(s.eventDate), this.config.timezone) : null;
     return [
       s.title,

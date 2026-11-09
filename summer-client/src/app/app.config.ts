@@ -9,8 +9,8 @@ import { he_IL, provideNzI18n } from 'ng-zorro-antd/i18n';
 import { provideNzIcons } from 'ng-zorro-antd/icon';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { provideQuillConfig } from 'ngx-quill/config';
-import { routes } from './app.routes';
-import { authInterceptor, errorInterceptor, mockApiInterceptor } from './core/http/interceptors';
+import { routes } from './routes/app.routes';
+import { authInterceptor, errorInterceptor } from './core/http/interceptors';
 import { ICONS } from './icons';
 
 registerLocaleData(he);
@@ -19,8 +19,8 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'enabled' })),
-    // Order matters: auth headers → error toasts → (dev) mock backend.
-    provideHttpClient(withInterceptors([authInterceptor, errorInterceptor, mockApiInterceptor])),
+    // Order matters: auth headers → error toasts.
+    provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
     provideAnimationsAsync(),
     { provide: LOCALE_ID, useValue: 'he' },
     provideNzI18n(he_IL),

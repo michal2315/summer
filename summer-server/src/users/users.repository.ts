@@ -1,21 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { ApiUser, UserRef, toRef } from '../common/api-types';
 import { DatabaseService } from '../database/database.service';
 import {
   labels,
-  userFavCollections,
   userFavLabels,
   userFollows,
-  userPinnedCollections,
   userPinnedLabels,
   userPinnedPermissions,
   userPinnedSearches,
+  userPinnedUsers,
   users,
 } from '../database/schema';
 import { VerifiedIdentity } from '../auth/identity-provider';
-import { likePattern } from '../common/sql';
+import { textLike } from '../common/sql';
 
 export type UserRow = typeof users.$inferSelect;
 
@@ -91,7 +90,7 @@ export class UsersRepository {
 
   /** Mention / tag autocomplete: username prefix or name substring. */
   async search(text: string, usernamePrefix: boolean): Promise<UserRef[]> {
-    const nameMatch = ilike(users.fullName, likePattern(text));
+    const nameMatch = textLike(users.fullName, text);
     const rows = await this.db
       .select(refColumns)
       .from(users)
@@ -99,7 +98,7 @@ export class UsersRepository {
         and(
           eq(users.isActive, true),
           eq(users.isSystem, false),
-          usernamePrefix ? or(ilike(users.username, likePattern(text, 'prefix')), nameMatch) : nameMatch,
+          usernamePrefix ? or(textLike(users.username, text, 'prefix'), nameMatch) : nameMatch,
         ),
       )
       .orderBy(asc(users.fullName))
@@ -123,18 +122,23 @@ export class UsersRepository {
           .orderBy(asc(table.createdAt))
       ).map((r) => r.name);
 
-    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, pinnedCollections, favoriteCollections, following] = await Promise.all([
+    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, pinnedUsers, following] = await Promise.all([
       this.db
-        .select({ search: userPinnedSearches.search })
+        .select({ _id: userPinnedSearches.id, name: userPinnedSearches.name, search: userPinnedSearches.search })
         .from(userPinnedSearches)
         .where(eq(userPinnedSearches.userId, userId))
         .orderBy(asc(userPinnedSearches.createdAt))
-        .then((rows) => rows.map((r) => r.search).reverse()),
+        .then((rows) => rows.reverse()),
       labelNames(userPinnedLabels),
       labelNames(userFavLabels),
       ids(userPinnedPermissions, userPinnedPermissions.permissionId),
-      ids(userPinnedCollections, userPinnedCollections.collectionId),
-      ids(userFavCollections, userFavCollections.collectionId),
+      this.db
+        .select(refColumns)
+        .from(userPinnedUsers)
+        .innerJoin(users, eq(users.id, userPinnedUsers.pinnedUserId))
+        .where(and(eq(userPinnedUsers.userId, userId), eq(users.isActive, true)))
+        .orderBy(asc(userPinnedUsers.createdAt))
+        .then((rows) => rows.map(toRef)),
       this.db
         .select({ v: userFollows.followedId })
         .from(userFollows)
@@ -149,8 +153,7 @@ export class UsersRepository {
       pinnedLabels,
       favoriteLabels,
       pinnedPermissions,
-      pinnedCollections,
-      favoriteCollections,
+      pinnedUsers,
       following,
       recentExtraField: [],
     };

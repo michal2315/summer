@@ -4,7 +4,13 @@
 
 :root {
   --primary-pink: #{$primary-pink};
-  --primary-orange: #{$primary-orange};
+  --primary-orange: #{$primary-orange-hex};
+  --orange-50: #{$orange-50-hex};
+  --orange-100: #ffe6d6;
+  --orange-strong: #c2571b;
+  --gradient-end: #{$primary-pink};
+  --hover-start: #ec854d;
+  --hover-end: #e7364b;
   --dark-blue: #{$dark-blue};
   --gray: #{$gray};
   --app-background: #{$app-background};
@@ -37,6 +43,11 @@ body {
 .highlight {
   background: yellow;
   font-weight: bold;
+
+  // The hit the find-in-page arrows moved to (summary view).
+  &.highlight-current {
+    background: orange;
+  }
 }
 
 // Primary button = 137° orange→pink gradient
@@ -57,6 +68,15 @@ body {
   color: $dark-blue;
   font-size: 12px;
   cursor: pointer;
+  // A label the search matched: the whole chip is marked, not just the letters inside it.
+  &:has(.highlight) {
+    background: yellow;
+  }
+}
+
+// Multi-selects whose options carry their own buttons: the selected background is enough, the tick crowds them.
+.no-check .ant-select-item-option-state {
+  display: none;
 }
 
 // Quill's own CSS forces `text-align: left`; the app is RTL, so lines without an explicit alignment go right.
@@ -121,4 +141,68 @@ body {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+// Back navigation: arrow + where it leads, as a plain link.
+.back-link {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  color: $primary-pink;
+  font-weight: 600;
+  white-space: nowrap;
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
+// Empty result: an explanation and, where it helps, one next step.
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 32px 16px;
+  text-align: center;
+  color: $gray;
+  .empty-icon {
+    font-size: 28px;
+  }
+  .empty-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: $dark-blue;
+  }
+  .empty-hint {
+    font-size: 13px;
+    max-width: 380px;
+  }
+}
+
+// ---- Coral's pink mode (shared/easter-eggs/coral-flash) ----
+// While the "coral" egg runs, Summy turns pink (the cursor trail is the component's own); the rest of the app keeps
+// its colours. Registered so Summy's colours can fade in and out.
+@each $name in primary-orange, summy-face, summy-rays {
+  @property --#{$name} {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: transparent;
+  }
+}
+app-summy {
+  --summy-face: #ffc94a;
+  --summy-rays: #{$star};
+  transition:
+    --primary-orange 0.5s ease,
+    --summy-face 0.5s ease,
+    --summy-rays 0.5s ease;
+}
+html.coral-mode app-summy {
+  --primary-orange: #ff7eb9;
+  --summy-face: #ffb3d9;
+  --summy-rays: #ff85c0;
 }

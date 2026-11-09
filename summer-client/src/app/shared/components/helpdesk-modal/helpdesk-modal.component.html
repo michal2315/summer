@@ -1,0 +1,10 @@
+<div class="intro">צוות סאני מטפל בתקלות ובהצעות לשיפור Summer.</div>
+<div class="options">
+  @for (o of options; track o.label) {
+    <a class="option" [class.disabled]="!o.url" [attr.href]="o.url || null" [attr.aria-disabled]="!o.url" target="_blank" rel="noopener">
+      <span class="icon" nz-icon [nzType]="o.icon"></span>
+      <span class="label">{{ o.label }}</span>
+      <span class="hint">{{ o.url ? o.hint : 'בקרוב' }}</span>
+    </a>
+  }
+</div>

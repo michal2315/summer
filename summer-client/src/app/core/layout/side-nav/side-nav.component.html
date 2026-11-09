@@ -1,0 +1,33 @@
+<div class="nav" role="navigation" aria-label="ניווט ראשי">
+  <a routerLink="/summaries" class="logo" appAltKey="home" (click)="navigate.emit()">
+    <img src="logos/summer-full-logo.svg" alt="Summer" />
+  </a>
+
+  @if (user(); as u) {
+    <a class="user" [routerLink]="['/profile', u._id]" routerLinkActive="active" appAltKey="profile" (click)="navigate.emit()">
+      <app-avatar [user]="u" [size]="32" />
+      <span class="who">
+        <span class="name">{{ u.fullName }}</span>
+        <span class="dept">{{ u.department }}</span>
+      </span>
+    </a>
+  }
+
+  <app-folder-tree class="tree" (navigate)="navigate.emit()" />
+
+  <div class="footer">
+    <button
+      #tourBtn
+      type="button"
+      class="tour-btn"
+      appAltKey="tour"
+      [class.has-new]="tour.unseenNew().length"
+      (click)="tour.toggleHub(tourBtn)"
+      [attr.aria-expanded]="!!tour.hubAnchor()"
+    >
+      <span nz-icon nzType="compass"></span> סיור ועזרה
+    </button>
+    <button type="button" (click)="openHelpdesk()"><span nz-icon nzType="customer-service"></span> פנייה לצוות סאני</button>
+    <span class="credit">פותח ב-💗 על ידי מיכל גולן</span>
+  </div>
+</div>

@@ -3,11 +3,13 @@ import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
 import { ApiNotification } from '../common/api-types';
 import { IdPipe } from '../common/validation';
+import { MailPreferences } from './notifications.repository';
 import { ApiRule, NotificationsService } from './notifications.service';
 
 /**
  * The client shares one prefix between the bell inbox and notification rules:
- * POST/PUT/DELETE /notifications[/:id] manage the caller's rules; GET /notifications is the inbox.
+ * POST/PUT/DELETE /notifications[/:id] manage the caller's rules; GET /notifications is the inbox;
+ * GET/PUT /notifications/preferences are the caller's e-mail switches.
  */
 @Controller('notifications')
 export class NotificationsController {
@@ -33,6 +35,16 @@ export class NotificationsController {
   @Get('settings')
   rules(@Me() me: CurrentUser): Promise<ApiRule[]> {
     return this.notifications.rules(me);
+  }
+
+  @Get('preferences')
+  preferences(@Me() me: CurrentUser): Promise<MailPreferences> {
+    return this.notifications.preferences(me);
+  }
+
+  @Put('preferences')
+  setPreferences(@Me() me: CurrentUser, @Body() body: unknown): Promise<MailPreferences> {
+    return this.notifications.setPreferences(me, body);
   }
 
   @Post()

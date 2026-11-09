@@ -1,0 +1,24 @@
+@use 'tokens' as *;
+
+// A shimmering placeholder block for loading skeletons. A light band sweeps across it; every bone runs the same
+// animation, so the bands on a page stay in step.
+@mixin bone {
+  border-radius: 6px;
+  background: linear-gradient(90deg, $input-color 0%, $input-color 40%, $surface-subtle 50%, $input-color 60%, $input-color 100%);
+  background-size: 300% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+// RTL: the band travels right → left, with the reading direction.
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}

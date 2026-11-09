@@ -32,7 +32,6 @@ export async function createHarness(env: Record<string, string> = {}): Promise<H
     DB_MIGRATE_ON_START: 'false',
     PERMISSION_ADMIN_GROUPS: 'staff',
     DASHBOARD_GROUPS: 'staff',
-    ACCESS_INHERIT_COLLECTION_PERMISSIONS: 'false',
     UPLOAD_DIR: mkdtempSync(join(tmpdir(), 'summer-uploads-')),
     ...env,
   });

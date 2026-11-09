@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, shareReplay, tap } from 'rxjs';
-import { ISummarySearch, IUser, UserRef } from '../../shared/models';
+import { IBulkResult, ISummarySearch, IUser, UserRef } from '../../shared/models';
 import { SILENT_ERRORS } from '../http/http-context';
 
 const BASE = '/api/user';
@@ -51,8 +51,12 @@ export class UserService {
   }
 
   // ---- pins / favorites / follows (all return the updated IUser) ----
-  pinSearch(search: ISummarySearch, isPin: boolean) {
-    return this.update(this.http.post<IUser>(`${BASE}/pinned-search/`, { ...search, isPin }));
+  /** Saving a search that is already saved keeps its name unless `name` is given. */
+  pinSearch(search: ISummarySearch, isPin: boolean, name?: string) {
+    return this.update(this.http.post<IUser>(`${BASE}/pinned-search/`, { ...search, isPin, ...(name !== undefined ? { name } : {}) }));
+  }
+  renameSearch(id: string, name: string) {
+    return this.update(this.http.put<IUser>(`${BASE}/pinned-search/${id}`, { name }));
   }
   pinLabel(label: string) {
     return this.update(this.http.post<IUser>(`${BASE}/pinned-label/`, { label }));
@@ -60,14 +64,21 @@ export class UserService {
   pinPermission(permissionId: string) {
     return this.update(this.http.post<IUser>(`${BASE}/pinned-permission/`, { permissionId }));
   }
-  pinCollection(collectionId: string) {
-    return this.update(this.http.post<IUser>(`${BASE}/pinned-collection/`, { collectionId }));
+  pinUser(userId: string) {
+    return this.update(this.http.post<IUser>(`${BASE}/pinned-user/`, { userId }));
   }
-  favoriteEntity(type: 'label' | 'collection' | 'permission', valueId: string) {
+  isPinnedUser(userId: string) {
+    return this._user()?.pinnedUsers.some((u) => u._id === userId) ?? false;
+  }
+  favoriteEntity(type: 'label' | 'permission', valueId: string) {
     return this.update(this.http.post<IUser>(`${BASE}/favorite-${type}/`, { valueId }));
   }
   favoriteSummary(summaryId: string) {
     return this.update(this.http.put<IUser>(`${BASE}/favorite`, { summaryId }));
+  }
+  /** Add (summaries you can see) or remove many favourites; the user object doesn't change, so callers reload their list. */
+  bulkFavorite(summaryIds: string[], favorite: boolean): Observable<IBulkResult> {
+    return this.http.post<IBulkResult>(`${BASE}/favorite/bulk`, { summaryIds, favorite });
   }
   follow(userId: string) {
     return this.update(this.http.put<IUser>(`${BASE}/add-follow/${userId}`, {}));

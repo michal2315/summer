@@ -1,0 +1,43 @@
+<div class="box" cdkOverlayOrigin #origin="cdkOverlayOrigin" [class.focused]="focused()" [class.disabled]="disabled()" (click)="focus()">
+  @for (w of value(); track w) {
+    @if (isCapsule(w)) {
+      <app-capsule-chip size="sm" [capsuleId]="idOf(w)" [removable]="!disabled()" (removed)="remove(w)" />
+    } @else {
+      <span class="word">
+        <bdi>{{ w }}</bdi>
+        @if (!disabled()) {
+          <button type="button" class="remove" (click)="remove(w); $event.stopPropagation()" [attr.aria-label]="'הסרת ' + w"><span nz-icon nzType="close"></span></button>
+        }
+      </span>
+    }
+  }
+  <input
+    #draftInput
+    class="draft"
+    [class.capsule]="draft().startsWith('#')"
+    [value]="draft()"
+    [placeholder]="value().length ? '' : placeholder()"
+    [disabled]="disabled()"
+    (input)="onDraft($any($event.target).value)"
+    (keydown)="onKey($event)"
+    (focus)="focused.set(true)"
+    (blur)="onBlur()"
+    aria-label="מילים וכמוסות"
+    autocomplete="off"
+    spellcheck="false"
+    role="combobox"
+    [attr.aria-expanded]="open()"
+  />
+</div>
+
+<ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origin" [cdkConnectedOverlayOpen]="open()" [cdkConnectedOverlayPositions]="positions">
+  <app-capsule-suggest
+    class="suggest"
+    [query]="capsuleQuery() ?? ''"
+    [items]="items()"
+    [loading]="loading()"
+    [active]="active()"
+    (activeChange)="active.set($event)"
+    (picked)="pick($event)"
+  />
+</ng-template>

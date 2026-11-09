@@ -1,0 +1,133 @@
+@use 'tokens' as *;
+
+// Matches FLASHES.tomer.ms in easter-eggs.service.ts.
+$duration: 3.2s;
+$metal: #9aa3ad;
+$metal-dark: #5f6872;
+
+.flash {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  pointer-events: none;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 75%, rgba($white, 0.85) 0%, rgba($orange-50-hex, 0.75) 45%, rgba($pink-50, 0.55) 100%);
+  animation: wash $duration ease-in-out forwards;
+}
+
+.summy {
+  position: absolute;
+  left: 50%;
+  bottom: 48px;
+  translate: -50% 0;
+  animation: pop $duration cubic-bezier(0.2, 0.9, 0.3, 1.4) forwards;
+}
+
+// Everything that's thrown: starts above the screen, falls with gravity, tumbling.
+.thing {
+  position: absolute;
+  top: -80px;
+  translate: -50% 0;
+  scale: var(--scale);
+  animation: thrown $duration cubic-bezier(0.45, 0, 0.75, 0.6) forwards;
+}
+
+// Blank sticky note with a slight curl shadow.
+.note {
+  width: 64px;
+  height: 64px;
+  border-radius: 2px 2px 10px 2px;
+  box-shadow: 0 8px 14px -8px rgba($dark-blue, 0.45);
+}
+.yellow {
+  background: #ffe873;
+}
+.pink {
+  background: #ffc2cc;
+}
+.blue {
+  background: #b9e3ff;
+}
+.green {
+  background: #c9f2b8;
+}
+
+.screw svg {
+  width: 16px;
+  height: 44px;
+}
+.nail svg {
+  width: 14px;
+  height: 48px;
+}
+.screw,
+.nail {
+  .head,
+  .shank {
+    fill: $metal;
+    stroke: $metal-dark;
+    stroke-width: 1;
+    stroke-linejoin: round;
+  }
+  .slot,
+  .thread {
+    fill: none;
+    stroke: $metal-dark;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+  filter: drop-shadow(0 3px 3px rgba($dark-blue, 0.3));
+}
+
+// A squashed lump of blue-tack.
+.tack {
+  width: 30px;
+  height: 22px;
+  background: radial-gradient(circle at 35% 30%, #6fa8ff 0%, #2f6fde 70%);
+  border-radius: 55% 45% 50% 60% / 60% 50% 55% 45%;
+  box-shadow: 0 4px 6px -3px rgba($dark-blue, 0.4);
+}
+
+@keyframes wash {
+  0% {
+    opacity: 0;
+  }
+  10%,
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes pop {
+  0%,
+  10% {
+    transform: translateY(240px) scale(0.8);
+  }
+  32% {
+    transform: translateY(-12px) scale(1.05);
+  }
+  40%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes thrown {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+  to {
+    transform: translateY(115vh) rotate(var(--spin));
+  }
+}
+
+// Reduced motion: Summy simply appears, nothing falls.
+@media (prefers-reduced-motion: reduce) {
+  .summy {
+    animation: none;
+  }
+  .thing {
+    display: none;
+  }
+}

@@ -1,4 +1,4 @@
-import { SQL, and, inArray, sql } from 'drizzle-orm';
+import { SQL, SQLWrapper, and, ilike, inArray, sql } from 'drizzle-orm';
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { Db } from '../database/client';
 
@@ -20,6 +20,23 @@ export function escapeLike(text: string): string {
 export function likePattern(text: string, mode: 'contains' | 'prefix' = 'contains'): string {
   const e = escapeLike(text);
   return mode === 'prefix' ? `${e}%` : `%${e}%`;
+}
+
+/**
+ * Characters search treats as the same: Hebrew final letters → regular forms, geresh / gershayim and typographic
+ * quotes → ' and ". One-to-one, so the client can highlight with character classes (shared/utils/fold.ts).
+ */
+const FOLD_FROM = 'ךםןףץ׳״‘’“”';
+const FOLD_TO = `כמנפצ'"''""`;
+
+export const foldText = (text: string) => text.replace(/[ךםןףץ׳״‘’“”]/g, (c) => FOLD_TO[FOLD_FROM.indexOf(c)]);
+
+/** For matching in JS the way textLike matches in SQL: `searchKey(hay).includes(searchKey(needle))`. */
+export const searchKey = (text: string) => foldText(text).toLowerCase();
+
+/** Case-insensitive `text` in `col`, ignoring the differences foldText removes. */
+export function textLike(col: SQLWrapper, text: string, mode: 'contains' | 'prefix' = 'contains'): SQL {
+  return ilike(sql`translate(${col}, ${FOLD_FROM}, ${FOLD_TO})`, likePattern(foldText(text), mode));
 }
 
 /** A literal uuid[] — built element by element because drizzle expands JS arrays into `($1, $2)` lists. */

@@ -1,31 +1,24 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { Injectable } from '@nestjs/common';
+import { and, eq, inArray } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
-import { collectionVisible } from '../collections/collection.access';
 import { idsWhere } from '../common/sql';
-import { APP_CONFIG, AppConfig } from '../config/app-config';
 import { DatabaseService } from '../database/database.service';
 import {
-  collections,
   summaries,
-  userFavCollections,
   userFavLabels,
   userFavSummaries,
   userFollows,
-  userPinnedCollections,
   userPinnedLabels,
   userPinnedPermissions,
   userPinnedSearches,
+  userPinnedUsers,
 } from '../database/schema';
 import { summaryVisible } from '../summaries/summary.access';
 
 /** Per-user pins, favourites and follows. Every operation is idempotent under retries (composite primary keys). */
 @Injectable()
 export class UserStateRepository {
-  constructor(
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly database: DatabaseService,
-  ) {}
+  constructor(private readonly database: DatabaseService) {}
 
   private get db() {
     return this.database.db;
@@ -33,11 +26,11 @@ export class UserStateRepository {
 
   /** Favourites and pins only target things the caller can see. */
   async canSeeSummary(me: CurrentUser, summaryId: string): Promise<boolean> {
-    return (await idsWhere(this.db, summaries, summaries.id, [summaryId], summaryVisible(me, this.config.access))).has(summaryId);
+    return (await idsWhere(this.db, summaries, summaries.id, [summaryId], summaryVisible(me))).has(summaryId);
   }
 
-  async canSeeCollection(me: CurrentUser, collectionId: string): Promise<boolean> {
-    return (await idsWhere(this.db, collections, collections.id, [collectionId], collectionVisible(me))).has(collectionId);
+  async visibleSummaryIds(me: CurrentUser, summaryIds: string[]): Promise<Set<string>> {
+    return idsWhere(this.db, summaries, summaries.id, summaryIds, summaryVisible(me));
   }
 
   /** Flip membership: remove if present, else add. */
@@ -50,15 +43,6 @@ export class UserStateRepository {
     if (!removed.length) await this.db.insert(t).values({ userId, labelId }).onConflictDoNothing();
   }
 
-  async toggleCollection(kind: 'pinned' | 'favorite', userId: string, collectionId: string): Promise<void> {
-    const t = kind === 'pinned' ? userPinnedCollections : userFavCollections;
-    const removed = await this.db
-      .delete(t)
-      .where(and(eq(t.userId, userId), eq(t.collectionId, collectionId)))
-      .returning({ id: t.collectionId });
-    if (!removed.length) await this.db.insert(t).values({ userId, collectionId }).onConflictDoNothing();
-  }
-
   async togglePinnedPermission(userId: string, permissionId: string): Promise<void> {
     const t = userPinnedPermissions;
     const removed = await this.db
@@ -66,6 +50,18 @@ export class UserStateRepository {
       .where(and(eq(t.userId, userId), eq(t.permissionId, permissionId)))
       .returning({ id: t.permissionId });
     if (!removed.length) await this.db.insert(t).values({ userId, permissionId }).onConflictDoNothing();
+  }
+
+  /** `beforeAdd` runs only when adding (it may throw to refuse). */
+  async togglePinnedUser(userId: string, pinnedUserId: string, beforeAdd: () => Promise<void>): Promise<void> {
+    const t = userPinnedUsers;
+    const removed = await this.db
+      .delete(t)
+      .where(and(eq(t.userId, userId), eq(t.pinnedUserId, pinnedUserId)))
+      .returning({ id: t.pinnedUserId });
+    if (removed.length) return;
+    await beforeAdd();
+    await this.db.insert(t).values({ userId, pinnedUserId }).onConflictDoNothing();
   }
 
   /** Returns true when the summary is now a favourite. */
@@ -79,6 +75,13 @@ export class UserStateRepository {
     if (!(await canAdd())) return false;
     await this.db.insert(t).values({ userId, summaryId }).onConflictDoNothing();
     return true;
+  }
+
+  async setFavoriteSummaries(userId: string, summaryIds: string[], favorite: boolean): Promise<void> {
+    if (!summaryIds.length) return;
+    const t = userFavSummaries;
+    if (favorite) await this.db.insert(t).values(summaryIds.map((summaryId) => ({ userId, summaryId }))).onConflictDoNothing();
+    else await this.db.delete(t).where(and(eq(t.userId, userId), inArray(t.summaryId, summaryIds)));
   }
 
   async follow(followerId: string, followedId: string): Promise<void> {
@@ -97,7 +100,17 @@ export class UserStateRepository {
     await this.db.delete(userPinnedSearches).where(eq(userPinnedSearches.id, id));
   }
 
-  async addPinnedSearch(userId: string, search: Record<string, unknown>): Promise<void> {
-    await this.db.insert(userPinnedSearches).values({ userId, search });
+  async addPinnedSearch(userId: string, search: Record<string, unknown>, name: string | null): Promise<void> {
+    await this.db.insert(userPinnedSearches).values({ userId, search, name });
+  }
+
+  /** False when the search is not the user's. */
+  async renamePinnedSearch(userId: string, id: string, name: string | null): Promise<boolean> {
+    const rows = await this.db
+      .update(userPinnedSearches)
+      .set({ name })
+      .where(and(eq(userPinnedSearches.id, id), eq(userPinnedSearches.userId, userId)))
+      .returning({ id: userPinnedSearches.id });
+    return rows.length > 0;
   }
 }

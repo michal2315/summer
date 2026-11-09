@@ -25,11 +25,19 @@ export class CommentsService {
       const summary = (await this.comments.summaryMeta(input.summaryId))!;
       await this.notifications.notify([summary.createdBy], {
         summaryId: input.summaryId,
-        text: `${me.fullName} הגיב/ה על הסיכום "${summary.title}"`,
+        text: `${me.fullName} הגיב/ה על התמצית "${summary.title}"`,
         createdBy: me.id,
+        commentId: comment.id,
       });
       const mentioned = unique(input.mentions.filter((m) => m.type === 'user' && isUuid(m._id)).map((m) => m._id)).filter((id) => id !== summary.createdBy);
-      await this.notifications.notify(mentioned, { summaryId: input.summaryId, text: `${me.fullName} הזכיר/ה אותך בתגובה`, createdBy: me.id });
+      await this.notifications.notify(mentioned, { summaryId: input.summaryId, text: `${me.fullName} הזכיר/ה אותך בתגובה`, createdBy: me.id, commentId: comment.id });
+      const groups = input.mentions.filter((m) => m.type === 'permission' && isUuid(m._id)).map((m) => m._id);
+      await this.notifications.notifyGroups(
+        groups,
+        { summaryId: input.summaryId, createdBy: me.id, commentId: comment.id },
+        (group) => `${me.fullName} הזכיר/ה את "${group}" בתגובה`,
+        [summary.createdBy, ...mentioned],
+      );
       return comment;
     });
     return { _id: row.id, content: row.content, mentions: row.mentions, user: toRef(me), creationDate: row.createdAt.toISOString() };

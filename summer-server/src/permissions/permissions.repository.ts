@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
-import { collectionPermissions, permissions, summaryPermissions } from '../database/schema';
+import { folderPermissions, permissions, summaryPermissions } from '../database/schema';
 
 export type PermissionRow = typeof permissions.$inferSelect;
 
@@ -60,7 +60,7 @@ export class PermissionsRepository {
   async isReferenced(id: string): Promise<boolean> {
     const [row] = await this.db.execute<{ used: boolean }>(sql`
       select exists (select 1 from ${summaryPermissions} where ${summaryPermissions.permissionId} = ${id})
-          or exists (select 1 from ${collectionPermissions} where ${collectionPermissions.permissionId} = ${id}) as used`).then((r) => r.rows);
+          or exists (select 1 from ${folderPermissions} where ${folderPermissions.permissionId} = ${id}) as used`).then((r) => r.rows);
     return row.used;
   }
 

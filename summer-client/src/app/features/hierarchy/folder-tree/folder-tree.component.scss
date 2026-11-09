@@ -1,0 +1,276 @@
+@use 'tokens' as *;
+
+// Fills the side nav between the profile card and the footer; the head stays put and the body scrolls.
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 10px;
+  border-block: 1px solid $border-color;
+}
+
+// Anchors the scroll rail beside the scroller.
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.scroller {
+  height: 100%;
+  overflow: auto;
+  padding-bottom: 12px;
+  // Room on the inline-end (left in RTL) for the rail.
+  padding-inline-end: 10px;
+}
+
+// The app's scroll rail, thinner to suit the narrow nav.
+app-scroll-rail {
+  width: 6px;
+  border-radius: 3px;
+}
+
+.drag-hint {
+  margin: 0 4px 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: $border-radius;
+  background: $orange-50;
+  color: $orange-strong;
+}
+
+// The search fills the row; the small actions follow it.
+.tree-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 8px;
+}
+
+.head-action {
+  all: unset;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: $gray;
+  border-radius: 4px;
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    color: $dark-blue;
+    background: $input-hover-color;
+  }
+  &.on {
+    color: $white;
+    background: $dark-blue;
+  }
+}
+
+.tree-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-end: 2px;
+  padding: 0 8px;
+  height: 28px;
+  border: 1px solid $border-color;
+  border-radius: $border-radius;
+  background: $white;
+  color: $gray;
+  font-size: 12px;
+  &:focus-within {
+    border-color: $dark-blue;
+  }
+  input {
+    all: unset;
+    flex: 1;
+    min-width: 0;
+    color: $dark-blue;
+    &::placeholder {
+      color: $gray;
+    }
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+  .clear {
+    all: unset;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    cursor: pointer;
+    &:hover,
+    &:focus-visible {
+      color: $dark-blue;
+    }
+  }
+}
+
+.no-results {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: $gray;
+}
+
+.branch {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  .branch {
+    padding-inline-start: 16px;
+  }
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 5px;
+  color: $dark-blue;
+  &:hover {
+    background: $app-background;
+  }
+  &.active {
+    background: $input-color;
+    font-weight: 700;
+  }
+  .link {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    color: inherit;
+  }
+  .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    // The name matches the tree search.
+    &.match {
+      font-weight: 700;
+    }
+  }
+  .icon {
+    flex: none;
+    &.folder {
+      color: $primary-orange;
+    }
+    // Each summary kind has its own colour (from the summary colour palette).
+    &.summary {
+      color: $primary-pink;
+    }
+    &.running {
+      color: #800080;
+    }
+  }
+  .icon.root-icon {
+    color: $dark-blue;
+  }
+  .count {
+    flex: none;
+    margin-inline-start: auto;
+    font-size: 11px;
+    color: $gray;
+  }
+  &.root .label {
+    font-weight: 700;
+  }
+  // Drag mode: folders you may move can be grabbed; a valid drop target is outlined.
+  &.movable {
+    cursor: grab;
+  }
+  &.dragging {
+    opacity: 0.5;
+  }
+  &.drop {
+    background: $orange-50;
+    box-shadow: inset 0 0 0 1px $primary-orange;
+  }
+  .grip {
+    flex: none;
+    width: 20px;
+    color: $gray;
+  }
+  .hidden-count {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: $gray-tag;
+    color: $gray;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 16px;
+  }
+  .lock {
+    flex: none;
+    font-size: 11px;
+    color: $gray;
+  }
+}
+
+.twisty,
+.more {
+  all: unset;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: $gray;
+  border-radius: 4px;
+  cursor: pointer;
+  &:hover {
+    color: $dark-blue;
+    background: $input-hover-color;
+  }
+  &:focus-visible {
+    outline: 2px solid $accent;
+  }
+}
+span.twisty {
+  cursor: default;
+  &:hover {
+    background: none;
+  }
+}
+
+// Row actions appear on hover/focus so the tree stays quiet.
+.more {
+  font-size: 14px;
+  opacity: 0;
+  .node:hover &,
+  .node.active &,
+  &:focus-visible,
+  &.ant-dropdown-open {
+    opacity: 1;
+  }
+}
+
+li.loading {
+  padding-inline-start: 20px;
+}
+
+li.sentinel {
+  height: 1px;
+}
+
+.loader {
+  padding: 4px 0;
+}
+
+@media (hover: none) {
+  .more {
+    opacity: 1;
+  }
+}

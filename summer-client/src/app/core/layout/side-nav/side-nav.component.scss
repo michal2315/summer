@@ -1,0 +1,95 @@
+@use 'tokens' as *;
+
+// Fixed to the viewport height: the folder tree takes the rest and scrolls, the footer stays at the bottom.
+.nav {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 14px 10px;
+  gap: 10px;
+}
+
+.tree {
+  flex: 1;
+}
+
+.logo,
+.user {
+  flex: none;
+}
+
+.logo img {
+  height: 32px;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: $border-radius;
+  color: $dark-blue;
+  &:hover {
+    background: $app-background;
+  }
+  &.active {
+    background: #efefef;
+  }
+  .who {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+    min-width: 0;
+    // Narrow nav: long names/departments end in … instead of wrapping.
+    .name,
+    .dept {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+  .name {
+    font-weight: 700;
+  }
+  .dept {
+    font-size: 80%;
+    color: $gray;
+  }
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+
+  a,
+  button {
+    all: unset;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    color: $dark-blue;
+    border-radius: 5px;
+    &:hover,
+    &:focus-visible {
+      background: $app-background;
+    }
+  }
+  // Unseen new tour steps: a brand dot after the label.
+  .tour-btn.has-new::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: $primary-pink;
+  }
+  .credit {
+    font-size: 80%;
+    color: $gray;
+    padding: 6px 14px 0;
+  }
+}

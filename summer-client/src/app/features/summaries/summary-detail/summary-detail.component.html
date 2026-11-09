@@ -1,30 +1,50 @@
 @if (summary(); as s) {
-  <article class="detail" [class.page]="mode() === 'page'">
+  <div class="detail" role="article" [class.page]="mode() === 'page'">
     <div class="toolbar">
       @if (mode() === 'panel') {
         <button nz-button nzType="text" nzShape="circle" (click)="closed.emit()" nz-tooltip="סגירה" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
       }
       <app-color-picker [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
+      <app-match-nav root=".detail" />
       <span class="spacer"></span>
       @if (loading()) {
         <span nz-icon nzType="loading" class="muted"></span>
       }
       @if (isMine()) {
-        <a nz-button nzType="text" nzShape="circle" [routerLink]="['/summaries', s._id, 'edit']" nz-tooltip="עריכת סיכום" aria-label="עריכת סיכום"><span nz-icon nzType="edit"></span></a>
-        <button nz-button nzType="text" nzShape="circle" nzDanger (click)="actions.confirmDelete(s)" nz-tooltip="מחיקת סיכום" aria-label="מחיקת סיכום"><span nz-icon nzType="delete"></span></button>
+        <a nz-button nzType="text" nzShape="circle" [routerLink]="['/summaries', s._id, 'edit']" nz-tooltip="עריכת תמצית" aria-label="עריכת תמצית"><span nz-icon nzType="edit"></span></a>
+        <button nz-button nzType="text" nzShape="circle" nzDanger (click)="actions.confirmDelete(s)" nz-tooltip="מחיקת תמצית" aria-label="מחיקת תמצית"><span nz-icon nzType="delete"></span></button>
       }
       <button nz-button nzType="text" nzShape="circle" (click)="actions.toggleFavorite(s)" [nz-tooltip]="s.isFavorite ? 'הסרה ממועדפים' : 'הוספה למועדפים'">
         <span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'" [class.fav]="s.isFavorite"></span>
       </button>
-      <button nz-button nzType="text" nzShape="circle" (click)="actions.openTimeline(s)" nz-tooltip="ציר זמן" aria-label="ציר זמן"><span nz-icon nzType="field-time"></span></button>
+      @if (fullScreen(); as link) {
+        <button nz-button nzType="text" nzShape="circle" (click)="openFullScreen(link)" nz-tooltip="מסך מלא" aria-label="מסך מלא"><span nz-icon nzType="fullscreen"></span></button>
+      }
       @if (mode() === 'panel') {
         <button nz-button nzType="text" nzShape="circle" (click)="openInNewTab()" nz-tooltip="פתיחה בחלון חדש" aria-label="פתיחה בחלון חדש"><span nz-icon nzType="arrows-alt"></span></button>
       }
     </div>
 
-    <nz-alert nzType="warning" nzShowIcon nzMessage="שימו לב! אין לצטט סיכום ללא תיאום עם המחבר.ת שלו." class="tip" />
+    @if (s.parent; as p) {
+      <div class="running-header" role="region" aria-label="תמצית הרצף">
+        <div class="part-of">
+          <span nz-icon nzType="unordered-list"></span>
+          <span class="muted">תמציתונית מתוך</span>
+          <button nz-button nzType="link" class="parent-link" (click)="openParent(p._id)">{{ p.title }}</button>
+        </div>
+        <div class="inherited">
+          <span class="muted">{{ p.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ p.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
+          @for (l of p.labels; track l.name) {
+            <nz-tag class="label-chip" (click)="searchLabel(l.name)">{{ l.name }}</nz-tag>
+          }
+          @for (perm of p.permissions; track perm._id) {
+            <span class="perm"><span class="dot" [style.background]="perm.color"></span>{{ perm.name }}</span>
+          }
+        </div>
+      </div>
+    }
 
-    <header class="author">
+    <div class="author">
       <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="36" />
       <div>
         <a [routerLink]="['/profile', s.user._id]" class="name">{{ s.user.fullName }}</a>
@@ -36,12 +56,12 @@
           }
         </div>
       </div>
-    </header>
+    </div>
 
     <nz-collapse [nzBordered]="false" class="sections">
       <nz-collapse-panel [nzHeader]="docHeader" [nzActive]="true">
         @if (s.isDraft && !s.summaryFields?.length) {
-          <p class="muted">חסרים פרטים על טיוטא זו</p>
+          <div class="muted draft-note">חסרים פרטים על טיוטא זו</div>
         }
         <dl class="fields">
           @for (f of s.summaryFields ?? []; track f.field._id) {
@@ -58,7 +78,12 @@
         </dl>
       </nz-collapse-panel>
       <ng-template #docHeader>
-        <span class="section-head"><app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}{{ s.isDraft ? ' · טיוטה' : '' }}</span>
+        <span class="section-head">
+          <app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}{{ s.isDraft ? ' · טיוטה' : '' }}
+          @if (s.kind !== K.Summary) {
+            <span class="kind-badge" [class.running]="s.kind === K.Running">{{ kindLabel[s.kind] }}</span>
+          }
+        </span>
       </ng-template>
 
       @if (s.files.length) {
@@ -73,12 +98,23 @@
         </nz-collapse-panel>
       }
 
-      @if (s.collectionIds.length) {
-        <nz-collapse-panel [nzHeader]="'אוספים (' + s.collectionIds.length + ')'">
+      @if (s.folders.length) {
+        <nz-collapse-panel nzHeader="שיוך">
           <ul class="files">
-            @for (c of s.collectionIds; track c._id) {
+            @for (f of s.folders; track f._id) {
               <li>
-                <a [routerLink]="['/collections', c._id]"><span nz-icon nzType="folder"></span> {{ c.name }}</a>
+                <a
+                  [routerLink]="['/summaries']"
+                  [queryParams]="hierarchyParams(s, f)"
+                  nz-popover
+                  nzPopoverTrigger="hover"
+                  nzPopoverPlacement="bottom"
+                  [nzPopoverMouseEnterDelay]="0.3"
+                  [nzPopoverContent]="folderInfo"
+                >
+                  <span nz-icon nzType="folder"></span> {{ f.name }}
+                </a>
+                <ng-template #folderInfo><app-folder-info [summary]="s" [folderRef]="f" /></ng-template>
               </li>
             }
           </ul>
@@ -86,50 +122,69 @@
       }
     </nz-collapse>
 
-    <h1 class="title" [innerHTML]="s.title | highlight: search() : T.Title"></h1>
+    <div class="title" role="heading" aria-level="1" [innerHTML]="s.title | highlight: search() : T.Title"></div>
+    @if (s.link) {
+      <a class="source-link" [href]="s.link" target="_blank" rel="noopener noreferrer" dir="ltr"><span nz-icon nzType="link"></span> {{ s.link }}</a>
+    }
 
     <div class="ql-container ql-snow read-only content">
       <div class="ql-editor" [innerHTML]="s.content | richHtml: search() : T.Content"></div>
     </div>
 
     @if (s.notes) {
-      <section class="notes">
-        <h4>הערות</h4>
+      <div class="notes">
+        <div class="notes-title" role="heading" aria-level="4">הערות</div>
         <div class="ql-container ql-snow read-only">
           <div class="ql-editor" [innerHTML]="s.notes | richHtml: search() : T.Notes"></div>
         </div>
-      </section>
+      </div>
     }
 
     @if (s.labels.length) {
       <div class="labels">
+        <app-capsule-catch [summary]="s" [search]="search()" />
+        @if (s.parent) {
+          <span class="muted">תגיות נוספות:</span>
+        }
         @for (l of s.labels; track l.name) {
-          <nz-tag class="label-chip" (click)="searchLabel(l.name)"><span [innerHTML]="'#' + l.name | highlight: search() : T.Label"></span></nz-tag>
+          <nz-tag class="label-chip" (click)="searchLabel(l.name)"><span [innerHTML]="l.name | highlight: search() : T.Label"></span></nz-tag>
         }
       </div>
     }
 
-    @if (s.taggedUsers.length) {
+    @if (s.taggedUsers.length || s.taggedPermissions.length) {
       <div class="tagged">
         <span class="muted">תויגו:</span>
         @for (u of s.taggedUsers; track u._id) {
           <a [routerLink]="['/profile', u._id]">{{ u.fullName }}</a>
+        }
+        @for (p of s.taggedPermissions; track p._id) {
+          <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
         }
       </div>
     }
 
     @if (s.permissions.length) {
       <div class="permissions">
+        @if (s.parent) {
+          <span class="muted">הרשאות נוספות:</span>
+        }
         @for (p of s.permissions; track p._id) {
-          <span class="perm"><i [style.background]="p.color"></i>{{ p.name }}</span>
+          <span class="perm"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</span>
         }
       </div>
     }
 
+    @if (s.kind === K.Running) {
+      <app-sumaroon-list [running]="s" />
+    }
+
+    <div class="quote-note"><span nz-icon nzType="info-circle"></span> אין לצטט תמצית ללא תיאום עם המחבר.ת שלה.</div>
+
     <app-comments [summary]="s" [search]="search()" (summaryChange)="onCommentsChange($event)" />
-  </article>
+  </div>
 } @else if (notFound()) {
-  <nz-empty class="state" nzNotFoundImage="simple" nzNotFoundContent="הסיכום לא נמצא או שאין לך הרשאה לצפות בו" />
+  <nz-empty class="state" nzNotFoundImage="simple" nzNotFoundContent="התמצית לא נמצאה או שאין לך הרשאה לצפות בה" />
 } @else {
-  <div class="detail"><nz-skeleton [nzActive]="true" [nzAvatar]="true" [nzParagraph]="{ rows: 8 }" /></div>
+  <div class="detail" [class.page]="mode() === 'page'"><app-skeleton variant="detail" /></div>
 }

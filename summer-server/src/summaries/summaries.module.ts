@@ -13,6 +13,7 @@ import { FilesService } from './files.service';
 import { SummariesController } from './summaries.controller';
 import { SummariesRepository } from './summaries.repository';
 import { SummariesService } from './summaries.service';
+import { WordService } from './word.service';
 
 /** Quill content (with inline images) arrives as a multipart text field, so allow it to be large. */
 const MAX_PAYLOAD_FIELD_BYTES = 25 * 1024 * 1024;
@@ -33,7 +34,7 @@ const MAX_PAYLOAD_FIELD_BYTES = 25 * 1024 * 1024;
     }),
   ],
   controllers: [SummariesController, FieldSummariesController],
-  providers: [SummariesRepository, SummariesService, FilesService, ExcelService],
+  providers: [SummariesRepository, SummariesService, FilesService, ExcelService, WordService],
   exports: [SummariesService, SummariesRepository],
 })
 export class SummariesModule {}

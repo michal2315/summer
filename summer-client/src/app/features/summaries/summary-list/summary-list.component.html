@@ -1,0 +1,88 @@
+@for (group of groups(); track group.key) {
+  @if (group.label) {
+    <nz-divider [nzText]="group.label" nzOrientation="right" />
+  }
+  @for (item of group.items; track item.key) {
+    @if (item.type === 'bundle') {
+      <!-- In select mode the bundle's checkbox selects all of its sumaroons. -->
+      <div class="bundle-row">
+      @if (store.selectMode()) {
+        @let picked = bundlePicked(item.sumaroons);
+        <label
+          nz-checkbox
+          class="bundle-check"
+          [nzChecked]="picked === 'all'"
+          [nzIndeterminate]="picked === 'some'"
+          (nzCheckedChange)="store.toggleSelectedMany(idsOf(item.sumaroons))"
+          [attr.aria-label]="'בחירת ' + item.sumaroons.length + ' התמציתוניות מתוך ' + item.parent.title"
+        ></label>
+      }
+      <button type="button" class="bundle" (click)="openRunning(item.parent._id)" [attr.data-summary-id]="item.sumaroons[0]._id">
+        <span class="bundle-head">
+          <span nz-icon nzType="unordered-list"></span>
+          <span>{{ item.sumaroons.length }} תמציתוניות חדשות ב</span>
+          <span class="bundle-title">{{ item.parent.title }}</span>
+        </span>
+        <span class="bundle-list">
+          @for (s of item.sumaroons.slice(0, bundlePreview); track s._id) {
+            <span class="bundle-item">{{ s.title }}</span>
+          }
+          @if (item.sumaroons.length > bundlePreview) {
+            <span class="bundle-more">ועוד {{ item.sumaroons.length - bundlePreview }}</span>
+          }
+        </span>
+      </button>
+      </div>
+    } @else {
+    <app-summary-card
+      [summary]="item.summary"
+      [search]="search()"
+      [active]="item.summary._id === openId()"
+      [focused]="item.index === focusedIndex()"
+      [selectable]="store.selectMode()"
+      [selected]="store.selected().has(item.summary._id)"
+      (selectToggle)="store.toggleSelected($event)"
+      [attr.data-index]="item.index"
+      [attr.data-summary-id]="item.summary._id"
+      (toggleOpen)="toggle.emit($event)"
+    />
+    }
+  }
+}
+
+@if (directHit()) {
+  <div class="empty-state direct-hit" role="status">
+    <app-summy mood="target" />
+    <div class="empty-title">פגיעה ישירה 🎯</div>
+    <div class="empty-hint">תוצאה אחת בדיוק</div>
+  </div>
+}
+
+@if (store.loading()) {
+  @if (!store.summaries().length) {
+    <app-loading-quip />
+  }
+  <app-card-skeleton [count]="store.summaries().length ? 2 : 4" />
+} @else if (store.loaded() && !store.summaries().length) {
+  <div class="empty-state" role="status">
+    @if (filtered()) {
+      <app-summy mood="search" />
+      <div class="empty-title">לא נמצאו תמציות שמתאימות לחיפוש</div>
+      <div class="empty-hint">נסו מילים אחרות, או הסירו חלק מהמסננים.</div>
+      <button nz-button type="button" (click)="clearSearch.emit()"><span nz-icon nzType="close-circle"></span> ניקוי החיפוש</button>
+    } @else {
+      <app-summy mood="empty" />
+      <div class="empty-title">{{ empty().title }}</div>
+      @if (empty().hint; as hint) {
+        <div class="empty-hint">{{ hint }}</div>
+      }
+      @if (empty().action; as a) {
+        <a nz-button nzType="primary" [routerLink]="a.link"><span nz-icon nzType="plus"></span> {{ a.label }}</a>
+      }
+    }
+  </div>
+}
+
+@if (store.hasMore()) {
+  <div class="sentinel" (appInView)="store.loadMore()" [appInViewKey]="store.summaries().length"></div>
+}

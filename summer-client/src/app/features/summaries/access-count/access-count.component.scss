@@ -1,0 +1,85 @@
+@use 'tokens' as *;
+
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.shown {
+  color: $dark-gray;
+}
+
+.hidden {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: $gray-tag;
+  color: $dark-gray;
+  cursor: help;
+  &:hover,
+  &:focus-visible {
+    color: $dark-blue;
+    outline: none;
+  }
+}
+
+// ---------- permissions map (popover) ----------
+
+.map {
+  width: 280px;
+  max-width: 80vw;
+}
+
+.map-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid $border-color;
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.num {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

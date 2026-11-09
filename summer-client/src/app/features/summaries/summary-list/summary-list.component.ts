@@ -1,22 +1,40 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { format } from 'date-fns';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
-import { NzEmptyModule } from 'ng-zorro-antd/empty';
-import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
+import { NzIconModule } from 'ng-zorro-antd/icon';
+import { CardSkeletonComponent } from '../../../shared/components/card-skeleton/card-skeleton.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
-import { ISummary, ISummarySearch } from '../../../shared/models';
+import { LoadingQuipComponent } from '../../../shared/easter-eggs/loading-quip/loading-quip.component';
+import { SummyComponent } from '../../../shared/easter-eggs/summy/summy.component';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ISummary, ISummaryParent, ISummarySearch } from '../../../shared/models';
 import { SummaryCardComponent } from '../summary-card/summary-card.component';
 import { SummaryListStore } from '../summary-list.store';
+
+/** A card, or several sumaroons of one running summary bundled into a single row (feed only). */
+type Item = { type: 'card'; key: string; summary: ISummary; index: number } | { type: 'bundle'; key: string; parent: ISummaryParent; sumaroons: ISummary[] };
 
 interface Group {
   key: string;
   label: string | null;
-  items: { summary: ISummary; index: number }[];
+  items: Item[];
 }
+
+/** What an empty, unfiltered list says — and optionally offers. */
+export interface EmptyState {
+  title: string;
+  hint?: string;
+  action?: { label: string; link: string[] };
+}
+
+/** Sumaroon titles a bundle row lists before "ועוד". */
+const BUNDLE_PREVIEW = 3;
 
 @Component({
   selector: 'app-summary-list',
-  imports: [NzDividerModule, NzEmptyModule, NzSpinModule, InViewDirective, SummaryCardComponent],
+  imports: [NzButtonModule, NzCheckboxModule, NzDividerModule, NzIconModule, RouterLink, CardSkeletonComponent, InViewDirective, LoadingQuipComponent, SummaryCardComponent, SummyComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     tabindex: '0',
@@ -26,44 +44,8 @@ interface Group {
     '(keydown.arrowup)': 'move(-1, $event)',
     '(keydown.enter)': 'openFocused()',
   },
-  template: `
-    @for (group of groups(); track group.key) {
-      @if (group.label) {
-        <nz-divider [nzText]="group.label" nzOrientation="right" />
-      }
-      @for (item of group.items; track item.summary._id) {
-        <app-summary-card
-          [summary]="item.summary"
-          [search]="search()"
-          [active]="item.summary._id === openId()"
-          [focused]="item.index === focusedIndex()"
-          [selectable]="store.selectMode()"
-          [selected]="store.selected().has(item.summary._id)"
-          (selectToggle)="store.toggleSelected($event)"
-          [attr.data-index]="item.index"
-          (toggleOpen)="toggle.emit($event)"
-        />
-      }
-    }
-
-    @if (store.loading()) {
-      <div class="loader"><nz-spin nzSimple /></div>
-    } @else if (store.loaded() && !store.summaries().length) {
-      <nz-empty class="empty" nzNotFoundImage="simple" nzNotFoundContent="לא נמצאו תוצאות" />
-    }
-
-    @if (store.hasMore()) {
-      <div class="sentinel" (appInView)="store.loadMore()"></div>
-    }
-  `,
-  styles: `
-    :host { display: flex; flex-direction: column; gap: 6px; outline: none; padding-bottom: 24px; }
-    // ant sets 16px on .ant-divider-with-text, which beats a plain element selector.
-    :host ::ng-deep .ant-divider-with-text { margin: 4px 0 -2px; font-size: 12px; font-weight: 700; }
-    .loader { display: grid; place-items: center; padding: 24px; }
-    .empty { padding: 48px 0; }
-    .sentinel { height: 1px; }
-  `,
+  templateUrl: './summary-list.component.html',
+  styleUrl: './summary-list.component.scss',
 })
 export class SummaryListComponent {
   readonly store = inject(SummaryListStore);
@@ -71,22 +53,35 @@ export class SummaryListComponent {
 
   readonly search = input<ISummarySearch | null>(null);
   readonly openId = input<string | null>(null);
+  /** Bundle sumaroons of the same running summary (2+ loaded) into one row. */
+  readonly groupSumaroons = input(false);
+  readonly bundlePreview = BUNDLE_PREVIEW;
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   readonly toggle = output<ISummary>();
+  /** A search or filter is applied — an empty result then offers to clear it. */
+  readonly filtered = input(false);
+  readonly empty = input<EmptyState>({ title: 'אין כאן עדיין תמציות' });
+  readonly clearSearch = output<void>();
 
   readonly focusedIndex = signal(-1);
+  /** Easter egg: a search that finds exactly one summary. */
+  readonly directHit = computed(() => this.filtered() && !this.store.loading() && this.store.total() === 1);
 
   /** Group under an event-date divider only when sorted by event date — otherwise the dividers would be noise. */
   readonly groups = computed<Group[]>(() => {
     const list = this.store.summaries();
     const sort = this.search()?.sort ?? '-eventDate';
-    if (!sort.endsWith('eventDate')) return [{ key: 'all', label: null, items: list.map((summary, index) => ({ summary, index })) }];
+    const items = this.items(list);
+    if (!sort.endsWith('eventDate')) return [{ key: 'all', label: null, items }];
     const groups: Group[] = [];
-    list.forEach((summary, index) => {
-      const key = summary.eventDate ? format(new Date(summary.eventDate), 'dd/MM/yyyy') : 'ללא תאריך';
+    for (const item of items) {
+      const first = item.type === 'card' ? item.summary : item.sumaroons[0];
+      const key = first.eventDate ? format(new Date(first.eventDate), 'dd/MM/yyyy') : 'ללא תאריך';
       const last = groups.at(-1);
-      if (last?.key === key) last.items.push({ summary, index });
-      else groups.push({ key, label: key, items: [{ summary, index }] });
-    });
+      if (last?.key === key) last.items.push(item);
+      else groups.push({ key, label: key, items: [item] });
+    }
     return groups;
   });
 
@@ -96,6 +91,46 @@ export class SummaryListComponent {
       this.store.version();
       this.focusedIndex.set(-1);
     });
+  }
+
+  /** Cards in list order; with grouping, a running summary's 2+ sumaroons collapse into one bundle where the first appears. */
+  private items(list: ISummary[]): Item[] {
+    const cards = (): Item[] => list.map((summary, index) => ({ type: 'card', key: summary._id, summary, index }));
+    if (!this.groupSumaroons()) return cards();
+    const perParent = new Map<string, number>();
+    for (const s of list) if (s.parentId) perParent.set(s.parentId, (perParent.get(s.parentId) ?? 0) + 1);
+    const bundles = new Map<string, Extract<Item, { type: 'bundle' }>>();
+    const items: Item[] = [];
+    list.forEach((summary, index) => {
+      const pid = summary.parentId;
+      if (!pid || !summary.parent || (perParent.get(pid) ?? 0) < 2) {
+        items.push({ type: 'card', key: summary._id, summary, index });
+        return;
+      }
+      const bundle = bundles.get(pid);
+      if (bundle) bundle.sumaroons.push(summary);
+      else {
+        const created: Extract<Item, { type: 'bundle' }> = { type: 'bundle', key: 'bundle-' + pid, parent: summary.parent, sumaroons: [summary] };
+        bundles.set(pid, created);
+        items.push(created);
+      }
+    });
+    return items;
+  }
+
+  idsOf(summaries: ISummary[]): string[] {
+    return summaries.map((s) => s._id);
+  }
+
+  /** How many of a bundle's sumaroons are selected, for its checkbox. */
+  bundlePicked(summaries: ISummary[]): 'all' | 'some' | 'none' {
+    const n = summaries.filter((s) => this.store.selected().has(s._id)).length;
+    return n === summaries.length ? 'all' : n ? 'some' : 'none';
+  }
+
+  openRunning(id: string) {
+    if (this.store.runningInPlace()) this.router.navigate([], { relativeTo: this.route, queryParams: { runningId: id, summaryId: null }, queryParamsHandling: 'merge' });
+    else this.router.navigate(['/running', id]);
   }
 
   move(delta: number, event: Event) {

@@ -1,0 +1,19 @@
+@for (i of cards(); track i) {
+  <div class="card">
+    <div class="head">
+      <div class="bone avatar"></div>
+      <div class="meta">
+        <div class="bone line name"></div>
+        <div class="bone line date"></div>
+      </div>
+      <div class="bone pill"></div>
+    </div>
+    <div class="bone line title" [style.width.%]="55 + ((i * 17) % 30)"></div>
+    <div class="bone line text"></div>
+    <div class="bone line text short" [style.width.%]="60 + ((i * 23) % 30)"></div>
+    <div class="foot">
+      <div class="bone tag"></div>
+      <div class="bone tag"></div>
+    </div>
+  </div>
+}

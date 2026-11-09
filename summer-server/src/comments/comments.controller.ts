@@ -13,7 +13,7 @@ const addBody = z.object({
     .array(
       z.object({
         _id: z.string().max(100),
-        type: z.enum(['user', 'label']),
+        type: z.enum(['user', 'label', 'permission']),
         value: z.string().max(200),
         icon: z.string().max(200).optional(),
       }),

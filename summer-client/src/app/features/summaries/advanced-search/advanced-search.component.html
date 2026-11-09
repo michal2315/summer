@@ -1,0 +1,181 @@
+<div class="panel" role="dialog" aria-label="חיפוש מתקדם">
+  <div class="head">
+    <div class="title"><span nz-icon nzType="apartment"></span> חיפוש מתקדם</div>
+    @if (hits() !== null) {
+      <span class="hits">{{ hits() }} תוצאות</span>
+    }
+    <span class="spacer"></span>
+    <button type="button" class="icon-btn" (click)="closed.emit()" nz-tooltip="סגירה (Esc)" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+  </div>
+
+  <div class="sentence">
+    <span class="sentence-pre">תמציות ש־</span>
+    @for (p of sentence(); track $index) {
+      <span [class]="'nl nl-' + p.cls">
+        @if (p.color) {
+          <span class="nl-swatch" [style.background]="p.color"></span>
+        }
+        {{ p.text }}
+      </span>
+    }
+    @if (text().trim()) {
+      <span class="nl nl-join-and">וגם</span>
+      <span class="nl nl-dim">מתאימות לחיפוש</span>
+      <span class="nl nl-term">"{{ text().trim() }}"</span>
+    }
+  </div>
+
+  <div class="flow">
+    <ng-container *ngTemplateOutlet="groupTpl; context: { $implicit: tree(), depth: 0 }" />
+  </div>
+
+  <div class="foot">
+    <button nz-button nzType="primary" type="button" (click)="submit()"><span nz-icon nzType="search"></span> חיפוש</button>
+    <button nz-button type="button" (click)="reset()" nz-tooltip="ניקוי כל התנאים"><span nz-icon nzType="undo"></span> ניקוי</button>
+    <span class="spacer"></span>
+    <span class="foot-hint">נבנה יחד עם הטקסט שבתיבת החיפוש</span>
+  </div>
+</div>
+
+<!-- A group: the operator sits on the bracket rail and flips with a click; children are conditions or nested groups. -->
+<ng-template #groupTpl let-node let-depth="depth">
+  @let g = asGroup(node);
+  <div class="group" [class.or]="g.op === 'OR'" [class.root]="depth === 0">
+    <div class="rail">
+      <span class="line"></span>
+      @if (g.children.length > 1) {
+        <button type="button" class="rail-op" (click)="flip(g)" nz-tooltip="החלפה בין וגם / או">{{ g.op === 'AND' ? 'וגם' : 'או' }}</button>
+      }
+      <span class="line"></span>
+    </div>
+    <div class="kids">
+      @if (depth > 0) {
+        <div class="group-head">
+          <span class="group-tag">קבוצה</span>
+          <span class="group-hint">{{ g.children.length > 1 ? (g.op === 'AND' ? 'כל התנאים חייבים להתקיים' : 'מספיק שאחד מהם יתקיים') : 'תנאי יחיד' }}</span>
+          <button type="button" class="icon-btn" (click)="remove(g)" nz-tooltip="הסרת הקבוצה" aria-label="הסרת הקבוצה"><span nz-icon nzType="close"></span></button>
+        </div>
+      }
+
+      @for (child of g.children; track child.id) {
+        @if (isGroup(child)) {
+          <ng-container *ngTemplateOutlet="groupTpl; context: { $implicit: asGroup(child), depth: depth + 1 }" />
+        } @else {
+          <ng-container *ngTemplateOutlet="conditionTpl; context: { $implicit: asCondition(child), canRemove: g.children.length > 1 || depth > 0 }" />
+        }
+      } @empty {
+        <div class="group-empty">קבוצה ריקה</div>
+      }
+
+      <div class="add">
+        <button type="button" (click)="addCondition(g)"><span nz-icon nzType="plus"></span> תנאי</button>
+        @if (depth < maxDepth - 1) {
+          <button type="button" (click)="addGroup(g)"><span nz-icon nzType="plus"></span> קבוצה</button>
+        }
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<!-- One condition: field → operator → value. -->
+<ng-template #conditionTpl let-node let-canRemove="canRemove">
+  @let c = asCondition(node);
+  <div class="cond" [class]="'tone-' + opTone(c.op)">
+    <span class="cond-icon" nz-icon [nzType]="fields[c.field].icon"></span>
+    <nz-select class="cond-field" nzSize="small" [ngModel]="c.field" (ngModelChange)="setField(c, $event)" [nzDropdownMatchSelectWidth]="false" aria-label="שדה">
+      @for (f of fieldKeys; track f) {
+        <nz-option [nzValue]="f" [nzLabel]="fields[f].label" />
+      }
+    </nz-select>
+    <nz-select class="cond-op" nzSize="small" [ngModel]="c.op" (ngModelChange)="update(c, { op: $event })" [nzDropdownMatchSelectWidth]="false" aria-label="תנאי">
+      @for (o of opsFor(c); track o) {
+        <nz-option [nzValue]="o" [nzLabel]="ops[o]" />
+      }
+    </nz-select>
+
+    <div class="cond-value">
+      @switch (fields[c.field].kind) {
+        @case ('text') {
+          <app-capsule-words-input placeholder="מילה או ביטוי + Enter, # לכמוסה" [ngModel]="c.words" (ngModelChange)="update(c, { words: $event })" />
+        }
+        @case ('value') {
+          @switch (c.field) {
+            @case ('author') {
+              <nz-select
+                nzMode="multiple"
+                nzSize="small"
+                nzShowSearch
+                nzServerSearch
+                nzPlaceHolder="חיפוש משתמשים"
+                [nzNotFoundContent]="'הקלידו שם'"
+                (nzOnSearch)="searchUsers($event)"
+                [ngModel]="c.values"
+                (ngModelChange)="update(c, { values: $event })"
+                aria-label="משתמשים"
+              >
+                @for (o of userOptionsFor(c); track o.id) {
+                  <nz-option [nzValue]="o.id" [nzLabel]="o.name" />
+                }
+              </nz-select>
+            }
+            @case ('folder') {
+              <nz-select
+                nzMode="multiple"
+                nzSize="small"
+                nzShowSearch
+                nzPlaceHolder="חיפוש תיקיות (כולל תתי-תיקיות)"
+                [ngModel]="c.values"
+                (ngModelChange)="update(c, { values: $event })"
+                aria-label="תיקיות"
+              >
+                @for (o of folderOptionsFor(c); track o.id) {
+                  <nz-option [nzValue]="o.id" [nzLabel]="o.name" />
+                }
+              </nz-select>
+            }
+            @case ('contentType') {
+              <nz-select nzMode="multiple" nzSize="small" nzPlaceHolder="בחירת סוגים" [ngModel]="c.values" (ngModelChange)="update(c, { values: $event })" aria-label="סוגי תוכן">
+                @for (t of contentTypeOptions(); track t.name) {
+                  <nz-option [nzValue]="t.name" [nzLabel]="t.displayName" />
+                }
+              </nz-select>
+            }
+            @case ('color') {
+              <div class="swatches" role="group" aria-label="צבעים">
+                @for (color of colors; track color) {
+                  <button
+                    type="button"
+                    class="swatch"
+                    [style.background]="color"
+                    [class.selected]="c.values.includes(color)"
+                    (click)="toggleColor(c, color)"
+                    [attr.aria-pressed]="c.values.includes(color)"
+                    [attr.aria-label]="colorNames[color]"
+                    [nz-tooltip]="colorNames[color]"
+                  ></button>
+                }
+              </div>
+            }
+          }
+        }
+        @case ('date') {
+          <div class="dates">
+            @if (c.op !== 'before') {
+              <nz-date-picker nzSize="small" nzFormat="dd/MM/yyyy" nzPlaceHolder="מתאריך" [ngModel]="asDate(c.from)" (ngModelChange)="setDate(c, 'from', $event)" />
+            }
+            @if (c.op === 'between') {
+              <span class="dates-sep">עד</span>
+            }
+            @if (c.op !== 'after') {
+              <nz-date-picker nzSize="small" nzFormat="dd/MM/yyyy" nzPlaceHolder="עד תאריך" [ngModel]="asDate(c.to)" (ngModelChange)="setDate(c, 'to', $event)" />
+            }
+          </div>
+        }
+      }
+    </div>
+
+    <button type="button" class="icon-btn cond-remove" (click)="remove(c)" [disabled]="!canRemove" nz-tooltip="הסרת התנאי" aria-label="הסרת התנאי">
+      <span nz-icon nzType="close"></span>
+    </button>
+  </div>
+</ng-template>

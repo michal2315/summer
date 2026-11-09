@@ -8,27 +8,27 @@ and the code location is noted.
 
 | # | Rule | Status |
 | --- | --- | --- |
-| A1 | To view a summary or collection, the user must hold **every** permission assigned to it (`required ⊆ userGroups`). The rule applies the same way in feed, search, direct links, collection pages, export, dashboard and notifications. | Confirmed. `summary.access.ts`, `collection.access.ts`, `folder.access.ts` |
-| A2 | Published summaries and every collection need at least one permission. This is enforced by validation and by deferred DB triggers. | Confirmed |
+| A1 | To view a summary or folder, the user must hold **every** permission assigned to it (`required ⊆ userGroups`). The rule applies the same way in feed, search, direct links, the hierarchy, export, dashboard and notifications. | Confirmed. `summary.access.ts`, `folder.access.ts` |
+| A2 | Published summaries and every folder need at least one permission. This is enforced by validation and by deferred DB triggers. | Confirmed |
 | A3 | **Drafts** may have no permissions, and only their creator can see them. | Chosen default (the client lets you save a draft before choosing permissions) |
-| A4 | A summary does **not** inherit the permissions of the collections it is in. Inheritance is implemented behind `ACCESS_INHERIT_COLLECTION_PERMISSIONS=true` and tested, but stays off until product confirms the global hiding effect (handoff §4). | Your choice |
+| A4 | There are no collections: summaries (regular, running, sumaroon) are organized only by hierarchy folders, or not at all. Folders never add requirements to the summaries in them (F2). | Product decision (2026-10-31) |
 | A5 | Editing requires view access **and** being an editor. The creator is added as an editor on create. Nothing exposes editor management yet, so in practice the creator is the only editor. | Confirmed + chosen default |
 | A6 | You can only assign permission groups **you belong to**. Assigning any other group returns 400, because under A1 you would create content you cannot see yourself. | Chosen default (open question in the handoff) |
 | A7 | A hidden or nonexistent id returns **404**. A visible row you may not change returns **403**. | Proposed in the handoff |
 | A8 | Comments inherit the summary's access. Any viewer may comment, and only the comment's author may delete it. | Chosen default |
 | A9 | Card **colour** is shared, and any viewer may set it, matching the client, which shows the picker on every card. **Timeline title** and **to-draft** require editor rights. | Matches the client |
-| A10 | Adding a summary to a collection requires view access to the collection **and** edit rights on the summary. Removing a member requires collection-manager rights. | Handoff §3 + client |
-| A11 | Saving a summary only changes its memberships in collections the editor can see. Memberships in hidden collections are preserved. | Chosen default (prevents silent removal) |
-| A12 | A permission group cannot be deleted while any summary or collection still uses it (409). Removing a requirement would silently widen access. | Chosen default |
+| A10 | Moving a summary into or out of a folder, from the hierarchy or from the summary form (`folderId`), needs edit rights on the summary **and** management of each folder involved (the one it leaves and the one it enters). | Handoff §3 + client |
+| A11 | Saving a summary never takes it out of a folder the editor cannot see: the client never received that folder, so `folderId: null` is not a removal request. Omitting `folderId` (Excel import, older clients) leaves the placement alone. | Chosen default (prevents silent removal) |
+| A12 | A permission group cannot be deleted while any summary or folder still uses it (409). Removing a requirement would silently widen access. | Chosen default |
 | A13 | Permission admins and dashboard users are configured by external group (`PERMISSION_ADMIN_GROUPS`, `DASHBOARD_GROUPS`). | Chosen default (the mock hard-coded one group) |
 
 ## Hierarchy (folders)
 
 | # | Rule | Status |
 | --- | --- | --- |
-| F1 | Folders are viewed like collections: at least one permission, **all** of them required (validation plus a DB trigger). A folder is visible only if every **ancestor** is visible too, so the effective requirements are the union of the whole chain. | Your choice (stricter than the client mock, which allowed open, any-of folders) |
-| F2 | Folders are **navigation only**. They do not restrict the summaries and collections inside them, which stay reachable under their own permissions. Folder item lists and `itemCount` still filter each item by its own visibility. | Your choice |
-| F3 | An item lives in at most one folder. Placing it somewhere else moves it. Placing needs management of the destination folder **and** edit rights on the item (summary editor or collection manager). Drafts cannot be placed. | Your choice + handoff §3 |
+| F1 | Folders need at least one permission, **all** of them required (validation plus a DB trigger). A folder is visible only if every **ancestor** is visible too, so the effective requirements are the union of the whole chain. | Your choice (stricter than the client mock, which allowed open, any-of folders) |
+| F2 | Folders are **navigation only**. They do not restrict the summaries inside them, which stay reachable under their own permissions. Folder item lists and `itemCount` still filter each summary by its own visibility. Searching by folder (`folders`, or the advanced `folder` condition) matches the folder and all its subfolders and, for the same reason, does not check the folders' own visibility. | Your choice |
+| F3 | A summary lives in at most one folder. Placing it somewhere else moves it (A10). Drafts and sumaroons cannot be placed; a sumaroon lives only inside its running summary. | Your choice + handoff §3 |
 | F4 | Any user may create a root folder. A subfolder needs a manager of the parent. The creator is always a manager. | Matches the client |
 | F5 | A folder's parent is fixed at creation (a DB trigger rejects changes), so cycles cannot form. A future "move folder" feature needs a locked cycle check. | Chosen default |
 | F6 | Deleting a folder deletes its whole subtree, including subfolders managed by others. The items inside are only taken out of the hierarchy. | Matches the client ("Deletes the folder and its subfolders") |
@@ -50,9 +50,32 @@ and the code location is noted.
 | # | Rule |
 | --- | --- |
 | L1 | Deletion is **hard**: deleting a summary cascades its comments, fields, labels links, favourites, notifications, memberships and attachments. Soft delete and restore are not implemented. |
-| L2 | Deleting a collection removes the collection and its memberships. The summaries stay. |
+| L2 | Removing collections (migration 0013) dropped all collection data. Saved searches, alert rules and templates that still mention collections ignore them. |
 | L3 | Excel import is all-or-nothing in one transaction and does not send follower or rule notifications. |
-| L4 | Notifications are written in the same transaction as the change that caused them (no outbox yet). Triggers: tagged, comment on your summary, mention, a followed user publishes, a rule matches on publish. `isMail` is stored but no e-mail is sent. |
+| L4 | Notifications are written in the same transaction as the change that caused them. Triggers: tagged, comment on your summary, mention, a followed user publishes, a rule matches on publish or edit. Each notification row is also the e-mail outbox (see Mail). |
+
+## Mail
+
+| # | Rule | Status |
+| --- | --- | --- |
+| M1 | Two switches per user, both on by default: `mailActivity` (tags, comments, mentions, followed users publishing) and `mailAlerts` (rule matches). Each rule picks **immediate** (`isMail`) and/or **daily digest** (`isDigest`). `isNotify` means the rule is active; a paused rule raises nothing. | Chosen default |
+| M2 | Whether to mail is decided when the notification is created, from the switches at that moment. The `mail`/`digest` flags on `notifications` are the outbox. `MailWorker` sends them every `MAIL_POLL_SECONDS`, after the transaction commits. A rolled-back change never mails. | Chosen default |
+| M3 | Before sending, the worker re-checks the address and access to the summary (by last-known groups, as for creating notifications). Digest items are also dropped if their rule was deleted, paused or taken off the digest, or alert mails were turned off. | Chosen default |
+| M4 | Delivery is at most once: rows are claimed with `FOR UPDATE SKIP LOCKED` (safe with several instances) and cleared before sending. A failed send is re-queued, up to 5 attempts. A crash between claiming and sending loses those mails. | Chosen default |
+| M5 | The digest goes out once a day after `DIGEST_HOUR` (`APP_TIMEZONE`). It covers matches created before that hour, one mail per user, grouped by rule. Restart-safe: no "last run" state, the flags are the state. | Chosen default |
+| M6 | One notification per person per event still holds. When a followed author's summary also matches your rule, the rule's mail choices are added to the follow notification. | Chosen default |
+| M7 | `MAIL_TRANSPORT=log` (default) only writes mails to the server log. Real mail goes through **Microsoft Graph** (`graph`): an Entra app with the `Mail.Send` application permission sends as the `MAIL_FROM` mailbox, so it works from any network and passes SPF/DKIM. Direct SMTP to Microsoft 365 is refused from residential IPs (Spamhaus). `smtp` + `SMTP_URL` remains for other providers. `APP_URL` sets links. `npm run mail:test` sends one sample. | Ops |
+| M8 | Every mail uses one layout, `mail/layout.html` (`{{x}}` escaped, `{{{x}}}` HTML), with `mail/summer-logo.png` attached inline as `cid:summer-logo`. The `mail/` folder must ship next to `dist/`, like `drizzle/`. `MAIL_REDIRECT_TO` sends every mail to one address (subject keeps the intended recipient). `MAIL_PREVIEW_DIR` (log transport) writes each mail as an .html file. | Ops |
+
+## Bulk actions
+
+| # | Rule | Status |
+| --- | --- | --- |
+| B1 | Bulk actions apply to every eligible summary and return `{ applied, skipped: [{ id, reason }] }` instead of failing the whole batch. Rights are re-checked under row locks, taken in id order. Hidden and nonexistent ids are both reported as `not-found` (A7). | Chosen default |
+| B2 | Bulk labels (`POST /summary/bulk/labels`) require edit rights. Added labels go after the existing ones, and a summary that would exceed 100 labels is skipped. | Chosen default |
+| B3 | Bulk move to a folder (`POST /folder/:id/items` with `partial: true`) keeps A10: you need edit rights on each summary. Without `partial`, the endpoint stays all-or-nothing. | Confirmed + chosen default |
+| B4 | Like Excel import (L3), bulk edits send no follower or rule notifications. | Chosen default |
+| B5 | Every summary response carries `canEdit` for the caller. The client uses it only to decide what to show. | Chosen default |
 
 ## Concurrency
 
@@ -62,7 +85,7 @@ and the code location is noted.
 
 ## Open, for product
 
-- Collection inheritance (A4) and assigning groups you don't hold (A6).
+- Assigning groups you don't hold (A6).
 - Editor management UI and API, and who may change editors and permissions.
 - Soft deletion and restore.
 - SSO protocol and group API.

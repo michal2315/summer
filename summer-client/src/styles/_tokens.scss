@@ -7,16 +7,38 @@ $app-background: #f7f7f7;
 $input-color: #efefef;
 $input-hover-color: #e1e1e1;
 $primary-pink: #ff4056;
-$primary-orange: #ff9155;
+// The orange family are CSS variables (set in styles.scss) so Coral's pink mode can swap them at runtime. Sass colour
+// functions (rgba() etc.) can't take a variable, so they use the raw hex: $primary-orange-hex / $orange-50-hex.
+$primary-orange-hex: #ff9155;
+$orange-50-hex: #fff5ee;
+$primary-orange: var(--primary-orange);
+$pink-strong: #e8253d; // pink text on light tints (keeps contrast)
+$pink-50: #f7f7f7; // old UI: hover/selected tints are the flat app grays
+$pink-100: #efefef;
+$orange-50: var(--orange-50);
+$orange-100: var(--orange-100);
+$orange-strong: var(--orange-strong); // orange text on light tints
+$star: #fab005;
+// Summy's yellow (shared/easter-eggs/summy) — search hits
+$summy-yellow: #ffc94a;
+$summy-yellow-strong: #e0a100;
 $accent: #01004f;
-$background: linear-gradient(137deg, $primary-orange 0%, $primary-pink 100%);
-$background-hover: linear-gradient(125deg, #ec854d 0%, #e7364b 100%);
+$background: linear-gradient(137deg, $primary-orange 0%, var(--gradient-end) 100%);
+$background-hover: linear-gradient(125deg, var(--hover-start) 0%, var(--hover-end) 100%);
+// Selected / highlighted surfaces (flat, as in the original UI)
+$background-soft: #efefef;
+$focus-ring: 0 0 0 3px rgba(5, 4, 61, 0.08);
 $success-color: #2dd070;
 $error-color: #e74d3d;
 $warning-color: #f1c40f;
 $card-background: #f7f7f7;
 $white: #ffffff;
 $black: #000000;
+
+// Neutrals used by newer screens — kept on the original flat grays
+$surface-subtle: #f7f7f7;
+$border-color: #efefef;
+$border-strong: #e1e1e1;
 
 // Text
 $dark-blue: #05043d;
@@ -32,7 +54,12 @@ $summary-colors: #fe9eae, #ff0000, #ffa500, #008000, #00b2b2, #0000c9, #800080, 
 // Shadow / radius
 $shadow: 0 2px 20px #00000038;
 $card-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+$card-shadow-hover: 0 2px 20px rgba(0, 0, 0, 0.16);
+$radius-sm: 8px;
 $border-radius: 8px;
+$radius-md: 8px;
+$radius-lg: 8px;
+$transition: 0.2s ease;
 
 // AI suggestion buttons
 $accept-hover: #73d13d;
@@ -41,3 +68,15 @@ $decline-hover: #ff7875;
 // Breakpoints
 $bp-narrow: 1100px;
 $bp-mobile: 768px;
+
+// Capsules (כמוסות) — one teal family wherever a capsule shows: search box, chips, suggestions, popovers
+$capsule: #0b7f86;
+$capsule-bg: #dcf2f3;
+$capsule-line: rgba(11, 127, 134, 0.45);
+// Capsule word conditions
+$cond-must: #08793a;
+$cond-must-bg: #e3f6ea;
+$cond-not: #c41d3a;
+$cond-not-bg: #fde8ec;
+$cond-optional: #55546f;
+$cond-optional-bg: #efeff4;

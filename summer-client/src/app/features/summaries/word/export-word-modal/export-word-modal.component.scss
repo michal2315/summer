@@ -1,0 +1,13 @@
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  label:not([nz-radio]) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+}
+.footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

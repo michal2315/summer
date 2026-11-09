@@ -1,83 +1,150 @@
 @let s = summary();
-<article class="card" [attr.aria-label]="s.title">
-  <header class="head">
+<!-- Draggable onto a folder in the tree (adds it there). -->
+<div
+  class="card"
+  role="article"
+  [attr.aria-label]="s.title"
+  [class.sumaroon]="!!s.parent"
+  [attr.draggable]="placeable() ? 'true' : null"
+  (dragstart)="placeable() && onDragStart($event)"
+  (click)="onCardClick($event)"
+>
+  @if (s.kind === K.Running) {
+    <div class="running-banner">
+      <span nz-icon nzType="unordered-list"></span>
+      <span class="banner-title">תמצית רצף</span>
+      <span>· {{ s.sumaroonCount ?? 0 }} תמציתוניות</span>
+      @if (s.rangeStart) {
+        <span class="range">· {{ s.rangeStart | dateFormat: 'dd/MM/yyyy' }} – {{ s.rangeEnd | dateFormat: 'dd/MM/yyyy' }}</span>
+      }
+    </div>
+  }
+  @if (showParent() && s.parent; as p) {
+    <button type="button" class="running-strip" (click)="openParent(p._id)" [nz-tooltip]="'פתיחת תמצית הרצף'">
+      <span nz-icon nzType="unordered-list"></span> תמציתונית מתוך <span class="parent-title">{{ p.title }}</span>
+    </button>
+  }
+  <div class="head">
     @if (selectable()) {
-      <label nz-checkbox [nzChecked]="selected()" (nzCheckedChange)="selectToggle.emit(s._id)" aria-label="בחירת הסיכום"></label>
+      <label nz-checkbox [nzChecked]="selected()" (nzCheckedChange)="selectToggle.emit(s._id)" aria-label="בחירת התמצית"></label>
+      @if (!s.canEdit) {
+        <span class="no-edit" nz-icon nzType="lock" nz-tooltip="אין לך הרשאת עריכה — פעולות עריכה ידלגו עליה" aria-label="ללא הרשאת עריכה"></span>
+      }
     }
-    <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="28" />
+    <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="24" />
+    <!-- Name · department · one relative date (the event's, else when it was written); exact dates in the tooltip. -->
     <div class="meta">
       <div class="who">
         <a [routerLink]="['/profile', s.user._id]" class="name">{{ s.user.fullName }}</a>
         @if (s.department || s.user.department) {
           <span class="dept">· {{ s.department || s.user.department }}</span>
         }
-      </div>
-      <div class="dates">
-        @if (s.eventDate) {
-          <span nz-tooltip="תאריך האירוע"><span nz-icon nzType="calendar"></span> {{ s.eventDate | dateFormat: 'dd/MM/yyyy' }}{{ s.eventSecTime ? ' ' + (s.eventSecTime | dateFormat: 'HH:mm') : '' }}</span>
-        }
-        <span nz-tooltip="נכתב בתאריך"><span nz-icon nzType="clock-circle"></span> {{ s.creationDate | dateFormat }}</span>
+        <span class="date" [nz-tooltip]="exactDates">
+          ·
+          @if (s.eventDate) {
+            <span nz-icon nzType="calendar"></span> {{ s.eventDate | relativeTime }}
+          } @else {
+            נכתב {{ s.creationDate | relativeTime }}
+          }
+        </span>
+        <ng-template #exactDates>
+          @if (s.eventDate) {
+            <div>תאריך האירוע: {{ s.eventDate | dateFormat: 'dd/MM/yyyy' }}{{ s.eventSecTime ? ' ' + (s.eventSecTime | dateFormat: 'HH:mm') : '' }}</div>
+          }
+          <div>נכתב: {{ s.creationDate | dateFormat }}</div>
+        </ng-template>
       </div>
     </div>
 
     <div class="side">
       <span class="type"><app-content-type-icon [type]="s.contentType" /> {{ s.contentType.displayName }}</span>
-      @if (s.collectionIds.length) {
-        <button type="button" class="collections" nz-dropdown [nzDropdownMenu]="collectionsMenu" nzTrigger="click" (click)="$event.stopPropagation()" [nz-tooltip]="'אוספים'">
-          <span nz-icon nzType="folder"></span> {{ s.collectionIds.length }}
-        </button>
-        <nz-dropdown-menu #collectionsMenu="nzDropdownMenu">
-          <ul nz-menu>
-            @for (c of s.collectionIds; track c._id) {
-              <li nz-menu-item><a [routerLink]="['/collections', c._id]">{{ c.name }}</a></li>
-            }
-          </ul>
-        </nz-dropdown-menu>
+      @for (f of visibleFolders(); track f._id) {
+        <a
+          class="folder"
+          [routerLink]="['/summaries']"
+          [queryParams]="hierarchyParams(s, f)"
+          (click)="$event.stopPropagation()"
+          nz-popover
+          nzPopoverTrigger="hover"
+          nzPopoverPlacement="bottom"
+          [nzPopoverMouseEnterDelay]="0.3"
+          [nzPopoverContent]="folderInfo"
+          [attr.aria-label]="'שיוך: ' + f.name"
+        >
+          <span nz-icon nzType="folder"></span> <span class="folder-name">{{ f.name }}</span>
+        </a>
+        <ng-template #folderInfo><app-folder-info [summary]="s" [folderRef]="f" /></ng-template>
       }
-      <app-color-picker [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
-      @if (seen()) {
-        <span class="seen" nz-tooltip="נקרא"><span nz-icon nzType="check-circle"></span></span>
-      }
-      <button class="icon" type="button" (click)="toggleOpen.emit(s)" [nz-tooltip]="active() ? 'סגירת הסיכום' : 'פתיחת הסיכום'" [attr.aria-pressed]="active()" aria-label="פתיחת הסיכום">
-        <span nz-icon [nzType]="active() ? 'eye-invisible' : 'eye'"></span>
-      </button>
-      <button class="icon" type="button" (click)="actions.openTimeline(s)" nz-tooltip="ציר זמן" aria-label="ציר זמן">
-        <span nz-icon nzType="field-time"></span>
-      </button>
-      @if (isMine()) {
-        <button class="icon" type="button" nz-dropdown [nzDropdownMenu]="menu" nzTrigger="click" nzPlacement="bottomLeft" aria-label="פעולות">
-          <span nz-icon nzType="more"></span>
-        </button>
-        <nz-dropdown-menu #menu="nzDropdownMenu">
-          <ul nz-menu>
-            <li nz-menu-item [routerLink]="['/summaries', s._id, 'edit']"><span nz-icon nzType="edit"></span>&nbsp;עריכה</li>
-            @if (!s.isDraft) {
-              <li nz-menu-item (click)="actions.toDraft(s)"><span nz-icon nzType="undo"></span>&nbsp;הפוך לטיוטה</li>
-            }
-            <li nz-menu-item nzDanger (click)="actions.confirmDelete(s)"><span nz-icon nzType="delete"></span>&nbsp;מחק</li>
-          </ul>
-        </nz-dropdown-menu>
+      @if (hiddenFolders().length) {
+        <span class="folder" [nz-tooltip]="hiddenFoldersTip" [attr.aria-label]="'ועוד ' + hiddenFolders().length + ' שיוכים'">+{{ hiddenFolders().length }}</span>
+        <ng-template #hiddenFoldersTip>
+          @for (f of hiddenFolders(); track f._id) {
+            <div>{{ f.name }}</div>
+          }
+        </ng-template>
       }
     </div>
-  </header>
 
-  <button type="button" class="body" (click)="toggleOpen.emit(s)">
-    <h3 class="title" [innerHTML]="s.title | highlight: search() : T.Title"></h3>
+    <!-- Fixed slots, always the same width and order, so every card's controls line up. -->
+    <div class="actions">
+      <div class="slot">
+        <app-color-picker class="color" [class.unset]="!s.color" [color]="s.color" (colorChange)="actions.setColor(s, $event)" />
+      </div>
+      <div class="slot">
+        @if (isMine()) {
+          <button class="icon" type="button" nz-dropdown [nzDropdownMenu]="menu" nzTrigger="click" nzPlacement="bottomLeft" aria-label="פעולות">
+            <span nz-icon nzType="more"></span>
+          </button>
+          <nz-dropdown-menu #menu="nzDropdownMenu">
+            <ul nz-menu>
+              <li nz-menu-item [routerLink]="['/summaries', s._id, 'edit']"><span nz-icon nzType="edit"></span>&nbsp;עריכה</li>
+              @if (!s.isDraft) {
+                <li nz-menu-item (click)="actions.toDraft(s)"><span nz-icon nzType="undo"></span>&nbsp;הפוך לטיוטה</li>
+              }
+              <li nz-menu-item nzDanger (click)="actions.confirmDelete(s)"><span nz-icon nzType="delete"></span>&nbsp;מחק</li>
+            </ul>
+          </nz-dropdown-menu>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard entry point; its click bubbles to the card's handler. -->
+  <button type="button" class="body" [attr.aria-expanded]="active()">
+    <div class="title-row">
+      @if (unread()) {
+        <span class="unread" nz-tooltip="טרם פתחת את התמצית הזו" aria-label="לא נקרא"></span>
+      }
+      <div class="title" role="heading" aria-level="3" [innerHTML]="s.title | highlight: search() : T.Title"></div>
+    </div>
     <div class="ql-container ql-snow read-only preview">
       <div class="ql-editor" [innerHTML]="s.content | richHtml: search() : T.Content"></div>
     </div>
   </button>
 
-  <footer class="foot">
+  <app-match-snippets class="snippets" [summary]="s" [search]="search()" [visibleLabels]="visibleLabels().length" />
+
+  @if (s.kind === K.Running && s.sumaroonPreview?.length) {
+    <ol class="sumaroon-preview" aria-label="תמציתוניות">
+      @for (x of s.sumaroonPreview; track x._id; let i = $index) {
+        <li><span class="n">{{ i + 1 }}</span><span class="t">{{ x.title }}</span></li>
+      }
+      @if ((s.sumaroonCount ?? 0) > s.sumaroonPreview!.length) {
+        <li class="more">ועוד {{ (s.sumaroonCount ?? 0) - s.sumaroonPreview!.length }}</li>
+      }
+    </ol>
+  }
+  <div class="foot">
     <div class="labels">
+      <app-capsule-catch [summary]="s" [search]="search()" />
       @for (l of visibleLabels(); track l.name) {
-        <nz-tag class="label-chip" (click)="searchLabel(l.name, $event)"><span [innerHTML]="'#' + l.name | highlight: search() : T.Label"></span></nz-tag>
+        <nz-tag class="label-chip" (click)="searchLabel(l.name, $event)"><span [innerHTML]="l.name | highlight: search() : T.Label"></span></nz-tag>
       }
       @if (hiddenLabels().length) {
         <nz-tag class="label-chip" [nz-tooltip]="hiddenLabelsTip">+{{ hiddenLabels().length }}</nz-tag>
         <ng-template #hiddenLabelsTip>
           @for (l of hiddenLabels(); track l.name) {
-            <div>#{{ l.name }}</div>
+            <div>{{ l.name }}</div>
           }
         </ng-template>
       }
@@ -89,10 +156,12 @@
       @if (s.files.length) {
         <span class="stat" nz-tooltip="קבצים מצורפים"><span nz-icon nzType="paper-clip"></span> {{ s.files.length }}</span>
       }
-      <span class="stat" nz-tooltip="תגובות"><span nz-icon nzType="message"></span> {{ s.comments.length }}</span>
+      @if (s.comments.length) {
+        <span class="stat" nz-tooltip="תגובות"><span nz-icon nzType="message"></span> {{ s.comments.length }}</span>
+      }
       <button class="icon" type="button" (click)="actions.toggleFavorite(s)" [nz-tooltip]="s.isFavorite ? 'הסרה ממועדפים' : 'הוספה למועדפים'" [attr.aria-pressed]="s.isFavorite" aria-label="מועדפים">
         <span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'" [class.fav]="s.isFavorite"></span>
       </button>
     </div>
-  </footer>
-</article>
+  </div>
+</div>

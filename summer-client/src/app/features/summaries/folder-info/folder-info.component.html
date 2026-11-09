@@ -1,0 +1,42 @@
+@let s = summary();
+<div class="info">
+  <div class="caption">שיוך בהיררכיה</div>
+  <div class="path" role="list" aria-label="מיקום השיוך">
+    @for (f of path(); track f._id; let last = $last) {
+      <a role="listitem" class="crumb" [class.current]="last" [routerLink]="['/summaries']" [queryParams]="{ folderId: f._id }">
+        @if (last) {
+          <span nz-icon nzType="folder-open"></span>
+        }
+        {{ f.name }}
+      </a>
+      @if (!last) {
+        <span class="sep" aria-hidden="true">›</span>
+      }
+    }
+  </div>
+
+  @let f = folder();
+  @if (loading()) {
+    <div class="muted">טוען…</div>
+  } @else if (f) {
+    <div class="row">
+      <span nz-icon nzType="file-text"></span>
+      {{ f.itemCount === 1 ? 'תמצית אחת' : f.itemCount + ' תמציות' }} בתיקייה
+    </div>
+    @if (visibleManagers().length) {
+      <div class="row managers">
+        <span class="label">מנהלים:</span>
+        @for (m of visibleManagers(); track m._id) {
+          <a class="manager" [routerLink]="['/profile', m._id]"><app-avatar [user]="m" [size]="20" />{{ m.fullName }}</a>
+        }
+        @if (moreManagers()) {
+          <span class="muted">ועוד {{ moreManagers() }}</span>
+        }
+      </div>
+    }
+  }
+
+  <a class="open" [routerLink]="['/summaries']" [queryParams]="hierarchyParams(s, folderRef())">
+    הצגה בהיררכיה <span nz-icon nzType="arrow-left"></span>
+  </a>
+</div>

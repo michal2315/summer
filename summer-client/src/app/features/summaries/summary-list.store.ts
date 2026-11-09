@@ -3,7 +3,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { APP_CONFIG } from '../../core/config/app-config';
 import { ISummariesLength, ISummary, ISummarySearch, SummarySearch } from '../../shared/models';
-import { CollectionService } from '../../shared/services/collection.service';
 import { SummaryService } from '../../shared/services/summary.service';
 
 const EMPTY_LENGTHS: ISummariesLength = { summary: 0, draft: 0, tagged: 0, favorite: 0 };
@@ -11,21 +10,20 @@ const EMPTY_LENGTHS: ISummariesLength = { summary: 0, draft: 0, tagged: 0, favor
 export interface ListQuery {
   ownerId: string;
   search: ISummarySearch;
-  /** When set, list the summaries of this collection instead of the owner's feed. */
-  collectionId?: string | null;
 }
 
 /**
- * State for one summaries list (feed, profile or collection). Provided per page, not root.
+ * State for one summaries list (feed, profile, running summary). Provided per page, not root.
  * Card list uses append paging (skip/limit); table view uses replace paging (pageIndex).
  * Mutations broadcast by SummaryService patch rows in place — no refetch.
  */
 @Injectable()
 export class SummaryListStore {
   private readonly service = inject(SummaryService);
-  private readonly collections = inject(CollectionService);
   private readonly config = inject(APP_CONFIG);
   readonly limit = this.config.summariesLimit;
+  /** Set by the browser: open a running summary through the `runningId` query param (home page) instead of its own page. */
+  readonly runningInPlace = signal(false);
   readonly maxSelection = this.config.maxToExport;
 
   private query: ListQuery | null = null;
@@ -40,12 +38,23 @@ export class SummaryListStore {
   readonly version = signal(0);
   private readonly tab = signal<SummarySearch>(SummarySearch.Summary);
 
-  // ---- selection mode (export / add-to-collection / remove-from-collection) ----
+  // ---- selection mode (export / bulk edits) ----
   readonly selectMode = signal(false);
-  readonly selected = signal<ReadonlySet<string>>(new Set());
-  readonly selectedCount = computed(() => this.selected().size);
+  /** Selected id → its row as listed when selected (kept across pages, so bulk actions know kind and canEdit). */
+  private readonly selection = signal<ReadonlyMap<string, ISummary | undefined>>(new Map());
+  readonly selected = computed<ReadonlySet<string>>(() => new Set(this.selection().keys()));
+  readonly selectedCount = computed(() => this.selection().size);
+  readonly selectedRows = computed(() => [...this.selection()].map(([id, summary]) => ({ id, summary })));
+  /** Selected rows the user may not edit (a row never listed counts as editable; the server re-checks anyway). */
+  readonly selectedNotEditable = computed(() => this.selectedRows().filter((r) => r.summary?.canEdit === false).map((r) => r.id));
+  /** How much of the loaded list is selected (drives the select-all checkbox). */
+  readonly loadedSelection = computed<'none' | 'some' | 'all'>(() => {
+    const rows = this.summaries();
+    const n = rows.filter((s) => this.selection().has(s._id)).length;
+    return !n ? 'none' : n === rows.length ? 'all' : 'some';
+  });
 
-  /** Total for the active bucket (drives "N סיכומים", table pagination and end-of-list detection). */
+  /** Total for the active bucket (drives "N תמציות", table pagination and end-of-list detection). */
   readonly total = computed(() => {
     const l = this.lengths();
     switch (this.tab()) {
@@ -94,7 +103,7 @@ export class SummaryListStore {
     this.fetch((pageIndex - 1) * this.limit, 'replace');
   }
 
-  /** Same query again (e.g. after summaries were removed from the collection). */
+  /** Same query again (e.g. after a bulk edit). */
   reload() {
     if (this.query) this.load(this.query);
   }
@@ -102,26 +111,44 @@ export class SummaryListStore {
   // ---- selection ----
   setSelectMode(on: boolean) {
     this.selectMode.set(on);
-    if (!on) this.selected.set(new Set());
+    if (!on) this.selection.set(new Map());
   }
 
   toggleSelected(id: string) {
-    const next = new Set(this.selected());
+    const next = new Map(this.selection());
     if (next.has(id)) next.delete(id);
-    else if (next.size < this.maxSelection) next.add(id);
-    this.selected.set(next);
+    else if (next.size < this.maxSelection) next.set(id, this.summaries().find((s) => s._id === id));
+    this.selection.set(next);
+  }
+
+  /** Select all of `ids` (up to the export cap), or clear them if they are all selected already (a bundle row). */
+  toggleSelectedMany(ids: string[]) {
+    const all = ids.every((id) => this.selection().has(id));
+    const next = new Map(this.selection());
+    for (const id of ids) {
+      if (all) next.delete(id);
+      else if (next.size < this.maxSelection && !next.has(id)) next.set(id, this.summaries().find((s) => s._id === id));
+    }
+    this.selection.set(next);
   }
 
   /** Select every loaded row (up to the export cap), or clear if they are all selected already. */
   toggleSelectAllLoaded() {
-    const ids = this.summaries().map((s) => s._id);
-    const all = ids.every((id) => this.selected().has(id));
-    const next = new Set(this.selected());
-    for (const id of ids) {
-      if (all) next.delete(id);
-      else if (next.size < this.maxSelection) next.add(id);
+    const rows = this.summaries();
+    const all = rows.every((s) => this.selection().has(s._id));
+    const next = new Map(this.selection());
+    for (const s of rows) {
+      if (all) next.delete(s._id);
+      else if (next.size < this.maxSelection && !next.has(s._id)) next.set(s._id, s);
     }
-    this.selected.set(next);
+    this.selection.set(next);
+  }
+
+  /** Drop `ids` from the selection (e.g. the rows a bulk edit would skip). */
+  deselect(ids: string[]) {
+    const next = new Map(this.selection());
+    for (const id of ids) next.delete(id);
+    this.selection.set(next);
   }
 
   /** The query currently listed — used by "export all results". */
@@ -134,8 +161,7 @@ export class SummaryListStore {
     this.inflight?.unsubscribe();
     this.loading.set(true);
     const search = { ...query.search, skip, limit: this.limit };
-    const request = query.collectionId ? this.collections.summaries(query.collectionId, search) : this.service.search(query.ownerId, search);
-    this.inflight = request.subscribe({
+    this.inflight = this.service.search(query.ownerId, search).subscribe({
       next: ({ summaries, lengths }) => {
         this.summaries.update((cur) => (mode === 'append' ? [...cur, ...summaries] : summaries));
         this.lengths.set(lengths);

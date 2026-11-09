@@ -1,0 +1,35 @@
+@use 'tokens' as *;
+
+:host { display: block; height: 100vh; }
+// Side nav beside the page, always: don't rely on nz-layout noticing the sider (it lays out as a column without it).
+.shell { height: 100%; background: #fff; flex-direction: row; }
+.sider { height: 100%; overflow: hidden; }
+.content { margin: 8px; margin-inline-start: 0; border-radius: 12px; background: #f7f7f7; overflow: auto; min-width: 0; position: relative; }
+
+// Drag handle between the side nav and the page.
+.nav-handle {
+  flex: none;
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 8px 3px;
+    border-radius: 2px;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  &:hover::after,
+  &:focus-visible::after {
+    background: $input-hover-color;
+  }
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+@media (max-width: $bp-mobile) {
+  .nav-handle { display: none; }
+}

@@ -1,0 +1,21 @@
+@use 'tokens' as *;
+
+:host { display: block; padding: 14px 18px; background: #fff; min-height: 100%; }
+.page { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.back { font-size: 13px; color: #666; }
+.section-title { font-size: 14px; font-weight: 800; margin: 8px 0 0; }
+.channels { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.error { color: $error-color; font-size: 13px; }
+.mail-warning { display: flex; align-items: center; gap: 6px; font-size: 13px; color: $dark-gray; }
+.mail-warning [nz-icon] { color: $warning-color; }
+.conditions { display: flex; flex-direction: column; gap: 8px; }
+.condition { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #fafafa; }
+.condition.invalid { outline: 1px solid #e74d3d; }
+.and { width: 44px; font-weight: 700; font-size: 13px; color: #666; }
+.add { align-self: flex-start; }
+.match { align-self: flex-start; }
+.search-rule { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: $border-radius; background: $surface-subtle; border: 1px solid $border-color; }
+.search-desc { flex: 1; min-width: 0; font-weight: 700; }
+.preview { background: $background-soft; border: 1px solid $pink-100; border-radius: $border-radius; padding: 10px 14px; margin: 4px 0 0; font-size: 13px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid $border-color; padding-top: 14px; margin-top: 8px; }

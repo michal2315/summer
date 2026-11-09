@@ -29,19 +29,19 @@ describe('running summaries and sumaroons', () => {
     expect(body).toMatchObject({ kind: 'running', rangeStart: '2026-01-01', rangeEnd: '2026-01-31', sumaroonCount: 0 });
   });
 
-  it('a sumaroon must be dated inside the range, use the same content type and stay out of collections', async () => {
+  it('a sumaroon must be dated inside the range, use the same content type and stay out of folders', async () => {
     const parent = (await createSummary(h, 'mgolan', running())).body;
     expect((await createSummary(h, 'mgolan', sumaroon(parent._id, { eventDate: '2026-02-01' }))).status).toBe(400);
     expect((await createSummary(h, 'mgolan', sumaroon(parent._id, { eventDate: undefined }))).status).toBe(400);
     expect((await createSummary(h, 'mgolan', sumaroon(parent._id, { contentType: l.type('lecture') }))).status).toBe(400);
-    const [collection] = await h.sql<{ id: string }>('select id from collections limit 1');
-    expect((await createSummary(h, 'mgolan', sumaroon(parent._id, { collectionIds: [collection.id] }))).status).toBe(400);
+    const [folder] = await h.sql<{ id: string }>(`select id from folders where name = 'מדעי המחשב'`);
+    expect((await createSummary(h, 'mgolan', sumaroon(parent._id, { folderId: folder.id }))).status).toBe(400);
     expect((await createSummary(h, 'mgolan', sumaroon(parent._id, { kind: 'summary' }))).status).toBe(400);
 
     const { status, body } = await createSummary(h, 'mgolan', sumaroon(parent._id, { eventDate: '2026-01-31' }));
     expect(status).toBe(201);
     expect(body).toMatchObject({ kind: 'sumaroon', parentId: parent._id, link: 'https://example.org/p', parent: { _id: parent._id, labels: [{ name: 'פרק 3' }] } });
-    expect((await h.as('mgolan').get(`/summary/${parent._id}/false`)).body.sumaroonCount).toBe(1);
+    expect((await h.as('mgolan').get(`/summary/${parent._id}/false`)).body).toMatchObject({ sumaroonCount: 1, sumaroonPreview: [{ _id: body._id, title: 'פסקה' }] });
   });
 
   it("a sumaroon's parent must be a running summary", async () => {
@@ -49,7 +49,7 @@ describe('running summaries and sumaroons', () => {
     expect((await createSummary(h, 'mgolan', sumaroon(plain._id))).status).toBe(400);
   });
 
-  it('anyone who can see the running summary may add a sumaroon (like adding to a collection)', async () => {
+  it('anyone who can see the running summary may add a sumaroon', async () => {
     const parent = (await createSummary(h, 'mgolan', running())).body;
     expect((await createSummary(h, 'dlevi', sumaroon(parent._id))).status).toBe(201);
     // nmizrahi lacks cs-faculty, so the running summary is hidden from her.
@@ -75,7 +75,7 @@ describe('running summaries and sumaroons', () => {
     await h.as('yavraham').get(`/summary/${child._id}/false`).expect(200);
   });
 
-  it('lists a running summary’s sumaroons by event date or creation date, and inherits its labels in search', async () => {
+  it('lists a running summary’s sumaroons by event date or creation date; its labels find it, not its sumaroons', async () => {
     const parent = (await createSummary(h, 'mgolan', running({ labels: ['תווית-רצף-ייחודית'] }))).body;
     const late = (await createSummary(h, 'mgolan', sumaroon(parent._id, { title: 'ראשון שנכתב', eventDate: '2026-01-20' }))).body;
     const early = (await createSummary(h, 'mgolan', sumaroon(parent._id, { title: 'שני שנכתב', eventDate: '2026-01-05' }))).body;
@@ -85,10 +85,10 @@ describe('running summaries and sumaroons', () => {
     const byCreation = await search('mgolan', `parentId=${parent._id}&sort=creationDate`);
     expect(byCreation.summaries.map((s: { _id: string }) => s._id)).toEqual([late._id, early._id]);
 
-    const byLabel = await search('mgolan', `labels=${encodeURIComponent('תווית-רצף-ייחודית')}&kinds=sumaroon`);
-    expect(byLabel.summaries.map((s: { _id: string }) => s._id).sort()).toEqual([late._id, early._id].sort());
-    const runningOnly = await search('mgolan', `labels=${encodeURIComponent('תווית-רצף-ייחודית')}&kinds=running`);
-    expect(runningOnly.summaries.map((s: { _id: string }) => s._id)).toEqual([parent._id]);
+    // The labels filter and label text search both look at a summary's own labels only.
+    const ids = (r: { summaries: { _id: string }[] }) => r.summaries.map((s) => s._id);
+    expect(ids(await search('mgolan', `labels=${encodeURIComponent('תווית-רצף-ייחודית')}`))).toEqual([parent._id]);
+    expect(ids(await search('mgolan', `text=${encodeURIComponent('תווית-רצף')}&searchTypes=LABEL`))).toEqual([parent._id]);
   });
 
   it('kind and parent are fixed; a running summary with sumaroons keeps its content type and must still cover them', async () => {
@@ -99,14 +99,6 @@ describe('running summaries and sumaroons', () => {
     expect((await update('mgolan', { ...running({ contentType: l.type('lecture') }), id: parent._id })).status).toBe(400);
     expect((await update('mgolan', { ...running({ rangeEnd: '2026-01-10' }), id: parent._id })).status).toBe(400);
     expect((await update('mgolan', { ...running({ rangeEnd: '2026-03-31', title: 'טווח מורחב' }), id: parent._id })).status).toBe(200);
-  });
-
-  it('sumaroons cannot be added to collections', async () => {
-    const parent = (await createSummary(h, 'mgolan', running())).body;
-    const child = (await createSummary(h, 'mgolan', sumaroon(parent._id))).body;
-    const [collection] = await h.sql<{ id: string }>('select id from collections limit 1');
-    await h.as('mgolan').post('/collection/add').send({ collectionIds: [collection.id], summaryIds: [child._id] }).expect(400);
-    await expect(h.sql('insert into summary_collections (summary_id, collection_id) values ($1, $2)', [child._id, collection.id])).rejects.toThrow(/cannot be added/);
   });
 
   it('deleting a running summary deletes its sumaroons, including ones other people wrote', async () => {

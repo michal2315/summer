@@ -1,0 +1,48 @@
+@use 'tokens' as *;
+
+:host {
+  display: contents;
+}
+
+.nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding-inline: 8px 4px;
+  border-radius: 999px;
+  background: rgba($summy-yellow, 0.18);
+  border: 1px solid rgba($summy-yellow-strong, 0.45);
+}
+
+.mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: $summy-yellow;
+  box-shadow: inset 0 -2px 0 $summy-yellow-strong;
+}
+
+.count {
+  font-size: 12px;
+  font-weight: 700;
+  color: $dark-blue;
+  white-space: nowrap;
+}
+
+.step {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: $dark-gray;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba($summy-yellow-strong, 0.2);
+    color: $dark-blue;
+  }
+}

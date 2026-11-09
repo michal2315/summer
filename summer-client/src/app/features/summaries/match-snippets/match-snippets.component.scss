@@ -1,0 +1,42 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+}
+
+.snippets {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  border-inline-start: 3px solid $summy-yellow;
+  border-radius: 0 $radius-sm $radius-sm 0;
+  background: rgba($summy-yellow, 0.1);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.where {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: $dark-gray;
+
+  &::after {
+    content: ':';
+  }
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: $dark-blue;
+}

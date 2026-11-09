@@ -18,13 +18,21 @@ export interface UserRef {
   isSystem?: boolean;
 }
 
+/** A saved search; without a name the client describes it from its filters. */
+export interface ApiSavedSearch {
+  _id: string;
+  name: string | null;
+  search: Record<string, unknown>;
+}
+
 export interface ApiUser extends UserRef {
-  pinnedSearches: Record<string, unknown>[];
+  /** newest first */
+  pinnedSearches: ApiSavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
-  pinnedCollections: string[];
-  favoriteCollections: string[];
+  /** oldest pin first; inactive users are left out */
+  pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
 }
@@ -52,19 +60,20 @@ export interface ApiComment {
   creationDate: string;
 }
 
-export interface ApiCollectionRef {
+export interface ApiFolderRef {
   _id: string;
   name: string;
 }
 
-export interface ApiCollection extends ApiCollectionRef {
-  permissions: ApiPermission[];
-  summaries: string[];
-  managers: string[];
-  createdBy: UserRef;
-  createdAt: string;
-  updatedAt: string;
-  isDeleted: boolean;
+/** A personal template for the summary form's sharing section; references the caller can no longer use are left out. */
+export interface ApiSummaryTemplate {
+  _id: string;
+  name: string;
+  permissions: string[];
+  taggedUsers: UserRef[];
+  taggedPermissions: string[];
+  labels: string[];
+  folders: string[];
 }
 
 /** A sumaroon's running summary: what the sumaroon inherits (labels, permissions) and its date range. */
@@ -95,11 +104,15 @@ export interface ApiSummary {
   summaryFields: { _id: string; field: ApiField; value: string }[];
   files: string[];
   taggedUsers: UserRef[];
-  collectionIds: ApiCollectionRef[];
+  taggedPermissions: ApiPermission[];
+  /** the folders it is in that the caller can see (empty = none) */
+  folders: ApiFolderRef[];
   permissions: ApiPermission[];
   seenBy: string[];
   color: string;
   isFavorite: boolean;
+  /** The caller is an editor (drives which rows bulk edit actions apply to; the server re-checks on every write). */
+  canEdit: boolean;
   timelineTitle?: string;
   kind: 'summary' | 'running' | 'sumaroon';
   /** sumaroon only */
@@ -111,6 +124,28 @@ export interface ApiSummary {
   rangeEnd?: string;
   /** running only: published sumaroons the viewer can see */
   sumaroonCount?: number;
+  /** running only: the first few of those sumaroons by event date (card preview) */
+  sumaroonPreview?: { _id: string; title: string }[];
+}
+
+/**
+ * The home page counter: `total` = all published summaries in the scope (all, a folder with its subfolders, or no
+ * folder), including ones the caller can't see; `hidden` = ones in the scope matching the search that permissions hide,
+ * and which missing permissions hide them. A summary missing several permissions counts under each.
+ */
+export interface ApiAccessStats {
+  total: number;
+  hidden: number;
+  missing: { permission: ApiPermission; blocking: number }[];
+}
+
+/** Why a bulk action left a summary out. Hidden and nonexistent ids are both `not-found` (A7: non-disclosing). */
+export type BulkSkipReason = 'not-found' | 'not-editor' | 'sumaroon' | 'too-many-labels' | 'draft';
+
+/** Bulk actions apply to every eligible summary and report the rest instead of failing the whole batch. */
+export interface ApiBulkResult {
+  applied: string[];
+  skipped: { id: string; reason: BulkSkipReason }[];
 }
 
 export interface SummaryLengths {

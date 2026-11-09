@@ -1,6 +1,6 @@
 @use 'tokens' as *;
 
-// Shared compact card look (summary + collection cards). @use it from a component stylesheet.
+// Shared compact card look (summary cards). @use it from a component stylesheet.
 
 :host {
   display: block;
@@ -141,12 +141,6 @@
   }
   .fav {
     color: #fadb14;
-  }
-  .draft-badge {
-    background: $gray-tag;
-    border-radius: 8px;
-    padding: 0 8px;
-    font-weight: 700;
   }
 }
 

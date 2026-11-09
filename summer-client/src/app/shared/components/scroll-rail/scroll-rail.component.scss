@@ -1,0 +1,64 @@
+@use 'tokens' as *;
+
+:host {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  inset-inline-end: 0; // RTL: the left edge of the scroll area
+  width: 10px;
+  border-radius: 5px;
+  background: rgba(5, 4, 61, 0.05);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  z-index: 30;
+
+  &.hidden {
+    visibility: hidden;
+  }
+}
+
+.thumb {
+  position: absolute;
+  inset-inline: 1px;
+  top: 0;
+  border-radius: 4px;
+  background: #b9b9c6;
+  transition: background 0.15s;
+
+  :host(:hover) &,
+  :host(.dragging) & {
+    background: $gray;
+  }
+  :host(.dragging) & {
+    background: $primary-pink;
+  }
+}
+
+// Date bubble beside the thumb, pointing at it, sitting over the feed.
+.label {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: calc(100% + 10px);
+  transform: translateY(-50%);
+  white-space: nowrap;
+  background: $dark-blue;
+  color: $white;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 14px;
+  box-shadow: $shadow;
+  pointer-events: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    inset-inline-end: -5px;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-inline-end-width: 0;
+    border-inline-start-color: $dark-blue;
+  }
+}

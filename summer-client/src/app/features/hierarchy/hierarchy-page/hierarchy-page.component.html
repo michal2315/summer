@@ -1,0 +1,48 @@
+<div class="viewer">
+  @if (runningId(); as rid) {
+    @if (summaryId(); as id) {
+      <button type="button" class="back-link back" (click)="backToContainer()">
+        <span nz-icon nzType="arrow-right"></span> {{ backLabel() }}
+      </button>
+      <app-summary-detail [summaryId]="id" mode="page" />
+    } @else {
+      <button type="button" class="back-link back" (click)="backToList()">
+        <span nz-icon nzType="arrow-right"></span> חזרה אל "{{ viewTitle() }}"
+      </button>
+      <app-running-page [id]="rid" [embedded]="true" />
+    }
+  } @else {
+    <app-summary-browser
+      [ownerId]="userId()"
+      [scope]="scope()"
+      [openRunningInPlace]="true"
+      [excelActions]="true"
+      [groupSumaroons]="true"
+      [accessCount]="true"
+      [pageTitle]="viewTitle()"
+      [searchPlaceholder]="folderId() ? 'חיפוש בתוך ' + viewTitle() : 'חיפוש תמציות'"
+      [empty]="empty()"
+    >
+      <a browser-actions nz-button nzType="primary" routerLink="/summaries/new" appAltKey="newSummary"><span nz-icon nzType="plus"></span> תמצית חדשה</a>
+      @if (folder(); as f) {
+        <div browser-header class="view-hint">כולל את כל תיקיות המשנה של "{{ f.name }}"</div>
+      }
+      @if (folder() || subfolders().length) {
+        <div browser-below-title class="below-title">
+          @if (folder()) {
+            <div class="crumbs" aria-label="מיקום התיקייה">
+              <a routerLink="/summaries">כל התמציות</a>
+              @for (a of ancestors(); track a._id) {
+                <span class="sep" nz-icon nzType="left" aria-hidden="true"></span>
+                <a routerLink="/summaries" [queryParams]="{ folderId: a._id }">{{ a.name }}</a>
+              }
+            </div>
+          }
+          @if (subfolders().length) {
+            <app-folder-cards [folders]="subfolders()" [totals]="folderTotals()" />
+          }
+        </div>
+      }
+    </app-summary-browser>
+  }
+</div>

@@ -97,6 +97,10 @@
   }
 }
 
+.draft-note {
+  margin: 0 0 1em;
+}
+
 .title {
   font-size: 17px;
   font-weight: 800;
@@ -114,7 +118,7 @@
   border-radius: $border-radius;
   padding: 8px 12px;
   font-size: 12.5px;
-  h4 {
+  .notes-title {
     margin: 0 0 6px;
     font-weight: 700;
   }
@@ -143,6 +147,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.permissions,
+.tagged,
+.running-header {
   .perm {
     display: inline-flex;
     align-items: center;
@@ -151,7 +160,7 @@
     background: $gray-tag;
     padding: 1px 10px;
     border-radius: 12px;
-    i {
+    .dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
@@ -179,4 +188,63 @@
   h3 { font-size: 1.1em; }
   :is(h4, h5, h6) { font-size: 1em; }
   :is(h1, h2, h3, h4, h5, h6) { font-weight: 700; margin: 0.4em 0 0.2em; }
+}
+
+// ---- running summary / sumaroon ----
+.running-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-inline-start: 4px solid $accent;
+  border-radius: $border-radius;
+  background: $app-background;
+  .part-of {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .parent-link {
+    padding: 0;
+    height: auto;
+    font-weight: 700;
+  }
+  .inherited {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+}
+.kind-badge {
+  margin-inline-start: 8px;
+  font-size: 12px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: $gray-tag;
+  &.running {
+    background: $accent;
+    color: $white;
+  }
+}
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.detail > app-skeleton {
+  padding-top: 18px;
+}
+
+.quote-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: $gray;
 }

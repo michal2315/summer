@@ -1,5 +1,19 @@
 @use 'tokens' as *;
 
+// Token colors, shared by the box, and the popup titles.
+$tok-user: #1d39c4;
+$tok-user-bg: #e8edff;
+$tok-type: #08793a;
+$tok-type-bg: #e3f6ea;
+$tok-and: $accent;
+$tok-and-bg: #e4e4f4;
+$tok-or: #b54d00;
+$tok-or-bg: #ffead6;
+$tok-not: #c41d3a;
+$tok-not-bg: #fde3e8;
+$tok-phrase: #8a6400;
+$tok-phrase-bg: #fff3bf;
+
 :host {
   display: block;
   position: relative;
@@ -15,25 +29,136 @@
 .form {
   flex: 1;
   min-width: 0;
+  position: relative;
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding-inline: 14px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 24px;
+  background: $white;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+
+  &:hover {
+    border-color: $gray;
+  }
+  &.open,
+  &.focused {
+    border-color: $dark-blue;
+    box-shadow: 0 0 0 3px rgba(5, 4, 61, 0.08);
+  }
+}
+
+.search-icon {
+  color: $gray;
+}
+
+// The mirror and the input must lay out text identically: same font, no padding, no per-token spacing.
+.field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.mirror,
+.input {
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: normal;
+  white-space: pre;
+}
+
+.mirror {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  color: $dark-blue;
 }
 
 .input {
-  border-radius: 24px;
-  background: $white;
   position: relative;
-  z-index: 11;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: $dark-blue;
+
+  &::placeholder {
+    color: $gray;
+  }
+  &::selection {
+    background: rgba(29, 57, 196, 0.2);
+  }
+}
+
+// Every marked token is a filled pill, with the background drawn by box-shadow so it keeps the exact width of its
+// text (the mirror must line up with the input glyph for glyph).
+@mixin pill($color, $bg) {
+  color: $color;
+  background: $bg;
+  box-shadow: 0 0 0 2px $bg;
+}
+.tok {
+  border-radius: 4px;
+}
+.tok-user {
+  @include pill($tok-user, $tok-user-bg);
+}
+.tok-type {
+  @include pill($tok-type, $tok-type-bg);
+}
+.tok-and {
+  @include pill($tok-and, $tok-and-bg);
+}
+.tok-or {
+  @include pill($tok-or, $tok-or-bg);
+}
+.tok-not {
+  @include pill($tok-not, $tok-not-bg);
+}
+.tok-phrase {
+  @include pill($tok-phrase, $tok-phrase-bg);
+}
+.tok-capsule {
+  @include pill($capsule, $capsule-bg);
+  // The name's underscores keep their width but read as spaces.
+  .us {
+    color: transparent;
+  }
+}
+// The popup title icon only takes the color.
+.sigil.tok-capsule {
+  background: none;
+  box-shadow: none;
 }
 
 .icon-btn {
   all: unset;
   cursor: pointer;
   color: $gray;
-  padding: 0 4px;
+  padding: 0 2px;
   display: inline-flex;
   &:hover,
   &:focus-visible {
     color: $dark-blue;
   }
+}
+
+.icon-btn.on-alert {
+  color: $primary-pink;
 }
 
 .kbd {
@@ -42,63 +167,152 @@
   padding: 0 6px;
   font-size: 12px;
   color: $gray;
-  margin-inline-start: 6px;
+  margin-inline-start: 4px;
+  cursor: help;
+}
+
+// Cheat-sheet popover (rendered in an overlay, but the template belongs to this component so its styles apply).
+.cheats {
+  display: flex;
+  flex-direction: column;
+  min-width: 300px;
+}
+
+.cheat {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 5px 0;
+  & + & {
+    border-top: 1px solid #f0f0f5;
+  }
+}
+
+.cheat-example {
+  flex: 0 0 130px;
+  font-size: 13px;
+  white-space: pre;
+}
+
+.cheat-hint {
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.divider {
+  width: 1px;
+  height: 18px;
+  background: #e4e4ec;
+  margin-inline: 2px;
+}
+
+.advanced-btn {
+  width: 26px;
+  height: 26px;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  &.on {
+    color: $white;
+    background: $accent;
+    &:hover,
+    &:focus-visible {
+      color: $white;
+    }
+  }
 }
 
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 4, 61, 0.25);
   z-index: 10;
-  animation: fade 0.15s ease-out;
 }
 
-.panel {
+.advanced {
   position: absolute;
   top: calc(100% + 8px);
   inset-inline: 0;
   z-index: 12;
-  background: $white;
-  border-radius: 15px;
-  box-shadow: $shadow;
-  padding: 14px 16px 10px;
-  max-height: min(75vh, 720px);
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  animation: slideDown 0.18s ease-out;
 }
 
-.close {
-  all: unset;
-  cursor: pointer;
+// Spans the whole search box.
+.popup {
   position: absolute;
-  top: 12px;
-  inset-inline-end: 14px;
+  top: calc(100% + 6px);
+  inset-inline: 0;
+  z-index: 12;
+  background: $white;
+  border-radius: 12px;
+  box-shadow: $shadow;
+  padding: 8px;
+  max-height: min(60vh, 420px);
+  overflow: auto;
+  animation: slideDown 0.12s ease-out;
+}
+
+.popup-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $dark-gray;
+}
+
+.sigil {
+  min-width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+
+  &.active {
+    background: $input-color;
+  }
+}
+
+.option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-token {
+  font-size: 12px;
   color: $gray;
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+.empty {
+  padding: 8px;
+  color: $gray;
+  font-size: 13px;
+}
 
-  h4 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+.capsule-chips {
+  gap: 6px;
+}
+
+.popup-hint {
+  padding: 0 8px 4px;
+  font-size: 12px;
+  color: $gray;
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 2px 8px 6px;
   .chip {
     cursor: pointer;
     margin: 0;
@@ -108,51 +322,31 @@
   }
 }
 
-.colors {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  &.selected {
-    border-color: $dark-blue;
-    box-shadow: 0 0 0 2px $white inset;
-  }
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  nz-select,
-  nz-range-picker {
-    width: 100%;
-  }
-}
-
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid #f0f0f0;
-  padding-top: 12px;
-}
-
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-4px);
   }
 }
-@keyframes fade {
-  from {
-    opacity: 0;
+
+// Save-search popover (rendered in an overlay, but the template belongs to this component so its styles apply).
+.save-search {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.save-hint {
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.save-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  .spacer {
+    flex: 1;
   }
 }

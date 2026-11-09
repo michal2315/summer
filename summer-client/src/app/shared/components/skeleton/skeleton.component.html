@@ -1,0 +1,112 @@
+<!-- Widths vary by index (not randomly) so the placeholders look like text yet stay put between renders. -->
+@switch (variant()) {
+  @case ('rows') {
+    @for (i of items(); track i) {
+      <div class="row">
+        <div class="stack">
+          <div class="bone line strong" [style.width.%]="30 + ((i * 17) % 25)"></div>
+          <div class="bone line" [style.width.%]="50 + ((i * 23) % 35)"></div>
+        </div>
+        <div class="bone pill"></div>
+      </div>
+    }
+  }
+  @case ('tree') {
+    @for (i of items(); track i) {
+      <div class="node">
+        <div class="bone icon"></div>
+        <div class="bone line" [style.width.%]="40 + ((i * 23) % 45)"></div>
+      </div>
+    }
+  }
+  @case ('tiles') {
+    @for (i of items(); track i) {
+      <div class="tile">
+        <div class="head">
+          <div class="bone avatar"></div>
+          <div class="stack">
+            <div class="bone line name"></div>
+            <div class="bone line small"></div>
+          </div>
+        </div>
+        <div class="bone line title" [style.width.%]="55 + ((i * 17) % 30)"></div>
+        <div class="bone line"></div>
+        <div class="bone line" [style.width.%]="60 + ((i * 23) % 30)"></div>
+        <div class="foot">
+          <div class="bone pill"></div>
+          <div class="bone pill"></div>
+        </div>
+      </div>
+    }
+  }
+  @case ('timeline') {
+    @for (i of items(); track i) {
+      <div class="step">
+        <div class="when">
+          <div class="bone line"></div>
+          <div class="bone line small"></div>
+        </div>
+        <div class="rail"><div class="bone dot"></div></div>
+        <div class="what">
+          <div class="bone line strong" [style.width.%]="35 + ((i * 17) % 30)"></div>
+          <div class="bone line"></div>
+          <div class="bone line" [style.width.%]="45 + ((i * 23) % 40)"></div>
+        </div>
+      </div>
+    }
+  }
+  @case ('detail') {
+    <div class="head">
+      <div class="bone avatar large"></div>
+      <div class="stack">
+        <div class="bone line name"></div>
+        <div class="bone line small"></div>
+      </div>
+    </div>
+    <div class="bone line heading"></div>
+    <div class="meta">
+      <div class="bone line" style="width: 40%"></div>
+      <div class="bone line" style="width: 32%"></div>
+      <div class="bone line" style="width: 48%"></div>
+    </div>
+    <div class="foot">
+      <div class="bone pill"></div>
+      <div class="bone pill"></div>
+      <div class="bone pill"></div>
+    </div>
+    <div class="body">
+      @for (i of [0, 1, 2, 3, 4, 5, 6]; track i) {
+        <div class="bone line" [style.width.%]="i === 6 ? 45 : 82 + ((i * 7) % 18)"></div>
+      }
+    </div>
+  }
+  @case ('header') {
+    <div class="bone avatar huge"></div>
+    <div class="stack">
+      <div class="bone line heading"></div>
+      <div class="bone line small"></div>
+    </div>
+    <div class="bone button"></div>
+  }
+  @case ('form') {
+    @for (i of items(); track i) {
+      <div class="field">
+        <div class="bone line label" [style.width.px]="70 + ((i * 29) % 60)"></div>
+        <div class="bone input"></div>
+      </div>
+    }
+  }
+  @case ('text') {
+    @for (i of items(); track i) {
+      <div class="bone line" [style.width.%]="i === count() - 1 && count() > 1 ? 45 : 75 + ((i * 13) % 25)"></div>
+    }
+  }
+  @case ('chips') {
+    @for (i of items(); track i) {
+      <div class="chip">
+        <div class="bone medal"></div>
+        <div class="bone line"></div>
+      </div>
+    }
+  }
+}

@@ -27,7 +27,7 @@ export class WhatsNewService {
   }
 
   async open(): Promise<void> {
-    const { WhatsNewModalComponent } = await import('./whats-new-modal.component');
+    const { WhatsNewModalComponent } = await import('./whats-new-modal/whats-new-modal.component');
     this.modal.create({ nzTitle: 'מה חדש ב-Summer', nzContent: WhatsNewModalComponent, nzFooter: null, nzWidth: 620 });
   }
 

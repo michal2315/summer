@@ -1,8 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser } from '../auth/identity-provider';
-import { collectionVisible } from '../collections/collection.access';
-import { toApiPermission, toRef } from '../common/api-types';
+import { ApiBulkResult, toApiPermission, toRef } from '../common/api-types';
 import { parse, unique, zId } from '../common/validation';
 import { DatabaseService } from '../database/database.service';
 import { validPermissionSet } from '../permissions/permission-assignment';
@@ -18,6 +17,10 @@ export interface ApiFolder {
   name: string;
   parentId: string | null;
   itemCount: number;
+  /** Distinct summaries the caller can see in the folder and all its subfolders (one in several of them counts once). */
+  subtreeCount: number;
+  /** Summaries placed directly in the folder that the caller lacks permissions to see. */
+  hiddenCount: number;
   permissions: ReturnType<typeof toApiPermission>[];
   managers: string[];
   createdBy: ReturnType<typeof toRef>;
@@ -25,31 +28,31 @@ export interface ApiFolder {
   updatedAt: string;
 }
 
+/** A summary placed in a folder: 'summary' or 'running' (sumaroons are never placed in folders). */
 export interface ApiFolderItem {
-  type: 'collection' | 'summary';
   _id: string;
   name: string;
-  /** summaries only: 'summary' or 'running' (sumaroons are never placed in folders) */
-  kind?: 'summary' | 'running' | 'sumaroon';
+  kind: 'summary' | 'running' | 'sumaroon';
 }
 
 const payloadSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  /** create only; ignored on edit (a folder's parent never changes) */
+  /** create only; ignored on edit (moving is POST /folder/:id/move) */
   parentId: zId.nullish(),
   permissions: z.array(zId).max(100).default([]),
   managers: z.array(zId).max(200).default([]),
 });
 
+const moveSchema = z.object({ parentId: zId.nullable() });
+
 const itemsSchema = z.object({
-  items: z
-    .array(z.object({ type: z.enum(['collection', 'summary']), _id: zId }))
-    .min(1)
-    .max(500),
+  summaryIds: z.array(zId).min(1).max(500),
+  /** Bulk mode: place every eligible item and report the rest, instead of rejecting the whole request. */
+  partial: z.boolean().default(false),
 });
 
 /**
- * Hierarchy rules (decision record F1–F6): folders are viewed like collections (all-of, at least one permission,
+ * Hierarchy rules (decision record F1–F6): folders are viewed by permissions (all-of, at least one,
  * plus every ancestor's); they are navigation only and do not restrict their items; managers edit, create
  * subfolders, place/remove items and delete; placing an item also needs edit rights on that item.
  */
@@ -70,11 +73,8 @@ export class FoldersService {
 
   async items(me: CurrentUser, id: string): Promise<ApiFolderItem[]> {
     await this.assertVisible(me, id);
-    const { collections, summaries } = await this.repo.items(id, this.summaries.visible(me), collectionVisible(me));
-    return [
-      ...collections.map((c) => ({ type: 'collection' as const, _id: c.id, name: c.name })),
-      ...summaries.map((s) => ({ type: 'summary' as const, _id: s.id, name: s.name, kind: s.kind })),
-    ];
+    const rows = await this.repo.items(id, this.summaries.visible(me));
+    return rows.map((s) => ({ _id: s.id, name: s.name, kind: s.kind }));
   }
 
   async create(me: CurrentUser, body: unknown): Promise<ApiFolder> {
@@ -112,60 +112,88 @@ export class FoldersService {
     return folder ?? {};
   }
 
-  /** Move items into the folder (out of any previous folder). Needs folder management AND edit rights on each item. */
-  async addItems(me: CurrentUser, id: string, body: unknown): Promise<void> {
-    const { summaryIds, collectionIds } = this.split(parse(itemsSchema, body));
+  /** Add items to the folder, keeping the folders they are already in. Needs folder management AND edit rights on each item. */
+  /**
+   * Strict (default): every item must be placeable, else 403 (not its editor) / 400 (a draft or a sumaroon), and nothing
+   * is placed. `partial`: places the placeable ones and reports the rest.
+   */
+  async addItems(me: CurrentUser, id: string, body: unknown): Promise<ApiBulkResult> {
+    const input = parse(itemsSchema, body);
+    const summaryIds = unique(input.summaryIds);
     await this.assertEditable(me, id);
 
     const editableSummaries = await this.summaries.visibleIds(me, summaryIds, 'edit');
-    const editableCollections = await this.repo.editableCollectionIds(me, collectionIds);
-    if (summaryIds.some((s) => !editableSummaries.has(s)) || collectionIds.some((c) => !editableCollections.has(c)))
-      throw new ForbiddenException('only an item’s editors may place it in a folder');
-    for (const sid of summaryIds) {
+    const skipped: ApiBulkResult['skipped'] = summaryIds.filter((i) => !editableSummaries.has(i)).map((i) => ({ id: i, reason: 'not-editor' }));
+    if (!input.partial && skipped.length) throw new ForbiddenException('only a summary’s editors may place it in a folder');
+
+    const placeable: string[] = [];
+    for (const sid of summaryIds.filter((s) => editableSummaries.has(s))) {
       const row = await this.summaries.findById(sid);
-      if (row?.isDraft) throw new BadRequestException('drafts cannot be placed in a folder');
-      if (row?.kind === 'sumaroon') throw new BadRequestException('a sumaroon lives only inside its running summary');
+      const reason = row?.isDraft ? 'draft' : row?.kind === 'sumaroon' ? 'sumaroon' : null;
+      if (reason && !input.partial)
+        throw new BadRequestException(reason === 'draft' ? 'drafts cannot be placed in a folder' : 'a sumaroon lives only inside its running summary');
+      if (reason) skipped.push({ id: sid, reason });
+      else placeable.push(sid);
     }
 
     await this.database.transaction(async () => {
       if (!(await this.repo.lockForUpdate(id))) throw new NotFoundException();
-      await this.repo.place(id, summaryIds, collectionIds);
+      await this.repo.place(id, placeable);
       await this.repo.touch(id);
     });
+    return { applied: placeable, skipped };
   }
 
   async removeItems(me: CurrentUser, id: string, body: unknown): Promise<void> {
-    const { summaryIds, collectionIds } = this.split(parse(itemsSchema, body));
+    const summaryIds = unique(parse(itemsSchema, body).summaryIds);
     await this.assertEditable(me, id);
     await this.database.transaction(async () => {
-      await this.repo.unplace(id, summaryIds, collectionIds);
+      await this.repo.unplace(id, summaryIds);
       await this.repo.touch(id);
     });
   }
 
-  /** Deletes the folder and its subfolders; the summaries and collections inside are only taken out of the hierarchy. */
+  /**
+   * Move a folder (with its subtree) under `parentId`, or to the root with null. Needs management of the folder, of the
+   * parent it leaves and of the one it enters. A folder cannot go inside itself.
+   */
+  async move(me: CurrentUser, id: string, body: unknown): Promise<ApiFolder | object> {
+    const { parentId } = parse(moveSchema, body);
+    await this.assertEditable(me, id);
+    if (parentId) await this.assertEditable(me, parentId);
+    await this.database.transaction(async () => {
+      await this.repo.lockMoves();
+      const folder = await this.repo.findById(id);
+      if (!folder) throw new NotFoundException();
+      if (folder.parentId === parentId) return;
+      if (folder.parentId) await this.assertEditable(me, folder.parentId);
+      if (parentId && (await this.repo.isWithin(parentId, id))) throw new BadRequestException('a folder cannot move inside itself');
+      await this.repo.setParent(id, parentId);
+    });
+    // Under a stricter parent the caller may no longer see it.
+    const [moved] = await this.hydrate(me, [...(await this.repo.visibleIds(me, [id]))]);
+    return moved ?? {};
+  }
+
+  /** Deletes the folder and its subfolders; the summaries inside are only taken out of the hierarchy. */
   async delete(me: CurrentUser, id: string): Promise<void> {
     await this.assertEditable(me, id);
     await this.repo.delete(id);
   }
 
-  private split(input: z.output<typeof itemsSchema>) {
-    return {
-      summaryIds: unique(input.items.filter((i) => i.type === 'summary').map((i) => i._id)),
-      collectionIds: unique(input.items.filter((i) => i.type === 'collection').map((i) => i._id)),
-    };
-  }
-
   private async hydrate(me: CurrentUser, ids: string[]): Promise<ApiFolder[]> {
-    const [rows, counts] = await Promise.all([
+    const [rows, counts, subtree] = await Promise.all([
       this.repo.loadFull(ids),
-      this.repo.itemCounts(ids, this.summaries.visible(me), collectionVisible(me)),
+      this.repo.itemCounts(ids, this.summaries.visible(me)),
+      this.repo.subtreeCounts(ids, this.summaries.visible(me)),
     ]);
     return rows.map((f) => ({
       _id: f.id,
       name: f.name,
       parentId: f.parentId,
-      itemCount: counts.get(f.id) ?? 0,
+      itemCount: counts.get(f.id)?.visible ?? 0,
+      subtreeCount: subtree.get(f.id) ?? 0,
+      hiddenCount: counts.get(f.id)?.hidden ?? 0,
       permissions: f.permissions.map((p) => toApiPermission(p.permission)).sort((a, b) => a.name.localeCompare(b.name, 'he')),
       managers: f.editors.map((e) => e.userId),
       createdBy: toRef(f.author),

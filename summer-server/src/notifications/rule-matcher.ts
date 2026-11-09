@@ -1,3 +1,5 @@
+import { CapsuleLookup, NO_CAPSULES, capsuleMatchesText } from '../capsules/capsule';
+import { searchKey } from '../common/sql';
 import { RuleCondition } from '../database/schema';
 
 export const RULE_FUNCTIONS = [
@@ -12,7 +14,15 @@ export const RULE_FUNCTIONS = [
   'dateBetween',
   'arrayContains',
   'arrayNotContains',
+  /** content: [capsule id, capsule name] (the name is only for display) */
+  'capsuleMatches',
+  'capsuleNotMatches',
 ] as const;
+
+export const CAPSULE_FUNCTIONS: readonly string[] = ['capsuleMatches', 'capsuleNotMatches'];
+
+/** Not a catalog field: a rule condition on it reads the summary's title, content and notes. */
+export const SUMMARY_TEXT_FIELD = { _id: 'summary-text', name: 'תוכן התמצית', type: 'string' } as const;
 
 type Operand = string | number | null | undefined;
 
@@ -38,15 +48,15 @@ function between(x: number, lo: number | null, hi: number | null): boolean {
   return (lo === null || x >= lo) && (hi === null || x <= hi);
 }
 
-/** One condition against a summary's value for that field. A missing value never matches. */
-export function matchCondition(c: RuleCondition, value: string | undefined): boolean {
+/** One condition against a summary's value for that field. A missing value, or a capsule that no longer exists, never matches. */
+export function matchCondition(c: RuleCondition, value: string | undefined, capsules: CapsuleLookup = NO_CAPSULES): boolean {
   if (value === undefined || value === '') return false;
   const [a, b] = c.content;
   switch (c.funcName) {
     case 'stringContains':
-      return a !== null && a !== undefined && value.toLowerCase().includes(String(a).toLowerCase());
+      return a !== null && a !== undefined && searchKey(value).includes(searchKey(String(a)));
     case 'stringNotContains':
-      return a !== null && a !== undefined && !value.toLowerCase().includes(String(a).toLowerCase());
+      return a !== null && a !== undefined && !searchKey(value).includes(searchKey(String(a)));
     case 'numberBigger':
     case 'numberSmaller':
     case 'numberEqual':
@@ -73,12 +83,23 @@ export function matchCondition(c: RuleCondition, value: string | undefined): boo
       const has = listOf(value).includes(String(a ?? ''));
       return c.funcName === 'arrayContains' ? has : !has;
     }
+    case 'capsuleMatches':
+    case 'capsuleNotMatches': {
+      const capsule = capsules.byId(String(a ?? ''));
+      if (!capsule) return false;
+      return capsuleMatchesText(capsule, value) === (c.funcName === 'capsuleMatches');
+    }
     default:
       return false;
   }
 }
 
-/** A rule matches when every condition matches (AND), like the client's rule description «… וגם …». */
-export function matchRule(conditions: RuleCondition[], values: Map<string, string>): boolean {
-  return conditions.length > 0 && conditions.every((c) => matchCondition(c, values.get(c.field._id)));
+/** Every condition matches («… וגם …»), or with `matchAny` at least one («… או …»). No conditions never match. */
+export function matchRule(conditions: RuleCondition[], values: Map<string, string>, capsules: CapsuleLookup = NO_CAPSULES, matchAny = false): boolean {
+  const hit = (c: RuleCondition) => matchCondition(c, values.get(c.field._id), capsules);
+  return conditions.length > 0 && (matchAny ? conditions.some(hit) : conditions.every(hit));
 }
+
+/** Capsule ids the rules' conditions refer to. */
+export const ruleCapsuleIds = (conditions: RuleCondition[]) =>
+  conditions.flatMap((c) => (CAPSULE_FUNCTIONS.includes(c.funcName) && c.content[0] ? [String(c.content[0])] : []));

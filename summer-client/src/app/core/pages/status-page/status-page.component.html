@@ -1,0 +1,20 @@
+<div class="result">
+  <!-- Easter egg: clicking Summy swaps it for Summy Runner. -->
+  @if (playing()) {
+    <app-summy-runner [autofocus]="true" />
+  } @else {
+    <button type="button" class="summy-btn" (click)="playing.set(true)" aria-label="Summy">
+      <app-summy [mood]="copy.mood" [size]="140" />
+    </button>
+  }
+  <div class="title" role="heading" aria-level="1">{{ copy.title }}</div>
+  @if (copy.sub) {
+    <div class="sub">{{ copy.sub }}</div>
+  }
+  <div class="extra">
+    <a nz-button nzType="primary" routerLink="/">{{ copy.button }}</a>
+    @if (kind === 'server-error' || kind === 'unauthorized') {
+      <a nz-button nzType="link" [href]="mailto">ספרו לנו על הבעיה</a>
+    }
+  </div>
+</div>

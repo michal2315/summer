@@ -1,6 +1,5 @@
 import { ISummarySearch, SearchType } from '../../shared/models';
-import { activeFilterCount, searchFromParams, searchToParams } from './search-query';
-import { hashtags } from './create-summary/create-summary.component';
+import { activeFilterCount, searchFromParams, searchToParams, alertSearch, sameAlertSearch } from './search-query';
 
 describe('search query params', () => {
   it('round-trips a full search through the URL', () => {
@@ -11,10 +10,11 @@ describe('search query params', () => {
       colors: ['#ff0000'],
       users: ['u2'],
       labels: ['מועד א׳'],
-      collections: ['c1'],
+      folders: ['f1'],
       dates: ['2026-10-01T00:00:00.000Z', '2026-10-20T00:00:00.000Z'],
       createdDates: undefined,
       sort: 'title',
+      query: undefined,
     };
     const params = Object.fromEntries(Object.entries(searchToParams(search)).filter(([, v]) => v !== null));
     expect(searchFromParams(params)).toEqual(search);
@@ -33,12 +33,13 @@ describe('search query params', () => {
   });
 });
 
-describe('hashtags', () => {
-  it('turns #words in content into labels', () => {
-    expect(hashtags('<p>סיכום #חשוב ועוד #מועד_א</p><p>#שני</p>')).toEqual(['חשוב', 'מועד א', 'שני']);
+describe('search alerts', () => {
+  it('keep only the filters that select summaries', () => {
+    expect(alertSearch({ text: ' exam ', sort: 'title', skip: 20, isProfile: true, colors: [], labels: ['x'] })).toEqual({ text: 'exam', labels: ['x'] });
   });
 
-  it('ignores # inside words', () => {
-    expect(hashtags('<p>C# ו-a#b</p>')).toEqual([]);
+  it('compare by those filters only', () => {
+    expect(sameAlertSearch({ text: 'a', labels: ['x'], sort: 'title' }, { labels: ['x'], text: 'a ', skip: 40 })).toBe(true);
+    expect(sameAlertSearch({ text: 'a' }, { text: 'b' })).toBe(false);
   });
 });

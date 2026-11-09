@@ -1,16 +1,205 @@
 @use 'tokens' as *;
 @use 'card';
 
-.collections {
-  all: unset;
+.card {
   cursor: pointer;
+}
+
+// Folder chips and the draft badge share one tag look.
+.folder,
+.draft-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 140px;
   background: $gray-tag;
   border-radius: 10px;
   padding: 0 7px;
+  line-height: 18px;
+  font-size: 11.5px;
   font-weight: 700;
+  color: $dark-blue;
 }
 
-.seen {
-  color: #ff6975;
+.meta .date {
+  color: $gray;
+  font-size: 11px;
+  margin-inline-start: 2px;
+}
+.folder-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Selection mode: bulk edits will skip this summary.
+.no-edit {
+  flex: none;
+  color: $gray;
   font-size: 13px;
+}
+
+// Controls in fixed-width slots at the row's end: an absent control leaves its slot empty instead of shifting the rest.
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.slot {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+
+// Unread: a dot before the title, instead of marking the read ones.
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  .title {
+    flex: 1;
+    min-width: 0;
+  }
+}
+.unread {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff6975;
+  transform: translateY(-1px);
+}
+
+// No colour yet: the picker appears only while the card is hovered or focused.
+.color.unset {
+  opacity: 0;
+  transition: opacity $transition;
+}
+.card:hover .color.unset,
+.card:focus-within .color.unset {
+  opacity: 1;
+}
+@media (hover: none) {
+  .color.unset {
+    opacity: 1;
+  }
+}
+
+// ---- running summary / sumaroon ----
+.running-strip {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: $accent;
+  padding: 4px 10px;
+  margin: -4px -4px 6px;
+  border-radius: $border-radius $border-radius 0 0;
+  background: $app-background;
+  border-bottom: 1px solid $input-color;
+  .parent-title {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &:hover {
+    background: $input-color;
+  }
+  &:focus-visible {
+    outline: 2px solid $accent;
+  }
+}
+// A running summary reads as a stack of three cards: two offset "sheets" behind it, a grey banner on top.
+$sheet-1: #d6d6dc;
+$sheet-2: #e4e4e8;
+$stack:
+  -6px 6px 0 -1px $white,
+  -6px 6px 0 0 $sheet-1,
+  -12px 12px 0 -1px $white,
+  -12px 12px 0 0 $sheet-2;
+
+:host(.running) {
+  padding: 0 0 12px 12px;
+  .card {
+    border-inline-start-color: $gray;
+    box-shadow:
+      $stack,
+      0 1px 6px rgba(0, 0, 0, 0.07);
+    // Keep the stack on hover (the shared card style swaps the shadow).
+    &:hover {
+      box-shadow:
+        $stack,
+        0 2px 12px rgba(0, 0, 0, 0.14);
+    }
+  }
+}
+.running-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: $dark-blue;
+  background: $gray-tag;
+  min-height: 30px;
+  padding: 5px 12px;
+  margin: -8px -12px 6px;
+  border-radius: 6px 6px 0 0;
+  .range {
+    color: $dark-gray;
+  }
+}
+
+.running-banner .banner-title { font-weight: 700; }
+
+// Search hits the preview doesn't show (empty without a search).
+.snippets {
+  margin: 6px 0 2px;
+  &:empty {
+    display: none;
+  }
+}
+
+// Running summary: its first sumaroons as a numbered list, so it reads as a series without relying on colour.
+.sumaroon-preview {
+  list-style: none;
+  margin: 2px 0 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: $app-background;
+  border-radius: 6px;
+  font-size: 12px;
+  li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .n {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    background: $white;
+    border: 1px solid $gray;
+  }
+  .t {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .more {
+    color: $dark-gray;
+    padding-inline-start: 24px;
+  }
 }

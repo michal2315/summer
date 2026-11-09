@@ -1,0 +1,79 @@
+@use 'tokens' as *;
+
+.info {
+  width: 280px;
+  max-width: 80vw;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.caption {
+  font-size: 11px;
+  font-weight: 700;
+  color: $gray;
+}
+
+.path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  .crumb {
+    color: $dark-gray;
+    border-radius: $radius-sm;
+    padding: 0 3px;
+    &:hover {
+      color: $orange-strong;
+      background: $orange-50;
+    }
+  }
+  .current {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 700;
+    color: $orange-strong;
+  }
+  .sep {
+    color: $gray;
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: $dark-gray;
+}
+
+.managers {
+  flex-wrap: wrap;
+  .label {
+    color: $gray;
+  }
+  .manager {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: $dark-blue;
+    &:hover {
+      color: $pink-strong;
+    }
+  }
+}
+
+.muted {
+  color: $gray;
+}
+
+.open {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 6px;
+  font-weight: 700;
+  color: $pink-strong;
+}

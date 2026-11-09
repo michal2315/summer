@@ -1,0 +1,21 @@
+@if (eggs.flash() === 'tavor') {
+  <div class="flash" aria-hidden="true">
+    <div class="scan"></div>
+    <div class="lock">
+      <svg class="reticle" viewBox="0 0 200 200">
+        <circle class="ring" cx="100" cy="100" r="92" />
+        <circle class="ring thin" cx="100" cy="100" r="70" />
+        <path class="cross" d="M100 0 v70 M100 130 v70 M0 100 h70 M130 100 h70" />
+        <path class="ticks" d="M100 20 v10 M100 170 v10 M20 100 h10 M170 100 h10" />
+        <circle class="dot" cx="100" cy="100" r="4" />
+      </svg>
+      <div class="brackets">
+        <span class="corner tl"></span>
+        <span class="corner tr"></span>
+        <span class="corner bl"></span>
+        <span class="corner br"></span>
+      </div>
+      <div class="summy"><app-summy mood="soldier" [size]="170" /></div>
+    </div>
+  </div>
+}

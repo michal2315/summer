@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgEnum, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgEnum, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, id, updatedAt } from './columns';
 
 /**
@@ -52,12 +52,8 @@ export const contentTypeFields = pgTable(
 );
 
 /** Reusable labels (autocomplete + classification). Labels have no viewing permissions. */
-export const labels = pgTable(
-  'labels',
-  {
-    id: id(),
-    name: text().notNull().unique(),
-    createdAt: createdAt(),
-  },
-  (t) => [index('labels_name_trgm').using('gin', t.name.op('gin_trgm_ops'))],
-);
+export const labels = pgTable('labels', {
+  id: id(),
+  name: text().notNull().unique(),
+  createdAt: createdAt(),
+});

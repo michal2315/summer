@@ -1,42 +1,83 @@
-<app-resizable-page [asideOpen]="!!openId()" (closeAside)="close()">
-  <div main class="main">
+@if (detailAside()) {
+  <app-resizable-page [asideOpen]="!!openId()" (closeAside)="close()">
+    <div main class="main"><ng-container *ngTemplateOutlet="mainContent" /></div>
+
+    <div aside>
+      @if (openId(); as id) {
+        <app-summary-detail [summaryId]="id" [search]="search()" [fullScreen]="fullScreenLink(id)" (closed)="close()" />
+      }
+    </div>
+  </app-resizable-page>
+} @else {
+  <div class="main"><ng-container *ngTemplateOutlet="mainContent" /></div>
+}
+
+<ng-template #mainContent>
+  <div class="top" [class.sticky]="stickyHeader()">
     <div class="search-row">
-      <app-summary-search [search]="search()" [showBell]="showBell()" [placeholder]="searchPlaceholder()" (searchChange)="onSearch($event)" />
+      <app-summary-search [search]="search()" [placeholder]="searchPlaceholder()" (searchChange)="onSearch($event)" />
     </div>
 
     <ng-content select="[browser-header]" />
+  </div>
 
-    @if (showTabs()) {
-      <nz-tabset [nzSelectedIndex]="tabIndex()" (nzSelectedIndexChange)="setTab($event)" nzSize="small" class="tabs">
-        @for (t of tabs; track t.value) {
-          <nz-tab [nzTitle]="t.label + ' (' + store.lengths()[t.key] + ')'" />
+  @if (showTabs()) {
+    <nz-tabset [nzSelectedIndex]="tabIndex()" (nzSelectedIndexChange)="setTab($event)" nzSize="small" class="tabs">
+      @for (t of tabs; track t.value) {
+        <nz-tab [nzTitle]="t.label + ' (' + store.lengths()[t.key] + ')'" />
+      }
+    </nz-tabset>
+  }
+
+  <div class="toolbar">
+    @if (pageTitle(); as title) {
+      <div class="title-group">
+        <div class="page-title" role="heading" aria-level="1">{{ title }}</div>
+        @if (accessCount()) {
+          <app-access-count [shown]="store.total()" [scope]="scope()" [search]="search()" [searching]="filtered()" />
+        } @else {
+          <span class="count-pill" [attr.aria-label]="store.total() + ' ' + tabs[tabIndex()].label">{{ store.total() }}</span>
         }
-      </nz-tabset>
-    }
-
-    <div class="toolbar">
+      </div>
+    } @else {
       <span class="count">{{ store.total() }} {{ tabs[tabIndex()].label }}</span>
-      <app-summary-actions-bar [excelActions]="excelActions()" [collection]="collection()" />
-      <span class="spacer"></span>
+    }
+    <app-summary-actions-bar [excelActions]="excelActions()" />
+    <span class="spacer"></span>
+    @if (!runningId()) {
       <app-sort-row [sort]="sort()" (sortChange)="onSort($event)" />
-      <nz-radio-group [ngModel]="view()" (ngModelChange)="setView($event)" nzSize="small" nzButtonStyle="solid" aria-label="תצוגה">
-        <label nz-radio-button nzValue="list" aria-label="תצוגת כרטיסים"><span nz-icon nzType="unordered-list"></span></label>
-        <label nz-radio-button nzValue="table" aria-label="תצוגת טבלה"><span nz-icon nzType="table"></span></label>
-      </nz-radio-group>
+    }
+    <nz-radio-group [ngModel]="view()" (ngModelChange)="setView($event)" nzSize="small" nzButtonStyle="solid" aria-label="תצוגה">
+      @if (runningId()) {
+        <label nz-radio-button nzValue="timeline" aria-label="תצוגת ציר"><span nz-icon nzType="field-time"></span></label>
+      }
+      <label nz-radio-button nzValue="list" appAltKey="listView" aria-label="תצוגת כרטיסים"><span nz-icon nzType="unordered-list"></span></label>
+      <label nz-radio-button nzValue="table" appAltKey="tableView" aria-label="תצוגת טבלה"><span nz-icon nzType="table"></span></label>
+    </nz-radio-group>
+    <ng-content select="[browser-actions]" />
+  </div>
+
+  <ng-content select="[browser-below-title]" />
+
+  <!-- Only the list scrolls, so the always-visible rail spans exactly the feed (native scrollbars are hidden app-wide). -->
+  <div class="feed">
+    <div class="feed-scroller" #scroller>
+      @if (view() === 'timeline') {
+        <app-sumaroon-timeline [search]="sortedSearch()" [openId]="openId()" (toggle)="toggle($event)" />
+      } @else if (view() === 'list') {
+        <app-summary-list
+          [search]="search()"
+          [openId]="openId()"
+          [groupSumaroons]="groupActive()"
+          [filtered]="filtered()"
+          [empty]="empty()"
+          (toggle)="toggle($event)"
+          (clearSearch)="clearSearch()"
+        />
+      } @else {
+        <app-summaries-table [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
+      }
     </div>
-
-    @if (view() === 'list') {
-      <app-summary-list [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
-    } @else {
-      <app-summaries-table [search]="search()" [openId]="openId()" (toggle)="toggle($event)" />
-    }
+    <app-scroll-rail [scroller]="scroller" [labelAt]="dateLabelAt" />
   </div>
-
-  <div aside>
-    @if (openId(); as id) {
-      <app-summary-detail [summaryId]="id" [search]="search()" (closed)="close()" />
-    } @else {
-      <nz-empty class="no-selection" nzNotFoundImage="simple" nzNotFoundContent="בחרו סיכום מהרשימה כדי לצפות בו כאן" />
-    }
-  </div>
-</app-resizable-page>
+</ng-template>

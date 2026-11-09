@@ -1,8 +1,9 @@
 import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query } from '@nestjs/common';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiUser, UserRef } from '../common/api-types';
+import { ApiBulkResult, ApiSummaryTemplate, ApiUser, UserRef } from '../common/api-types';
 import { IdPipe, isUuid } from '../common/validation';
+import { SummaryTemplatesService } from './summary-templates.service';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
@@ -14,6 +15,7 @@ export class UsersController {
   constructor(
     private readonly users: UsersService,
     private readonly repo: UsersRepository,
+    private readonly templates: SummaryTemplatesService,
   ) {}
 
   @Get()
@@ -51,6 +53,11 @@ export class UsersController {
     return this.users.pinSearch(me, body);
   }
 
+  @Put('pinned-search/:id')
+  renameSearch(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: Body_): Promise<ApiUser> {
+    return this.users.renameSearch(me, id, body?.name);
+  }
+
   @Post('pinned-label')
   pinLabel(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
     return this.users.toggleLabel(me, 'pinned', body?.label);
@@ -61,19 +68,14 @@ export class UsersController {
     return this.users.togglePinnedPermission(me, body?.permissionId);
   }
 
-  @Post('pinned-collection')
-  pinCollection(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
-    return this.users.toggleCollection(me, 'pinned', body?.collectionId);
+  @Post('pinned-user')
+  pinUser(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
+    return this.users.togglePinnedUser(me, body?.userId);
   }
 
   @Post('favorite-label')
   favoriteLabel(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
     return this.users.toggleLabel(me, 'favorite', body?.valueId);
-  }
-
-  @Post('favorite-collection')
-  favoriteCollection(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
-    return this.users.toggleCollection(me, 'favorite', body?.valueId);
   }
 
   /** IUser has no favourite-permissions list, so there is nothing to store (kept for client compatibility). */
@@ -85,6 +87,27 @@ export class UsersController {
   @Put('favorite')
   favoriteSummary(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
     return this.users.toggleFavoriteSummary(me, body?.summaryId);
+  }
+
+  /** `{ summaryIds, favorite }` → which summaries changed and which were skipped. */
+  @Post('favorite/bulk')
+  bulkFavorite(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiBulkResult> {
+    return this.users.bulkFavorite(me, body);
+  }
+
+  @Get('templates')
+  summaryTemplates(@Me() me: CurrentUser): Promise<ApiSummaryTemplate[]> {
+    return this.templates.list(me);
+  }
+
+  @Post('templates')
+  saveSummaryTemplate(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiSummaryTemplate[]> {
+    return this.templates.save(me, body);
+  }
+
+  @Delete('templates/:id')
+  deleteSummaryTemplate(@Me() me: CurrentUser, @Param('id', IdPipe) id: string): Promise<ApiSummaryTemplate[]> {
+    return this.templates.delete(me, id);
   }
 
   @Put('add-follow/:userId')

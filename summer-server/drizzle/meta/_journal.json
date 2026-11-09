@@ -50,6 +50,83 @@
       "when": 1792879269876,
       "tag": "0006_running_summaries_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793023587709,
+      "tag": "0007_rule_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793274190660,
+      "tag": "0008_summary_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793275044999,
+      "tag": "0009_mail",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793276823516,
+      "tag": "0010_drop_pg_trgm",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793280252182,
+      "tag": "0011_notification_comment",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793280375188,
+      "tag": "0012_tagged_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793478979687,
+      "tag": "0013_drop_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793480188247,
+      "tag": "0014_folder_moves",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793872752087,
+      "tag": "0015_pinned_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793892130817,
+      "tag": "0016_multi_folder",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793892165735,
+      "tag": "0017_saved_search_names",
+      "breakpoints": true
     }
   ]
 }

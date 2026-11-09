@@ -1,0 +1,11 @@
+@if (eggs.flash() === 'summer') {
+  <div class="flash" aria-hidden="true">
+    <div class="sun"><app-summy mood="empty" [size]="160" /></div>
+    @for (f of floaters; track f.emoji) {
+      <span class="floater" [style.left.%]="f.left" [style.animation-delay.s]="f.delay">{{ f.emoji }}</span>
+    }
+    <svg class="waves" viewBox="0 0 1200 80" preserveAspectRatio="none">
+      <path d="M0 40 Q150 0 300 40 T600 40 T900 40 T1200 40 V80 H0 Z" />
+    </svg>
+  </div>
+}

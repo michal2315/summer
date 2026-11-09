@@ -1,0 +1,58 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+  height: 100%;
+}
+
+.viewer {
+  height: 100%;
+  min-width: 0;
+  overflow: auto;
+  app-summary-detail {
+    display: block;
+    padding: 24px 16px;
+  }
+  .view-hint {
+    font-size: 12px;
+    color: $gray;
+  }
+  .back {
+    margin: 12px 8px -12px;
+  }
+}
+
+// Breadcrumbs and subfolder cards, between the title row and the list.
+.below-title {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 4px;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: -6px;
+  font-size: 13px;
+  a {
+    color: $gray;
+    &:hover {
+      color: $dark-blue;
+      text-decoration: underline;
+    }
+  }
+  .sep {
+    font-size: 10px;
+    color: $gray;
+  }
+}
+
+@media (max-width: $bp-mobile) {
+  :host,
+  .viewer {
+    height: auto;
+  }
+}

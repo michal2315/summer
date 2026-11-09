@@ -1,0 +1,74 @@
+@use 'tokens' as *;
+
+:host {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.main {
+  flex: 1 1 0; // takes what the aside leaves, not its content width
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.handle {
+  flex: 0 0 8px;
+  cursor: col-resize;
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0 3px;
+    border-radius: 2px;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  &:hover::after,
+  &:focus-visible::after {
+    background: $input-hover-color;
+  }
+}
+
+.aside {
+  flex: 0 1 auto; // gives way before the list does, when a page has extra columns (hierarchy tree)
+  display: flex;
+  flex-direction: column;
+  max-width: min(40vw, 60%);
+  min-width: 300px;
+  overflow: auto;
+  background: $white;
+  border-radius: 12px;
+  box-shadow: $card-shadow;
+}
+
+// The projected [aside] wrapper fills the pane, so empty states can centre vertically.
+.aside > ::ng-deep [aside] {
+  flex: 1;
+  min-height: 0;
+}
+
+// Nothing selected: the list takes the full width; the pane appears once something is opened.
+.handle:not(.open),
+.aside:not(.open) {
+  display: none;
+}
+
+// Narrow screens: list only; the aside appears as a full-screen overlay while a summary is open.
+@media (max-width: $bp-narrow) {
+  .handle,
+  .aside {
+    display: none;
+  }
+  .aside.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    width: auto !important;
+    max-width: none;
+    border-radius: 0;
+  }
+}

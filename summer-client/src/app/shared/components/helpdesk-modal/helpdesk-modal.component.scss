@@ -1,0 +1,55 @@
+@use 'tokens' as *;
+
+.intro {
+  color: $dark-gray;
+  margin-bottom: 16px;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 12px;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  color: $dark-blue;
+  text-align: center;
+  transition:
+    border-color $transition,
+    background $transition;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $dark-blue;
+    background: $pink-50;
+    color: $dark-blue;
+  }
+
+  &.disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+}
+
+.icon {
+  font-size: 26px;
+  color: $primary-pink;
+}
+
+.label {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.hint {
+  font-size: 12px;
+  color: $gray;
+}

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { asc, eq, ilike, inArray } from 'drizzle-orm';
-import { likePattern } from '../common/sql';
+import { asc, eq, inArray } from 'drizzle-orm';
+import { textLike } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
 import { labels } from '../database/schema';
 
@@ -19,7 +19,7 @@ export class LabelsRepository {
     const rows = await this.db
       .select({ name: labels.name })
       .from(labels)
-      .where(text ? ilike(labels.name, likePattern(text)) : undefined)
+      .where(text ? textLike(labels.name, text) : undefined)
       .orderBy(asc(labels.name))
       .offset(skip)
       .limit(LABEL_PAGE);

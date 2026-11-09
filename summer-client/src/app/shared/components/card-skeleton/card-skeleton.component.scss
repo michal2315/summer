@@ -1,0 +1,72 @@
+@use 'tokens' as *;
+@use 'skeleton';
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card {
+  background: $white;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: $card-shadow;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.bone {
+  @include skeleton.bone;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.pill {
+  width: 54px;
+  height: 18px;
+  border-radius: 999px;
+  margin-inline-start: auto;
+}
+.line {
+  height: 10px;
+}
+.name {
+  width: 120px;
+}
+.date {
+  width: 80px;
+  height: 8px;
+}
+.title {
+  height: 13px;
+}
+.text {
+  width: 100%;
+}
+.tag {
+  width: 64px;
+  height: 18px;
+  border-radius: 999px;
+}

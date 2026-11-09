@@ -22,14 +22,22 @@ export interface IUser {
   fullName: string;
   department?: string;
   isSystem?: boolean;
-  pinnedSearches: ISummarySearch[];
+  /** saved searches, newest first */
+  pinnedSearches: ISavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
-  pinnedCollections: string[];
-  favoriteCollections: string[];
+  /** listed first wherever users are tagged or mentioned */
+  pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
+}
+
+/** A search the user saved; unnamed ones are shown by `describeSearch`. */
+export interface ISavedSearch {
+  _id: string;
+  name: string | null;
+  search: ISummarySearch;
 }
 
 export type UserRef = Pick<IUser, '_id' | 'username' | 'fullName' | 'department' | 'isSystem'>;
@@ -68,7 +76,7 @@ export interface ILabel {
 
 export interface IMention {
   _id: string;
-  type: 'user' | 'label';
+  type: 'user' | 'label' | 'permission';
   value: string;
   icon?: string;
 }
@@ -87,20 +95,46 @@ export interface ISummaryField {
   value: string | undefined;
 }
 
-export interface ICollectionRef {
+export interface IFolderRef {
   _id: string;
   name: string;
 }
 
-export interface ICollection extends ICollectionRef {
+/** A personal preset for the summary form's sharing section. The server leaves out users who no longer exist. */
+export interface ISummaryTemplate {
+  _id: string;
+  name: string;
+  permissions: string[];
+  taggedUsers: UserRef[];
+  taggedPermissions: string[];
+  labels: string[];
+  folders: string[];
+}
+
+export type SummaryTemplatePayload = Omit<ISummaryTemplate, '_id' | 'taggedUsers'> & { taggedUsers: string[] };
+
+/** summary = regular; running = תמצית רצף (a focused series with a date range); sumaroon = תמציתונית (one entry of a series). */
+export enum SummaryKind {
+  Summary = 'summary',
+  Running = 'running',
+  Sumaroon = 'sumaroon',
+}
+
+export const SUMMARY_KIND_LABEL: Record<SummaryKind, string> = {
+  [SummaryKind.Summary]: 'תמצית',
+  [SummaryKind.Running]: 'תמצית רצף',
+  [SummaryKind.Sumaroon]: 'תמציתונית',
+};
+
+/** A sumaroon's running summary: what it inherits (labels, permissions) and the range its date must fall in. */
+export interface ISummaryParent {
+  _id: string;
+  title: string;
+  /** yyyy-MM-dd */
+  rangeStart: string;
+  rangeEnd: string;
+  labels: ILabel[];
   permissions: IPermission[];
-  summaries: string[];
-  /** user ids */
-  managers: string[];
-  createdBy: UserRef;
-  createdAt: string;
-  updatedAt: string;
-  isDeleted: boolean;
 }
 
 export interface ISummary {
@@ -121,12 +155,48 @@ export interface ISummary {
   summaryFields?: ISummaryField[];
   files: string[];
   taggedUsers: UserRef[];
-  collectionIds: ICollectionRef[];
+  /** permission groups whose members count as tagged */
+  taggedPermissions: IPermission[];
+  /** the folders it is in that the viewer can see (empty = none); the same summary in each, not copies */
+  folders: IFolderRef[];
   permissions: IPermission[];
   seenBy: string[];
   color: string;
   isFavorite: boolean;
+  /** The viewer is an editor (bulk edit actions apply only to these; the server re-checks). */
+  canEdit: boolean;
   timelineTitle?: string;
+  kind: SummaryKind;
+  /** sumaroon only */
+  parentId?: string;
+  parent?: ISummaryParent;
+  link?: string;
+  /** running only: yyyy-MM-dd */
+  rangeStart?: string;
+  rangeEnd?: string;
+  /** running only: published sumaroons the viewer can see */
+  sumaroonCount?: number;
+  /** running only: the first few of those sumaroons by event date (card preview) */
+  sumaroonPreview?: { _id: string; title: string }[];
+}
+
+/** Why a bulk action left a summary out (hidden and deleted summaries are both 'not-found'). */
+export type BulkSkipReason = 'not-found' | 'not-editor' | 'sumaroon' | 'too-many-labels' | 'draft';
+
+/**
+ * Home page counter: `total` = all published summaries in the scope (all, a folder with its subfolders, or no folder),
+ * including ones the user can't see; `hidden` = ones matching the search that permissions hide, and the missing
+ * permissions behind them. A summary missing several counts under each.
+ */
+export interface IAccessStats {
+  total: number;
+  hidden: number;
+  missing: { permission: IPermission; blocking: number }[];
+}
+
+export interface IBulkResult {
+  applied: string[];
+  skipped: { id: string; reason: BulkSkipReason }[];
 }
 
 export interface ISummariesLength {
@@ -181,15 +251,92 @@ export interface ISummarySearch {
   contentTypes?: string[];
   colors?: string[];
   labels?: string[];
-  collections?: string[];
+  /** placed in one of these folders or their subfolders */
+  folders?: string[];
+  /** only summaries that are in no folder */
+  noFolder?: boolean;
+  /** only these kinds; empty = all */
+  kinds?: SummaryKind[];
+  /** the sumaroons of this running summary */
+  parentId?: string;
+  /** advanced search tree (query builder), ANDed with everything else */
+  query?: IQueryGroup;
 }
 
-export interface CollectionPayload {
+export type QueryTextField = 'text' | 'title' | 'content' | 'notes' | 'comments' | 'labels';
+export type QueryField = QueryTextField | 'author' | 'contentType' | 'folder' | 'color' | 'eventDate' | 'createdDate';
+export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between';
+
+/**
+ * Capsule (כמוסה): a named word list from the external capsules service, usable in searches and notification rules.
+ * must: every one has to appear · mustNot: none may appear ·
+ * optional: with no must words, at least one has to appear; otherwise they only add highlights.
+ */
+export type CapsuleCondition = 'must' | 'mustNot' | 'optional';
+
+export interface ICapsuleWord {
+  word: string;
+  condition: CapsuleCondition;
+}
+
+export interface ICapsule {
+  _id: string;
   name: string;
+  description: string;
+  words: ICapsuleWord[];
+}
+
+export interface IQueryCondition {
+  type: 'cond';
+  field: QueryField;
+  op: QueryOp;
+  /** text fields; a capsule is the word `#cap:<id>` */
+  words?: string[];
+  /** author / folder ids, content type names, color hexes */
+  values?: string[];
+  /** date fields: ISO instants of local midnight */
+  from?: string;
+  to?: string;
+}
+
+export interface IQueryGroup {
+  type: 'group';
+  op: 'AND' | 'OR';
+  children: (IQueryGroup | IQueryCondition)[];
+}
+
+/** A node in the folder tree (home page). Folders nest via parentId; root folders have parentId null. */
+export interface IFolder {
+  _id: string;
+  name: string;
+  parentId: string | null;
+  /** summaries directly in this folder (not counting subfolders) */
+  itemCount: number;
+  /** distinct summaries the user can see in this folder and all its subfolders (one in several of them counts once) */
+  subtreeCount: number;
+  /** summaries directly in this folder the user lacks permissions to see */
+  hiddenCount: number;
+  permissions: IPermission[];
+  /** user ids */
+  managers: string[];
+  createdBy: UserRef;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A summary placed in a folder (each sits in at most one; sumaroons never do). */
+export interface IFolderItem {
+  _id: string;
+  name: string;
+  kind: SummaryKind;
+}
+
+export interface FolderPayload {
+  name: string;
+  /** create only */
+  parentId?: string | null;
   permissions: string[];
   managers: string[];
-  /** edit only: summary ids to remove from the collection */
-  summaries?: string[];
 }
 
 /** Comparison operators for notification-rule conditions, offered per field type (spec §8.1). */
@@ -205,6 +352,9 @@ export enum NotificationsFunctionsOptions {
   DateBetween = 'dateBetween',
   ArrayContains = 'arrayContains',
   ArrayNotContains = 'arrayNotContains',
+  /** content: [capsule id, capsule name] (the name is only for display) */
+  CapsuleMatches = 'capsuleMatches',
+  CapsuleNotMatches = 'capsuleNotMatches',
 }
 
 export interface INotificationSettingsCondition {
@@ -217,12 +367,29 @@ export interface INotificationSettingsCondition {
 export interface INotificationSettings {
   _id?: string;
   name: string;
+  /** empty for a search alert */
   conditions: INotificationSettingsCondition[];
-  /** also send e-mail */
+  /** any one condition is enough, instead of all of them */
+  matchAny?: boolean;
+  /** a saved search: notify about published summaries it finds (instead of conditions) */
+  search?: ISummarySearch;
+  /** also e-mail each match right away */
   isMail: boolean;
-  /** show in-app bell notification */
+  /** also list matches in the daily digest e-mail */
+  isDigest: boolean;
+  /** the rule is active (matches reach the bell, and the e-mails); off pauses it */
   isNotify: boolean;
   creationDate?: string;
+}
+
+/** The user's e-mail switches (GET/PUT /notifications/preferences). */
+export interface IMailPreferences {
+  /** null when the identity provider has no address: nothing can be mailed */
+  email: string | null;
+  /** rule matches (each rule also picks immediate and/or digest) */
+  mailAlerts: boolean;
+  /** tags, comments, mentions, followed users publishing */
+  mailActivity: boolean;
 }
 
 export interface IWhatsNew {
@@ -241,11 +408,22 @@ export interface SummaryPayload {
   eventSecTime?: string;
   department: string;
   labels: string[];
-  collectionIds: string[];
+  /** hierarchy folders: omitted = leave as is, [] = take out of every one. Not for drafts or sumaroons. */
+  folderIds?: string[];
   permissions: string[];
   taggedUsers: string[];
+  taggedPermissions: string[];
   summaryFields: { field: string; value: string }[];
   /** existing attachment names to keep (edit) */
   files: string[];
   isDraft: boolean;
+  /** fixed at creation */
+  kind: SummaryKind;
+  /** sumaroon: its running summary (fixed at creation) */
+  parentId?: string;
+  /** running: yyyy-MM-dd */
+  rangeStart?: string;
+  rangeEnd?: string;
+  /** sumaroon */
+  link?: string;
 }

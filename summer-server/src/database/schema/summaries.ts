@@ -6,7 +6,7 @@ import { users } from './users';
 
 export interface Mention {
   _id: string;
-  type: 'user' | 'label';
+  type: 'user' | 'label' | 'permission';
   value: string;
   icon?: string;
 }
@@ -62,9 +62,6 @@ export const summaries = pgTable(
     index('summaries_event_idx').on(t.eventDate.desc(), t.id.desc()),
     index('summaries_author_idx').on(t.createdBy, t.createdAt.desc()),
     index('summaries_content_type_idx').on(t.contentTypeId),
-    index('summaries_title_trgm').using('gin', t.title.op('gin_trgm_ops')),
-    index('summaries_content_trgm').using('gin', t.contentText.op('gin_trgm_ops')),
-    index('summaries_notes_trgm').using('gin', t.notesText.op('gin_trgm_ops')),
     index('summaries_parent_idx').on(t.parentId),
     check('summaries_sumaroon_has_parent', sql`(${t.kind} = 'sumaroon') = (${t.parentId} is not null)`),
     check(
@@ -116,7 +113,7 @@ export const summaryLabels = pgTable(
     labelId: uuid()
       .notNull()
       .references(() => labels.id, { onDelete: 'restrict' }),
-    /** Client order; the first label groups the dashboard. */
+    /** Client order. */
     position: integer().notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.summaryId, t.labelId] }), index().on(t.labelId)],
@@ -139,6 +136,18 @@ export const summaryTaggedUsers = pgTable(
   'summary_tagged_users',
   { summaryId: summaryFk(), userId: userFk() },
   (t) => [primaryKey({ columns: [t.summaryId, t.userId] }), index().on(t.userId)],
+);
+
+/** Tagged permission groups: whoever is in the group counts as tagged (membership is resolved when read, not stored). */
+export const summaryTaggedPermissions = pgTable(
+  'summary_tagged_permissions',
+  {
+    summaryId: summaryFk(),
+    permissionId: uuid()
+      .notNull()
+      .references(() => permissions.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.summaryId, t.permissionId] }), index().on(t.permissionId)],
 );
 
 export const summarySeen = pgTable(
@@ -172,5 +181,5 @@ export const comments = pgTable(
       .references(() => users.id, { onDelete: 'restrict' }),
     createdAt: createdAt(),
   },
-  (t) => [index().on(t.summaryId, t.createdAt), index('comments_content_trgm').using('gin', t.content.op('gin_trgm_ops'))],
+  (t) => [index().on(t.summaryId, t.createdAt)],
 );

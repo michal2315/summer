@@ -1,0 +1,58 @@
+<div class="comments" role="region" aria-label="תגובות">
+  <div class="comments-title" role="heading" aria-level="3">תגובות ({{ summary().comments.length }})</div>
+
+  <ul>
+    @for (c of summary().comments; track c._id) {
+      <li class="comment">
+        <app-avatar [user]="c.user" [size]="32" />
+        <div class="bubble">
+          <div class="head">
+            <a [routerLink]="['/profile', c.user._id]" class="name">{{ c.user.fullName }}</a>
+            <span class="time">{{ c.creationDate | relativeTime }}</span>
+            @if (c.user._id === users.userId()) {
+              <button
+                nz-button
+                nzType="text"
+                nzSize="small"
+                nz-popconfirm
+                nzPopconfirmTitle="למחוק את התגובה?"
+                nzOkText="מחיקה"
+                nzCancelText="ביטול"
+                (nzOnConfirm)="remove(c._id)"
+                aria-label="מחיקת תגובה"
+              >
+                <span nz-icon nzType="delete"></span>
+              </button>
+            }
+          </div>
+          <div class="comment-text" [innerHTML]="c.content | highlight: search() : T.Comments"></div>
+        </div>
+      </li>
+    }
+  </ul>
+
+  <div class="composer">
+    <nz-mention
+      [nzSuggestions]="suggestions()"
+      [nzValueWith]="valueWith"
+      nzPrefix="@"
+      [nzLoading]="searching()"
+      (nzOnSearchChange)="onSearch($event)"
+      (nzOnSelect)="onSelect($event)"
+      nzNotFoundContent="לא נמצאו תוצאות"
+    >
+      <textarea
+        nz-input
+        nzMentionTrigger
+        [(ngModel)]="text"
+        [nzAutosize]="{ minRows: 2, maxRows: 6 }"
+        placeholder="הוספת תגובה… @ לתיוג משתמש או קבוצה"
+        aria-label="תגובה חדשה"
+        (keydown.control.enter)="submit()"
+        (keydown.meta.enter)="submit()"
+      ></textarea>
+      <ng-container *nzMentionSuggestion="let s">{{ s.label }}</ng-container>
+    </nz-mention>
+    <button nz-button nzType="primary" [disabled]="!text().trim()" [nzLoading]="sending()" (click)="submit()">שליחה</button>
+  </div>
+</div>

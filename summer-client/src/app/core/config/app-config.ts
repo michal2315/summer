@@ -10,14 +10,12 @@ export interface SummariesTableField {
 
 export interface AppEnvironment {
   production: boolean;
-  /** Serve /api/* from the in-browser mock (src/app/mock) instead of the network. */
-  mockApi: boolean;
   usersMail: string[];
+  /** Sunny team (helpdesk) sites, opened from the side nav. Empty → that button is disabled. */
+  helpdeskUrl: string;
+  suggestionsUrl: string;
   summariesTableFields: SummariesTableField[];
   summariesLimit: number;
-  ssoUrl: string;
-  /** window.open features for the SSO popup. The real SAML flow uses a zero-size window. */
-  ssoPopupFeatures: string;
   /** Avatar image template; `{username}` is substituted. Empty → initials only. */
   avatarUrl: string;
   userMonitoring: string;
