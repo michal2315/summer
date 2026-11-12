@@ -2,20 +2,31 @@
 
 :host {
   display: block;
-  background: $white;
+  background: $app-background;
   min-height: 100%;
+  padding: 16px;
+
+  @media (max-width: $bp-mobile) {
+    padding: 0;
+  }
 }
 
+// The form sits as a white card on the grey page background, like the feed's cards.
 .page {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 16px 20px 32px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  background: $white;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
 
   @media (max-width: $bp-mobile) {
     padding: 16px 12px 40px;
+    border-radius: 0;
+    box-shadow: none;
   }
 }
 
@@ -168,6 +179,11 @@
   nz-select {
     width: 100%;
   }
+  // Grid cells stretch to the tallest one; keep label + input at the top so the inputs
+  // line up however much help/error text sits under each.
+  nz-form-item {
+    align-content: flex-start;
+  }
 }
 
 // Content-type fields share one row, however many the type defines.
@@ -183,6 +199,7 @@
   }
   nz-form-item {
     min-width: 0;
+    align-content: flex-start;
   }
   @media (max-width: $bp-mobile) {
     grid-auto-flow: row;

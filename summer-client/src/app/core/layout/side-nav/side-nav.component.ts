@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, output } from '@angular/cor
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzModalService } from 'ng-zorro-antd/modal';
+import { CRX_URL, ExtensionService } from '../../../features/extension/extension.service';
 import { FolderTreeComponent } from '../../../features/hierarchy/folder-tree/folder-tree.component';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
@@ -20,6 +21,9 @@ export class SideNavComponent {
   private readonly modal = inject(NzModalService);
 
   readonly tour = inject(TourService);
+  /** The extension link shows once the server reports a published package; following it opens the browser's install dialog. */
+  readonly extension = inject(ExtensionService);
+  readonly crxUrl = CRX_URL;
   readonly navigate = output<void>();
   readonly user = inject(UserService).user;
 

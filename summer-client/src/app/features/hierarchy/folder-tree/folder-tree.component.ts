@@ -1,20 +1,20 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, output, signal, untracked } from '@angular/core';
-import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Params, Router, RouterLink } from '@angular/router';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
-import { debounceTime, distinctUntilChanged, filter, map, of, switchMap } from 'rxjs';
+import { filter, map } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { ScrollRailComponent } from '../../../shared/components/scroll-rail/scroll-rail.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
-import { IFolder, IFolderItem, SearchType, SummaryKind } from '../../../shared/models';
+import { IFolder, IFolderItem, SummaryKind } from '../../../shared/models';
+import { highlightText, searchRegex } from '../../../shared/pipes/highlight';
 import { FolderService, SUMMARY_DRAG_TYPE } from '../../../shared/services/folder.service';
-import { SummaryService } from '../../../shared/services/summary.service';
 import type { AddToFolderData } from '../add-to-folder-modal/add-to-folder-modal.component';
 import type { FolderEditorData } from '../folder-editor-modal/folder-editor-modal.component';
 import { FolderTreeStore, NO_FOLDER } from '../folder-tree.store';
@@ -25,8 +25,6 @@ const ITEMS_PAGE = 50;
 const DRAG_EXPAND_MS = 700;
 /** Drag mode (moving folders and summaries by dragging) is switched off for now: its button is hidden. */
 const DRAG_ENABLED = false;
-/** Summary titles matching the tree search: at most this many (the server maximum). */
-const SEARCH_LIMIT = 100;
 
 /** What is being dragged: a folder, or a summary together with the folder it is in (null = no folder). */
 type Dragged = { type: 'folder'; folder: IFolder } | { type: 'summary'; item: IFolderItem; from: string | null };
@@ -45,7 +43,6 @@ type Dragged = { type: 'folder'; folder: IFolder } | { type: 'summary'; item: IF
 })
 export class FolderTreeComponent {
   private readonly service = inject(FolderService);
-  private readonly summaries = inject(SummaryService);
   private readonly users = inject(UserService);
   private readonly router = inject(Router);
   private readonly modal = inject(NzModalService);
@@ -74,12 +71,10 @@ export class FolderTreeComponent {
   /** How many of each folder's items are rendered (default ITEMS_PAGE). */
   private readonly itemsShown = signal(new Map<string, number>());
 
-  // ---- search: folder names (here) and summary titles (server), never content ----
+  // ---- search: folder names only ----
   readonly query = signal('');
   readonly term = computed(() => this.query().trim().toLowerCase());
-  /** Summaries in a folder whose title matches, by folder id; null while the server is asked. */
-  readonly searchItems = signal<Map<string, IFolderItem[]> | null>(new Map());
-  /** While searching: the folders to show (matches, folders holding matching summaries, and their ancestors); null = all. */
+  /** While searching: the folders to show (matches and their ancestors); null = all. */
   readonly visible = computed(() => {
     const term = this.term();
     if (!term) return null;
@@ -89,7 +84,6 @@ export class FolderTreeComponent {
       for (let f = id ? byId.get(id) : undefined; f && !show.has(f._id); f = f.parentId ? byId.get(f.parentId) : undefined) show.add(f._id);
     };
     for (const f of this.store.folders()) if (f.name.toLowerCase().includes(term)) reveal(f._id);
-    for (const id of this.searchItems()?.keys() ?? []) reveal(id);
     return show;
   });
 
@@ -110,30 +104,6 @@ export class FolderTreeComponent {
       if (!this.itemOpen()) path.pop();
       untracked(() => path.forEach((id) => this.expand(id)));
     });
-
-    toObservable(this.term)
-      .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap((text) => {
-          // Only summaries placed in some folder: the tree doesn't list the rest.
-          const roots = this.store.children().get(null)?.map((f) => f._id) ?? [];
-          if (!text || !roots.length) return of(new Map<string, IFolderItem[]>());
-          this.searchItems.set(null);
-          const search = { text, searchTypes: [SearchType.Title], folders: roots, kinds: [SummaryKind.Summary, SummaryKind.Running], sort: 'title' as const, limit: SEARCH_LIMIT };
-          return this.summaries.search(this.users.userId() ?? '', search).pipe(
-            map((res) => {
-              const byFolder = new Map<string, IFolderItem[]>();
-              // A summary in several folders shows under each of them.
-              for (const s of res.summaries)
-                for (const f of s.folders) byFolder.set(f._id, [...(byFolder.get(f._id) ?? []), { _id: s._id, name: s.title, kind: s.kind }]);
-              return byFolder;
-            }),
-          );
-        }),
-        takeUntilDestroyed(),
-      )
-      .subscribe((items) => this.searchItems.set(items));
   }
 
   /** The folders under `parent` (null = root) to show: all of them, or while searching only the ones leading to matches. */
@@ -143,9 +113,12 @@ export class FolderTreeComponent {
     return visible ? list.filter((f) => visible.has(f._id)) : list;
   }
 
-  /** A folder name or summary title containing the search term. */
-  isMatch(name: string) {
-    return !!this.term() && name.toLowerCase().includes(this.term());
+  /** The tree search as a highlight regex (same matching as the feed's highlights). */
+  private readonly searchRe = computed(() => searchRegex(this.term()));
+
+  /** A folder name as escaped HTML with the search hits highlighted. */
+  mark(name: string) {
+    return highlightText(name, this.searchRe());
   }
 
   onClick(e: MouseEvent) {

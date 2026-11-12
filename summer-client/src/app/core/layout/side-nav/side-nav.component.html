@@ -27,6 +27,9 @@
     >
       <span nz-icon nzType="compass"></span> סיור ועזרה
     </button>
+    @if (extension.info()) {
+      <a [href]="crxUrl"><span nz-icon nzType="download"></span> הורדת התוסף לדפדפן</a>
+    }
     <button type="button" (click)="openHelpdesk()"><span nz-icon nzType="customer-service"></span> פנייה לצוות סאני</button>
     <span class="credit">פותח ב-💗 על ידי מיכל גולן</span>
   </div>

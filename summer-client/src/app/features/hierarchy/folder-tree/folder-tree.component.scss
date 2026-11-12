@@ -124,6 +124,10 @@ app-scroll-rail {
   .branch {
     padding-inline-start: 16px;
   }
+  // The top level sits flush with "all summaries" rather than under it.
+  .node.root ~ .branch {
+    padding-inline-start: 0;
+  }
 }
 
 .node {
@@ -152,10 +156,6 @@ app-scroll-rail {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    // The name matches the tree search.
-    &.match {
-      font-weight: 700;
-    }
   }
   .icon {
     flex: none;
@@ -181,6 +181,25 @@ app-scroll-rail {
   }
   &.root .label {
     font-weight: 700;
+  }
+  // Summaries in no folder: pink, in a light pink dashed frame, with its count always in a light pink chip.
+  &.unfiled[hidden] {
+    display: none;
+  }
+  &.unfiled {
+    margin-block: 2px;
+    border: 1px dashed rgba($primary-pink, 0.35);
+    color: $primary-pink;
+    .icon.folder {
+      color: $primary-pink;
+    }
+    .count {
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba($primary-pink, 0.15);
+      color: $primary-pink;
+      line-height: 16px;
+    }
   }
   // Drag mode: folders you may move can be grabbed; a valid drop target is outlined.
   &.movable {

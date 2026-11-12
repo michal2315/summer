@@ -1,8 +1,8 @@
-<!-- One row: the search (folder name and summary title, not content), then the tree's small actions. -->
+<!-- One row: the search (folder names only), then the tree's small actions. -->
 <div class="tree-head">
   <div class="tree-search">
     <span class="search-icon" nz-icon nzType="search" aria-hidden="true"></span>
-    <input type="search" placeholder="חיפוש תיקייה או תמצית" aria-label="חיפוש בעץ לפי שם תיקייה או שם תמצית" [value]="query()" (input)="query.set($any($event.target).value)" (keydown.escape)="query.set('')" />
+    <input type="search" placeholder="חיפוש תיקייה" aria-label="חיפוש בעץ לפי שם תיקייה" [value]="query()" (input)="query.set($any($event.target).value)" (keydown.escape)="query.set('')" />
     @if (query()) {
       <button type="button" class="clear" (click)="query.set('')" aria-label="ניקוי החיפוש"><span nz-icon nzType="close"></span></button>
     }
@@ -57,41 +57,40 @@
             }
           </div>
 
-          <!-- Summaries in no folder: one row that opens them in the feed; they aren't listed in the tree (nor searched). -->
-          <ul class="branch" role="group" [hidden]="term()">
-            <li role="treeitem" [attr.aria-selected]="isView(NO_FOLDER)">
-              <div
-                class="node"
-                [class.active]="isView(NO_FOLDER)"
-                [class.drop]="dropTarget() === NO_FOLDER"
-                (dragover)="onDragOver($event, NO_FOLDER)"
-                (dragleave)="onDragLeave($event)"
-                (drop)="onDrop($event, NO_FOLDER)"
-              >
-                <span class="twisty"></span>
-                <a class="link" routerLink="/summaries" [queryParams]="{ folderId: NO_FOLDER }">
-                  <span class="icon folder" nz-icon nzType="inbox"></span>
-                  <span class="label">תמציות ללא שיוך</span>
-                  @if (store.unfiledCount() !== null) {
-                    <span class="count">{{ store.unfiledCount() }}</span>
-                  }
-                </a>
-              </div>
-            </li>
-          </ul>
+          <!-- Summaries in no folder: one row (under "all summaries", above the folders) that opens them in the feed; they aren't listed in the tree (nor searched). -->
+          <div
+            class="node unfiled"
+            role="treeitem"
+            [attr.aria-selected]="isView(NO_FOLDER)"
+            [hidden]="term()"
+            [class.active]="isView(NO_FOLDER)"
+            [class.drop]="dropTarget() === NO_FOLDER"
+            (dragover)="onDragOver($event, NO_FOLDER)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event, NO_FOLDER)"
+          >
+            <span class="twisty"></span>
+            <a class="link" routerLink="/summaries" [queryParams]="{ folderId: NO_FOLDER }">
+              <span class="icon folder" nz-icon nzType="inbox"></span>
+              <span class="label">תמציות ללא שיוך</span>
+              @if (store.unfiledCount() !== null) {
+                <span class="count">{{ store.unfiledCount() }}</span>
+              }
+            </a>
+          </div>
 
           <ng-container *ngTemplateOutlet="branch; context: { $implicit: null }" />
         </li>
       </ul>
-      @if (visible()?.size === 0 && searchItems()) {
-        <div class="no-results">לא נמצאו תיקיות או תמציות בשם הזה</div>
+      @if (visible()?.size === 0) {
+        <div class="no-results">לא נמצאו תיקיות בשם הזה</div>
       }
     }
   </div>
   <app-scroll-rail [scroller]="scroller" />
 </div>
 
-<!-- While searching, only matching folders (and the ones leading to matches) show, all open, with just the matching summaries. -->
+<!-- While searching, only matching folders (and the ones leading to matches) show, all open, without their summaries. -->
 <ng-template #branch let-parent>
   @let searching = !!term();
   <ul class="branch" role="group">
@@ -123,7 +122,7 @@
           }
           <a class="link" routerLink="/summaries" [queryParams]="{ folderId: f._id }" (click)="expand(f._id)">
             <span class="icon folder" nz-icon [nzType]="open ? 'folder-open' : 'folder'"></span>
-            <span class="label" [class.match]="isMatch(f.name)">{{ f.name }}</span>
+            <span class="label" [innerHTML]="mark(f.name)"></span>
             @if (f.hiddenCount) {
               <span
                 class="hidden-count"
@@ -166,11 +165,6 @@
 
         @if (searching) {
           <ng-container *ngTemplateOutlet="branch; context: { $implicit: f._id }" />
-          <ul class="branch" role="group">
-            @for (item of searchItems()?.get(f._id) ?? []; track item._id) {
-              <ng-container *ngTemplateOutlet="summaryItem; context: { $implicit: item, folderId: f._id, folder: manager && !dragMode() ? f : null }" />
-            }
-          </ul>
         } @else if (open && expandable) {
           <ng-container *ngTemplateOutlet="branch; context: { $implicit: f._id }" />
           <ul class="branch" role="group">
@@ -208,7 +202,7 @@
       <span class="twisty"></span>
       <a class="link" routerLink="/summaries" [queryParams]="itemParams(folderId, item)">
         <span class="icon" [class]="item.kind === 'running' ? 'running' : 'summary'" nz-icon [nzType]="itemIcon(item)" [nz-tooltip]="item.kind === 'running' ? 'תמצית רצף' : null"></span>
-        <span class="label" [class.match]="isMatch(item.name)">{{ item.name }}</span>
+        <span class="label">{{ item.name }}</span>
       </a>
       @if (movable) {
         <span class="grip" nz-icon nzType="holder" aria-hidden="true"></span>
