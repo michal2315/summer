@@ -5,12 +5,15 @@
 .spacer { flex: 1; }
 
 // RTL: the panel comes first, so it sits on the right.
-.layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 100%; }
+.layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 100%; transition: grid-template-columns 0.2s ease; }
 // A card of its own, inset so the gray page shows between it and the side nav (and above and below it).
 .panel { box-sizing: border-box; height: calc(100% - 20px); margin: 10px; margin-inline-end: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: $white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08); }
-.layout.collapsed { grid-template-columns: 58px minmax(0, 1fr); }
-.panel.slim { align-items: center; gap: 8px; padding: 10px 0; overflow: visible; }
-.slim-rule { color: $orange-strong; }
+// Collapsed: a thin strip at the side, and the feed grows into the room it leaves.
+.layout.collapsed { grid-template-columns: 32px minmax(0, 1fr); }
+.layout.collapsed .main-inner { max-width: 1400px; }
+.panel.slim { all: unset; box-sizing: border-box; height: calc(100% - 20px); margin: 10px 10px 10px 0; display: flex; justify-content: center; padding-top: 14px; background: $white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08); color: $gray; cursor: pointer; }
+.panel.slim:hover { color: $black; background: $surface-subtle; }
+.panel.slim:focus-visible { box-shadow: $focus-ring; }
 .main { height: 100%; overflow: auto; }
 .main-inner { max-width: 860px; margin: 0 auto; padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 12px; }
 .main-inner[hidden] { display: none; }

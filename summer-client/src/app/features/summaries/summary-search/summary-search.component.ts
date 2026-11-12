@@ -100,6 +100,8 @@ export class SummarySearchComponent {
   /** Currently applied search (from the URL). */
   readonly search = input<ISummarySearch>({});
   readonly showBell = input(true);
+  /** Pin (save), share and alert buttons; off where the search is being edited rather than run (a search alert's rule). */
+  readonly searchActions = input(true);
   readonly placeholder = input('חיפוש תמציות');
   readonly searchChange = output<ISummarySearch>();
 

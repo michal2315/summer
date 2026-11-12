@@ -1,18 +1,11 @@
   <div class="layout" [class.collapsed]="panelCollapsed()">
     <!-- Management: e-mail switches and the user's rules. Picking a rule narrows the feed to what it raised.
-         Collapsible to a slim strip (remembered per browser). -->
+         Collapses to a thin strip at the side (remembered per browser); the feed takes the room. -->
     @if (panelCollapsed()) {
-      <div class="panel slim" role="complementary" aria-label="ניהול התראות">
-        <button nz-button nzType="text" nzShape="circle" type="button" (click)="togglePanel()" nz-tooltip="פתיחת ניהול ההתראות" nzTooltipPlacement="left" aria-label="פתיחת ניהול ההתראות" [attr.aria-expanded]="false">
-          <span nz-icon nzType="menu-fold"></span>
-        </button>
-        <a nz-button nzType="primary" nzShape="circle" routerLink="create" nz-tooltip="התראה חדשה" nzTooltipPlacement="left" aria-label="התראה חדשה"><span nz-icon nzType="plus"></span></a>
-        @if (ruleName(); as name) {
-          <button nz-button nzType="text" nzShape="circle" type="button" class="slim-rule" (click)="ruleId.set(null)" [nz-tooltip]="'מוצגות התראות מהכלל ' + name + ' — לחיצה להצגת הכל'" nzTooltipPlacement="left" aria-label="הצגת כל ההתראות">
-            <span nz-icon nzType="filter"></span>
-          </button>
-        }
-      </div>
+      <!-- The whole strip is the expand button. -->
+      <button type="button" class="panel slim" (click)="togglePanel()" nz-tooltip="ניהול התראות" nzTooltipPlacement="left" aria-label="פתיחת ניהול ההתראות" [attr.aria-expanded]="false">
+        <span nz-icon nzType="left"></span>
+      </button>
     } @else {
     <div class="panel" role="complementary" aria-label="ניהול התראות">
       <div class="panel-header">
@@ -20,7 +13,7 @@
         <span class="spacer"></span>
         <a nz-button nzType="primary" nzSize="small" routerLink="create"><span nz-icon nzType="plus"></span> התראה חדשה</a>
         <button nz-button nzType="text" nzShape="circle" nzSize="small" type="button" (click)="togglePanel()" nz-tooltip="כיווץ" aria-label="כיווץ ניהול ההתראות" [attr.aria-expanded]="true">
-          <span nz-icon nzType="menu-unfold"></span>
+          <span nz-icon nzType="right"></span>
         </button>
       </div>
       <div class="muted intro">

@@ -39,7 +39,7 @@
         />
       </div>
 
-      @if (search().text || filterCount()) {
+      @if (searchActions() && (search().text || filterCount())) {
         <button
           type="button"
           class="icon-btn"
@@ -58,12 +58,12 @@
           <span nz-icon nzType="pushpin" [nzTheme]="savedMatch() ? 'fill' : 'outline'"></span>
         </button>
       }
-      @if (search().text || filterCount()) {
+      @if (searchActions() && (search().text || filterCount())) {
         <button type="button" class="icon-btn" appAltKey="shareSearch" (click)="share()" nz-tooltip="העתקת קישור לחיפוש" aria-label="העתקת קישור לחיפוש">
           <span nz-icon nzType="share-alt"></span>
         </button>
       }
-      @if (canAlert()) {
+      @if (searchActions() && canAlert()) {
         <button
           type="button"
           class="icon-btn"

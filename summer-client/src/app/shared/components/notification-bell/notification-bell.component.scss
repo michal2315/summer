@@ -1,8 +1,7 @@
 @use 'tokens' as *;
 
 .bell { font-size: 20px; }
-.head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.head-actions { display: flex; align-items: center; }
+.head { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 24px; }
 .rows { list-style: none; margin: 0; padding: 0; width: 320px; max-height: 420px; overflow: auto; }
 .row { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px; border-radius: 8px; cursor: pointer; }
 .row:hover, .row:focus-visible { background: #f7f7f7; }
@@ -11,3 +10,6 @@
 .time { font-size: 12px; color: $gray; }
 .sentinel { flex: none; height: 1px; }
 
+.head-actions { display: flex; align-items: center; gap: 4px; }
+.page-link { font-size: 13px; font-weight: 400; color: $dark-gray; }
+.page-link:hover { color: $black; text-decoration: underline; }

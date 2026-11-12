@@ -19,3 +19,9 @@
 .search-desc { flex: 1; min-width: 0; font-weight: 700; }
 .preview { background: $background-soft; border: 1px solid $pink-100; border-radius: $border-radius; padding: 10px 14px; margin: 4px 0 0; font-size: 13px; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid $border-color; padding-top: 14px; margin-top: 8px; }
+.search-box { display: block; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; font-size: 12px; background: $surface-subtle; border: 1px solid $border-color; }
+.filter-remove { all: unset; display: inline-flex; padding: 2px; border-radius: 50%; color: $gray; cursor: pointer; }
+.filter-remove:hover { color: $black; background: $input-color; }
+.filter-remove:focus-visible { box-shadow: $focus-ring; }

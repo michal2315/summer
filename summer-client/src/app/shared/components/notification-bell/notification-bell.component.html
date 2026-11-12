@@ -23,9 +23,11 @@
     <span>התראות</span>
     <span class="head-actions">
       @if (service.unread()) {
-        <button type="button" nz-button nzType="link" nzSize="small" (click)="service.markAllViewed()">סמן הכל כנקרא</button>
+        <button type="button" nz-button nzType="text" nzSize="small" nzShape="circle" (click)="service.markAllViewed()" nz-tooltip="סמן הכל כנקרא" aria-label="סמן הכל כנקרא">
+          <span nz-icon nzType="check"></span>
+        </button>
       }
-      <a nz-button nzType="link" nzSize="small" routerLink="/notifications" (click)="open.set(false)"><span nz-icon nzType="notification"></span> דף ההתראות</a>
+      <a class="page-link" routerLink="/notifications" (click)="open.set(false)">דף ההתראות</a>
     </span>
   </div>
 </ng-template>
@@ -48,5 +50,4 @@
         <li class="sentinel" aria-hidden="true" (appInView)="rows.more()" [appInViewKey]="rows.items().length" rootMargin="100px"></li>
       }
     </ul>
-  }
-</ng-template>
+  }</ng-template>

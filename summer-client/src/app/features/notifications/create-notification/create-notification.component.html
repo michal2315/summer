@@ -27,12 +27,32 @@
 
     @if (search(); as s) {
       <div class="section-title" role="heading" aria-level="2">התראה על חיפוש</div>
+      <div class="muted">תתקבל התראה כשתמצית שמתאימה לחיפוש הזה מתפרסמת או נערכת. משנים כאן את הטקסט, או פותחים את החיפוש המתקדם לתנאים.</div>
+      <!-- The real search box: text with @users, :types and #capsules, and the advanced search (its own pin/share/bell are off here). -->
+      <app-summary-search class="search-box" [search]="s" [showBell]="false" [searchActions]="false" placeholder="טקסט לחיפוש" (searchChange)="setSearch($event)" />
+      @if (searchFilters().length) {
+        <div class="filters" role="list" aria-label="מסננים נוספים בחיפוש">
+          @for (f of searchFilters(); track f.key) {
+            <span class="filter-chip" role="listitem">
+              <span class="filter-label">{{ f.label }}</span>
+              <button type="button" class="filter-remove" (click)="removeFilter(f.key)" [attr.aria-label]="'הסרת המסנן ' + f.label"><span nz-icon nzType="close"></span></button>
+            </span>
+          }
+        </div>
+      }
       <div class="search-rule">
         <span nz-icon nzType="search"></span>
-        <span class="search-desc">{{ describeSearch(s) }}</span>
-        <button nz-button nzType="link" type="button" (click)="openSearch()">פתיחת החיפוש</button>
+        <span class="search-desc">
+          @if (searchEmpty()) {
+            <span class="error">החיפוש ריק: הוסיפו טקסט או תנאי כדי שהכלל יתריע.</span>
+          } @else if (matchCount() === null) {
+            סופרים תמציות מתאימות…
+          } @else {
+            {{ matchCount() }} תמציות מתאימות לחיפוש כרגע
+          }
+        </span>
+        <button nz-button nzType="link" type="button" (click)="openSearch()" [disabled]="searchEmpty()">הצגת התוצאות</button>
       </div>
-      <div class="muted">תתקבל התראה כשתמצית שמתאימה לחיפוש הזה מתפרסמת או נערכת. כדי לשנות את החיפוש, פותחים אותו, משנים ולוחצים על הפעמון שבתיבת החיפוש.</div>
     } @else {
       <div class="section-title" role="heading" aria-level="2">תנאים</div>
       <nz-radio-group class="match" formControlName="matchAny" nzButtonStyle="solid" nzSize="small" aria-label="אילו תנאים צריכים להתקיים">
