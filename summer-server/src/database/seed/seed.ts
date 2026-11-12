@@ -328,9 +328,9 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
     await tx.insert(s.userFavSummaries).values([4, 8, 13].map((i) => ({ userId: mgolan.id, summaryId: summaryIds[i] })));
 
     await tx.insert(s.notifications).values([
-      { userId: mgolan.id, summaryId: summaryIds[6], text: 'דנה לוי תייגה אותך בסיכום', createdBy: user('dlevi').id, createdAt: new Date(now - 2 * 3_600_000) },
-      { userId: mgolan.id, summaryId: summaryIds[0], text: 'תגובה חדשה על הסיכום שלך', createdBy: user('aperetz').id, createdAt: new Date(now - 26 * 3_600_000) },
-      { userId: mgolan.id, summaryId: summaryIds[11], text: 'סיכום חדש נוסף לאוסף', createdAt: new Date(now - 4 * DAY), viewedAt: new Date(now - 3 * DAY) },
+      { userId: mgolan.id, summaryId: summaryIds[6], text: 'דנה לוי תייגה אותך בסיכום', kind: 'tag', createdBy: user('dlevi').id, createdAt: new Date(now - 2 * 3_600_000) },
+      { userId: mgolan.id, summaryId: summaryIds[0], text: 'תגובה חדשה על הסיכום שלך', kind: 'comment', createdBy: user('aperetz').id, createdAt: new Date(now - 26 * 3_600_000) },
+      { userId: mgolan.id, summaryId: summaryIds[11], text: 'סיכום חדש נוסף לאוסף', kind: 'follow', createdAt: new Date(now - 4 * DAY), viewedAt: new Date(now - 3 * DAY) },
     ]);
 
     await tx.insert(s.notificationRules).values({

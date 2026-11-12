@@ -127,6 +127,13 @@
       "when": 1793892165735,
       "tag": "0017_saved_search_names",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794478652822,
+      "tag": "0018_notification_kind",
+      "breakpoints": true
     }
   ]
 }

@@ -164,6 +164,13 @@ export interface ApiNotification {
   createdBy?: Pick<UserRef, '_id' | 'username' | 'fullName'>;
 }
 
+/** A notifications-page feed entry: the notification, the rule that raised it (if any), and its summary. */
+export interface ApiNotificationFeedItem extends ApiNotification {
+  kind: 'rule' | 'search' | 'comment' | 'mention' | 'tag' | 'follow';
+  rule?: { _id: string; name: string };
+  summary: ApiSummary;
+}
+
 export const toRef = (u: { id: string; username: string; fullName: string; department: string; isSystem: boolean }): UserRef => ({
   _id: u.id,
   username: u.username,

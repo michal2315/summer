@@ -4,7 +4,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { CurrentUser } from '../auth/identity-provider';
 import { idsWhere } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
-import { comments, contentTypes, labels, notificationRuleHits, notificationRules, notifications, summaries, summaryLabels, userFollows, users } from '../database/schema';
+import { NotificationKind, comments, contentTypes, labels, notificationRuleHits, notificationRules, notifications, summaries, summaryLabels, userFollows, users } from '../database/schema';
 import { summaryVisible } from '../summaries/summary.access';
 
 export type RuleRow = typeof notificationRules.$inferSelect;
@@ -209,6 +209,35 @@ export class NotificationsRepository {
       .where(and(eq(notifications.userId, me.id), or(isNull(notifications.summaryId), summaryVisible(me))))
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .limit(INBOX_LIMIT);
+  }
+
+  /**
+   * The notifications page feed: notifications about a summary the caller can still see, newest first,
+   * optionally only those one rule raised. Paged by offset; one row past `limit` tells the caller there's more.
+   */
+  feed(me: CurrentUser, opts: { ruleId?: string; kinds: NotificationKind[]; unread: boolean; offset: number; limit: number }) {
+    return this.db
+      .select({
+        id: notifications.id,
+        text: notifications.text,
+        summaryId: notifications.summaryId,
+        createdAt: notifications.createdAt,
+        viewedAt: notifications.viewedAt,
+        ruleId: notificationRules.id,
+        ruleName: notificationRules.name,
+        kind: notifications.kind,
+        authorId: author.id,
+        authorUsername: author.username,
+        authorFullName: author.fullName,
+      })
+      .from(notifications)
+      .innerJoin(summaries, eq(summaries.id, notifications.summaryId))
+      .leftJoin(author, eq(author.id, notifications.createdBy))
+      .leftJoin(notificationRules, eq(notificationRules.id, notifications.ruleId))
+      .where(and(eq(notifications.userId, me.id), summaryVisible(me), opts.ruleId ? eq(notifications.ruleId, opts.ruleId) : undefined, opts.kinds.length ? inArray(notifications.kind, opts.kinds) : undefined, opts.unread ? isNull(notifications.viewedAt) : undefined))
+      .orderBy(desc(notifications.createdAt), desc(notifications.id))
+      .offset(opts.offset)
+      .limit(opts.limit + 1);
   }
 
   async markViewed(userId: string, id?: string): Promise<void> {

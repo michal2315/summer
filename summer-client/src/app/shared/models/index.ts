@@ -16,6 +16,16 @@ export interface INotification {
   createdBy?: Pick<IUser, '_id' | 'username' | 'fullName'>;
 }
 
+/** What raised a notification: a rule (conditions / saved search) matched, or another user's activity. */
+export type NotificationKind = 'rule' | 'search' | 'comment' | 'mention' | 'tag' | 'follow';
+
+/** A notifications-page feed entry: the notification, the rule that raised it (if any), and its summary. */
+export interface INotificationFeedItem extends INotification {
+  kind: NotificationKind;
+  rule?: { _id: string; name: string };
+  summary: ISummary;
+}
+
 export interface IUser {
   _id: string;
   username: string;

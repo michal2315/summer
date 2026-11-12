@@ -1,0 +1,78 @@
+<!-- Which kinds of notification to show; sticks to the top while the feed scrolls under it. -->
+<div class="kinds" role="group" aria-label="סוגי התראות">
+  <button type="button" class="kind" [class.on]="!kinds().size" [attr.aria-pressed]="!kinds().size" (click)="toggleKind(null)">הכל</button>
+  @for (o of kindOptions; track o.kind) {
+    <button type="button" class="kind" [class.on]="kinds().has(o.kind)" [attr.aria-pressed]="kinds().has(o.kind)" (click)="toggleKind(o.kind)">
+      <span nz-icon [nzType]="o.icon"></span> {{ o.label }}
+    </button>
+  }
+  <span class="kinds-sep" aria-hidden="true"></span>
+  <button type="button" class="kind unread-toggle" [class.on]="unreadOnly()" [attr.aria-pressed]="unreadOnly()" (click)="toggleUnread()">
+    <span class="dot"></span> לא נקראו בלבד
+  </button>
+</div>
+
+<div class="feed-header">
+  <div class="feed-title" role="heading" aria-level="2">
+    @if (ruleName(); as name) {
+      התראות מהכלל <span class="feed-rule">{{ name }}</span>
+    } @else {
+      כל ההתראות
+    }
+  </div>
+  @if (ruleId()) {
+    <button type="button" nz-button nzType="link" nzSize="small" (click)="clearRule.emit()"><span nz-icon nzType="close"></span> הצגת הכל</button>
+  }
+  <span class="spacer"></span>
+  @if (unread()) {
+    <button type="button" nz-button nzType="link" nzSize="small" (click)="markAllViewed()"><span nz-icon nzType="check"></span> סמן הכל כנקרא</button>
+  }
+</div>
+
+<ul class="items">
+  @for (n of items(); track n._id) {
+    @let info = n.rule ? ruleInfo().get(n.rule._id) : undefined;
+    <li class="item" [class.unread]="!n.isViewed" [attr.aria-label]="(n.isViewed ? '' : 'חדש: ') + n.text">
+      <!-- One quiet line: what kind, who / which rule, when. The full text and why it matched are in the tooltip. -->
+      <div class="alert" [nz-tooltip]="details" nzTooltipPlacement="topRight" [nzTooltipMouseEnterDelay]="0.4">
+        <span class="alert-icon" nz-icon [nzType]="kindIcon(n.kind)"></span>
+        @if (n.rule; as r) {
+          <button type="button" class="alert-label rule" (click)="pickRule.emit(r._id)" [attr.aria-label]="'הצגת ההתראות מהכלל ' + r.name">{{ r.name }}</button>
+        } @else {
+          <span class="alert-label">{{ shortLabel(n) }}</span>
+        }
+        <span class="alert-time">· {{ n.creationDate | relativeTime }}</span>
+        <span class="spacer"></span>
+        @if (!n.isViewed) {
+          <button type="button" class="new-pill" (click)="markViewed(n)" nz-tooltip="סימון כנקרא" aria-label="סימון כנקרא">חדש</button>
+        }
+      </div>
+      <ng-template #details>
+        <div>{{ n.text }}</div>
+        @if (info) {
+          <div class="tip-why">התאים כי: {{ info.why }}</div>
+        }
+        <div class="tip-time">{{ n.creationDate | dateFormat }}</div>
+      </ng-template>
+      <app-summary-card [summary]="n.summary" [search]="info?.highlight ?? null" (toggleOpen)="open(n)" />
+    </li>
+  }
+</ul>
+
+@if (loading()) {
+  <app-skeleton variant="rows" [count]="3" />
+} @else if (failed()) {
+  <div class="failed">
+    לא הצלחנו לטעון את ההתראות.
+    <button type="button" nz-button nzType="link" nzSize="small" (click)="retry()">לנסות שוב</button>
+  </div>
+} @else if (!items().length) {
+  <nz-empty
+    nzNotFoundImage="simple"
+    [nzNotFoundContent]="
+      unreadOnly() ? 'אין התראות שלא נקראו' : ruleId() ? 'הכלל הזה עוד לא התריע על אף תמצית' : kinds().size ? 'אין התראות מהסוגים שנבחרו' : 'עדיין אין התראות על תמציות'
+    "
+  />
+} @else if (hasMore()) {
+  <div class="sentinel" aria-hidden="true" (appInView)="more()" [appInViewKey]="items().length"></div>
+}

@@ -5,7 +5,7 @@ export default [
   {
     path: '',
     loadComponent: () => import('../features/notifications/notifications-settings/notifications-settings.component').then((m) => m.NotificationsSettingsComponent),
-    title: 'Summer · ניהול התראות',
+    title: 'Summer · התראות',
   },
   {
     path: 'create',

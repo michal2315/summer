@@ -518,7 +518,7 @@ export class SummariesService {
 
   /** Tagged users, then members of tagged groups who weren't tagged by name: one notification each. */
   private async notifyTagged(me: CurrentUser, id: string, title: string, userIds: string[], permissionIds: string[]): Promise<void> {
-    const n = { summaryId: id, createdBy: me.id };
+    const n = { summaryId: id, kind: 'tag' as const, createdBy: me.id };
     await this.notifications.notify(userIds, { ...n, text: `${me.fullName} תייג/ה אותך בתמצית "${title}"` });
     await this.notifications.notifyGroups(permissionIds, n, (group) => `${me.fullName} תייג/ה את "${group}" בתמצית "${title}"`, userIds);
   }

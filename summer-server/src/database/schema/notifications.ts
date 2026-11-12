@@ -4,6 +4,10 @@ import { createdAt, id, updatedAt } from './columns';
 import { comments, summaries } from './summaries';
 import { users } from './users';
 
+export const NOTIFICATION_KINDS = ['rule', 'search', 'comment', 'mention', 'tag', 'follow'] as const;
+/** rule / search: a notification rule matched (conditions / a saved search); the rest is activity by another user. */
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
 export const notifications = pgTable(
   'notifications',
   {
@@ -14,6 +18,8 @@ export const notifications = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     summaryId: uuid().references(() => summaries.id, { onDelete: 'cascade' }),
     text: text().notNull(),
+    /** What raised it (the notifications page filters by it). */
+    kind: text().$type<NotificationKind>().notNull(),
     createdBy: uuid().references(() => users.id, { onDelete: 'set null' }),
     /** The rule that raised it; null for activity (tags, comments, mentions, followed users). */
     ruleId: uuid().references((): AnyPgColumn => notificationRules.id, { onDelete: 'set null' }),

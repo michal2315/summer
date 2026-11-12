@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, Pipe, PipeTransform, inject, signal } from '@angular/core';
 import { Observable, map, tap } from 'rxjs';
 import { FieldsType, IField, IMailPreferences, INotificationSettings, INotificationSettingsCondition, ISummarySearch, NotificationsFunctionsOptions as F } from '../../shared/models';
+import { CAPSULE_TOKEN } from '../../shared/utils/capsules';
 import { alertSearch, describeSearch, sameAlertSearch } from '../summaries/search-query';
 
 export interface NotificationOption {
@@ -64,6 +65,26 @@ export function describeCondition(c: INotificationSettingsCondition): string {
   if (isBetween(c.funcName)) return `${c.field.name} ${op} ${fmt(c.content[0])} ל-${fmt(c.content[1])}`;
   return `${c.field.name} ${op} ${c.content.map(fmt).join(', ')}`;
 }
+
+/**
+ * What to highlight in a summary a rule alerted on, as a search the highlight pipes understand: a saved search as is;
+ * for conditions, the words (or capsules) they require in the summary's text. Null when the rule only looks at fields.
+ */
+export function ruleHighlight(rule: Pick<INotificationSettings, 'conditions' | 'search'>): ISummarySearch | null {
+  if (rule.search) return rule.search;
+  const words = rule.conditions
+    .filter((c) => c.field._id === SUMMARY_TEXT_FIELD._id)
+    .flatMap((c) => {
+      if (c.funcName === F.StringContains) return c.content.filter((v): v is string => typeof v === 'string' && !!v.trim());
+      if (c.funcName === F.CapsuleMatches && typeof c.content[0] === 'string') return [CAPSULE_TOKEN + c.content[0]];
+      return [];
+    });
+  return words.length ? { query: { type: 'group', op: 'OR', children: [{ type: 'cond', field: 'text', op: 'any', words }] } } : null;
+}
+
+/** Capsule ids a rule's highlight needs loaded. */
+export const ruleCapsuleIds = (rule: Pick<INotificationSettings, 'conditions'>): string[] =>
+  rule.conditions.filter((c) => isCapsuleFunc(c.funcName) && typeof c.content[0] === 'string').map((c) => c.content[0] as string);
 
 @Pipe({ name: 'notificationName' })
 export class NotificationNamePipe implements PipeTransform {

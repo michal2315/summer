@@ -1,0 +1,42 @@
+@use 'tokens' as *;
+
+:host { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.kinds { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; background: $app-background; }
+.kind { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; padding: 3px 12px; border-radius: 16px; font-size: 13px; background: $white; border: 1px solid $border-color; cursor: pointer; }
+.kind:hover { background: $input-color; }
+.kind:focus-visible { box-shadow: $focus-ring; }
+.kind.on { background: $accent; border-color: $accent; color: $white; }
+.kinds-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: $input-hover-color; }
+.unread-toggle .dot { width: 8px; height: 8px; border-radius: 50%; background: $primary-pink; }
+.unread-toggle.on { background: $primary-pink; border-color: $primary-pink; }
+.unread-toggle.on .dot { background: $white; }
+.feed-header { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.feed-title { font-weight: 700; }
+.feed-rule { color: $orange-strong; }
+.spacer { flex: 1; }
+.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+
+// Unread: a pink bar down the start side and a "new" pill; read: the line and card step back.
+.item { position: relative; display: flex; flex-direction: column; gap: 4px; padding-inline-start: 12px; }
+.item::before { content: ''; position: absolute; inset-inline-start: 0; top: 2px; bottom: 2px; width: 4px; border-radius: 2px; background: transparent; }
+.item.unread::before { background: $primary-pink; }
+.item:not(.unread) app-summary-card { opacity: 0.75; transition: opacity 0.15s; }
+.item:not(.unread):hover app-summary-card { opacity: 1; }
+
+.alert { display: flex; align-items: center; gap: 6px; min-height: 22px; font-size: 12px; color: $gray; }
+.alert-icon { font-size: 13px; }
+.alert-label { all: unset; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: $dark-gray; }
+.alert-label.rule { cursor: pointer; }
+.alert-label.rule:hover { text-decoration: underline; }
+.alert-label.rule:focus-visible { box-shadow: $focus-ring; border-radius: 4px; }
+.alert-time { flex-shrink: 0; }
+.item.unread .alert { color: $dark-gray; }
+.item.unread .alert-icon { color: $primary-pink; }
+.item.unread .alert-label { font-weight: 700; color: $black; }
+.new-pill { all: unset; flex-shrink: 0; padding: 0 8px; line-height: 18px; border-radius: 9px; font-size: 11px; font-weight: 700; color: $white; background: $primary-pink; cursor: pointer; }
+.new-pill:focus-visible { box-shadow: $focus-ring; }
+
+.tip-why { margin-top: 4px; opacity: 0.85; }
+.tip-time { margin-top: 4px; font-size: 11px; opacity: 0.7; }
+.failed { display: flex; align-items: center; gap: 4px; font-size: 13px; color: $dark-gray; }
+.sentinel { height: 1px; }

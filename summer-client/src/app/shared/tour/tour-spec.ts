@@ -123,7 +123,7 @@ export const TOUR_TOPICS: TourTopic[] = [
         id: 'b-bell',
         sel: altSel('notificationsBell'),
         title: 'התראות',
-        body: 'תמציות חדשות שעונות על כללי ההתראה שלכם. את הכללים מגדירים ב"ניהול התראות" שבחלונית הפעמון.',
+        body: 'תמציות חדשות שעונות על כללי ההתראה שלכם. את כל ההתראות ואת הכללים מוצאים ב"דף ההתראות" שבחלונית הפעמון.',
         kbd: [alt('notificationsBell')],
       },
       {
@@ -276,16 +276,16 @@ export const TOUR_TOPICS: TourTopic[] = [
     steps: [
       {
         id: 'n-rules',
-        sel: 'app-notifications-settings .list',
+        sel: 'app-notifications-settings .panel .list',
         title: 'כללי התראה',
         body: 'כל כלל מגדיר תנאים על שדות התמצית. כשתמצית חדשה עומדת בכולם — מקבלים התראה במערכת, במייל או בשניהם.',
-        tip: 'מגיעים לכאן מ"ניהול התראות" שבחלונית הפעמון בדף הבית.',
+        tip: 'מגיעים לכאן מ"דף ההתראות" שבחלונית הפעמון בדף הבית. בצד השני של הדף: כל התמציות שקיבלתם עליהן התראה.',
         added: '2026-11-05',
         prep: (ctx) => ctx.go('/notifications'),
       },
       {
         id: 'n-new',
-        sel: 'app-notifications-settings .header [nztype="primary"]',
+        sel: 'app-notifications-settings .panel-header [nztype="primary"]',
         title: 'התראה חדשה',
         body: 'בוחרים סוג תוכן, מוסיפים תנאים ובוחרים איך לקבל את ההתראה.',
       },

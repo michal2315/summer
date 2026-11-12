@@ -2,10 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { z } from 'zod';
 import { CurrentUser } from '../auth/identity-provider';
 import { CapsulesService } from '../capsules/capsules.service';
-import { ApiNotification } from '../common/api-types';
-import { isUuid, parse, unique } from '../common/validation';
+import { ApiNotification, ApiNotificationFeedItem } from '../common/api-types';
+import { isUuid, parse, unique, zBoolString, zId, zList } from '../common/validation';
 import { ContentTypesRepository } from '../content-types/content-types.repository';
-import { RuleCondition } from '../database/schema';
+import { NOTIFICATION_KINDS, NotificationKind, RuleCondition } from '../database/schema';
 import { PermissionsRepository } from '../permissions/permissions.repository';
 import { summarySearchSchema } from '../summaries/summary-search';
 import { MailPreferences, NotificationsRepository, Recipient, RuleRow } from './notifications.repository';
@@ -32,6 +32,15 @@ const ruleBody = z.object({
   isDigest: z.boolean().default(false),
   isNotify: z.boolean().default(true),
 });
+
+const FEED_PAGE = 20;
+const feedQuery = z.object({
+  ruleId: zId.optional(),
+  /** Only these kinds; empty means all. */
+  kinds: zList.pipe(z.array(z.enum(NOTIFICATION_KINDS))),
+  /** Only ones not yet viewed. */
+  unread: zBoolString,
+  offset: z.coerce.number().int().min(0).max(100_000).default(0) });
 
 const preferencesBody = z.object({ mailAlerts: z.boolean().optional(), mailActivity: z.boolean().optional() });
 
@@ -100,11 +109,11 @@ export class NotificationsService {
    * Store one notification per recipient who can (by last-known groups) see the summary. Never notifies the actor.
    * Runs inside the caller's transaction, so it commits or rolls back with the change that caused it.
    */
-  async notify(recipientIds: string[], n: { summaryId: string; text: string; createdBy: string; commentId?: string }, rule?: RuleRow): Promise<Delivered[]> {
+  async notify(recipientIds: string[], n: { summaryId: string; text: string; kind: NotificationKind; createdBy: string; commentId?: string }, rule?: RuleRow): Promise<Delivered[]> {
     const candidates = unique(recipientIds).filter((id) => id !== n.createdBy);
     const allowed = await this.whoCanView(candidates, n.summaryId);
     const rows = await this.repo.insertMany(
-      allowed.map((u) => ({ userId: u.id, summaryId: n.summaryId, text: n.text, createdBy: n.createdBy, commentId: n.commentId, ruleId: rule?.id, ...mailFlags(u, rule) })),
+      allowed.map((u) => ({ userId: u.id, summaryId: n.summaryId, text: n.text, kind: n.kind, createdBy: n.createdBy, commentId: n.commentId, ruleId: rule?.id, ...mailFlags(u, rule) })),
     );
     const byUser = new Map(allowed.map((u) => [u.id, u]));
     return rows.map((r) => ({ notificationId: r.id, recipient: byUser.get(r.userId)! }));
@@ -116,7 +125,7 @@ export class NotificationsService {
    */
   async notifyGroups(
     permissionIds: string[],
-    n: { summaryId: string; createdBy: string; commentId?: string },
+    n: { summaryId: string; kind: NotificationKind; createdBy: string; commentId?: string },
     text: (groupName: string) => string,
     skip: string[] = [],
   ): Promise<string[]> {
@@ -148,7 +157,7 @@ export class NotificationsService {
   /** A summary became visible to others (created published, or a draft was published): followers + matching rules. */
   async onPublished(s: PublishedSummary, author: CurrentUser): Promise<void> {
     const followers = await this.repo.followerIds(author.id);
-    const sent = await this.notify(followers, { summaryId: s.id, text: `${author.fullName} פרסם/ה תמצית חדשה "${s.title}"`, createdBy: author.id });
+    const sent = await this.notify(followers, { summaryId: s.id, text: `${author.fullName} פרסם/ה תמצית חדשה "${s.title}"`, kind: 'follow', createdBy: author.id });
     const notified = new Map(sent.map((d) => [d.recipient.id, d]));
 
     await this.notifyRules(s, author, notified, 'חדשה');
@@ -180,7 +189,7 @@ export class NotificationsService {
         continue;
       }
       const kind = rule.search ? 'לחיפוש' : 'לכלל';
-      const sent = await this.notify([rule.userId], { summaryId: s.id, text: `תמצית ${what} תואמת ${kind} "${rule.name}": "${s.title}"`, createdBy: author.id }, rule);
+      const sent = await this.notify([rule.userId], { summaryId: s.id, text: `תמצית ${what} תואמת ${kind} "${rule.name}": "${s.title}"`, kind: rule.search ? 'search' : 'rule', createdBy: author.id }, rule);
       if (!sent.length) continue;
       await this.repo.addRuleHit(rule.id, s.id);
       sent.forEach((d) => notified.set(d.recipient.id, d));
@@ -197,6 +206,25 @@ export class NotificationsService {
       isViewed: r.viewedAt !== null,
       createdBy: r.authorId ? { _id: r.authorId, username: r.authorUsername!, fullName: r.authorFullName! } : undefined,
     }));
+  }
+
+  /** One page of the notifications-page feed (the caller attaches the summaries). */
+  async feed(me: CurrentUser, query: unknown): Promise<{ items: Omit<ApiNotificationFeedItem, 'summary'>[]; hasMore: boolean }> {
+    const q = parse(feedQuery, query ?? {});
+    const rows = await this.repo.feed(me, { ruleId: q.ruleId, kinds: q.kinds, unread: q.unread, offset: q.offset, limit: FEED_PAGE });
+    return {
+      hasMore: rows.length > FEED_PAGE,
+      items: rows.slice(0, FEED_PAGE).map((r) => ({
+        _id: r.id,
+        text: r.text,
+        summaryId: r.summaryId ?? undefined,
+        creationDate: r.createdAt.toISOString(),
+        isViewed: r.viewedAt !== null,
+        createdBy: r.authorId ? { _id: r.authorId, username: r.authorUsername!, fullName: r.authorFullName! } : undefined,
+        kind: r.kind,
+        ...(r.ruleId ? { rule: { _id: r.ruleId, name: r.ruleName! } } : {}),
+      })),
+    };
   }
 
   markViewed(me: CurrentUser, id?: string): Promise<void> {

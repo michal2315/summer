@@ -9,6 +9,7 @@ import { PermissionsModule } from '../permissions/permissions.module';
 import { UsersModule } from '../users/users.module';
 import { ExcelService } from './excel.service';
 import { FieldSummariesController } from './field-summaries.controller';
+import { NotificationFeedController } from './notification-feed.controller';
 import { FilesService } from './files.service';
 import { SummariesController } from './summaries.controller';
 import { SummariesRepository } from './summaries.repository';
@@ -33,7 +34,7 @@ const MAX_PAYLOAD_FIELD_BYTES = 25 * 1024 * 1024;
       }),
     }),
   ],
-  controllers: [SummariesController, FieldSummariesController],
+  controllers: [SummariesController, FieldSummariesController, NotificationFeedController],
   providers: [SummariesRepository, SummariesService, FilesService, ExcelService, WordService],
   exports: [SummariesService, SummariesRepository],
 })
