@@ -10,15 +10,16 @@ export interface BulkScope {
 }
 
 /**
- * Bulk edits apply only to summaries the user may edit; `sumaroons: false` also leaves out sumaroons (they live only
- * inside their running summary), `drafts: false` leaves out drafts (they can't sit in a folder).
+ * Bulk edits apply only to summaries the user may edit, unless `editOnly: false` (adding to a folder only adds a pointer,
+ * so anyone who sees a summary may); `sumaroons: false` also leaves out sumaroons (they live only inside their running
+ * summary), `drafts: false` leaves out drafts (they can't sit in a folder).
  * A row never listed (summary unknown) is included — the server re-checks every id.
  */
-export function bulkScope(rows: { id: string; summary?: ISummary }[], opts: { sumaroons?: boolean; drafts?: boolean } = {}): BulkScope {
-  const { sumaroons = true, drafts = true } = opts;
+export function bulkScope(rows: { id: string; summary?: ISummary }[], opts: { editOnly?: boolean; sumaroons?: boolean; drafts?: boolean } = {}): BulkScope {
+  const { editOnly = true, sumaroons = true, drafts = true } = opts;
   const scope: BulkScope = { ids: [], total: rows.length, notEditable: 0, sumaroons: 0, drafts: 0 };
   for (const { id, summary } of rows) {
-    if (summary?.canEdit === false) scope.notEditable++;
+    if (editOnly && summary?.canEdit === false) scope.notEditable++;
     else if (!sumaroons && summary?.kind === SummaryKind.Sumaroon) scope.sumaroons++;
     else if (!drafts && summary?.isDraft) scope.drafts++;
     else scope.ids.push(id);

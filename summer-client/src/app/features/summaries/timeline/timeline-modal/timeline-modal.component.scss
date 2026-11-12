@@ -13,9 +13,36 @@
   .title-input {
     max-width: 320px;
   }
+}
+
+.actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  background: $app-background;
+  border-radius: 8px;
   .spacer {
     flex: 1;
   }
+}
+
+.event-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 220px;
+  nz-date-picker {
+    width: 100%;
+  }
+}
+
+.event-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .loading {
@@ -128,7 +155,30 @@
   background: #fff4f5;
   border-color: $primary-pink;
 }
-.undated {
+// Custom events: dashed, not clickable, with a remove button.
+.event.custom {
+  .card {
+    cursor: default;
+    position: relative;
+    border-style: dashed;
+    border-color: $gray;
+    background: $white;
+    &:hover {
+      box-shadow: none;
+    }
+  }
+  .dot {
+    background: $gray;
+  }
+}
+
+.remove {
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 2px;
+}
+
+.notes {
   font-size: 12px;
   color: #666666;
   margin: 0 0 8px;

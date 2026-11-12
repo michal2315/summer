@@ -429,7 +429,9 @@
     } @else if (autosavedAt()) {
       <span class="autosaved muted"><span nz-icon nzType="check"></span> נשמר אוטומטית {{ autosavedAt() | dateFormat: 'HH:mm' }}</span>
     }
-    <button nz-button type="button" [nzLoading]="saving()" (click)="submit(true)">שמירה כטיוטה</button>
+    @if (!inModal) {
+      <button nz-button type="button" [nzLoading]="saving()" (click)="submit(true)">שמירה כטיוטה</button>
+    }
     <button nz-button nzType="primary" type="submit" [nzLoading]="saving()">{{ isEdit() ? 'עדכון' : 'פרסום' }}</button>
   </div>
 </form>

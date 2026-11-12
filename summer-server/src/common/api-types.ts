@@ -18,15 +18,18 @@ export interface UserRef {
   isSystem?: boolean;
 }
 
-/** A saved search; without a name the client describes it from its filters. */
+/** A personal saved search; without a name the client describes it from its filters. */
 export interface ApiSavedSearch {
   _id: string;
   name: string | null;
   search: Record<string, unknown>;
+  /** where it was saved from: the search bar (simple) or the advanced panel */
+  kind: 'simple' | 'advanced';
+  isFavorite: boolean;
 }
 
 export interface ApiUser extends UserRef {
-  /** newest first */
+  /** favourites first, then newest first */
   pinnedSearches: ApiSavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];

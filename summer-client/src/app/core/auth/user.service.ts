@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, shareReplay, tap } from 'rxjs';
-import { IBulkResult, ISummarySearch, IUser, UserRef } from '../../shared/models';
+import { IBulkResult, ISummarySearch, IUser, SavedSearchKind, UserRef } from '../../shared/models';
 import { SILENT_ERRORS } from '../http/http-context';
 
 const BASE = '/api/user';
@@ -51,12 +51,13 @@ export class UserService {
   }
 
   // ---- pins / favorites / follows (all return the updated IUser) ----
-  /** Saving a search that is already saved keeps its name unless `name` is given. */
-  pinSearch(search: ISummarySearch, isPin: boolean, name?: string) {
-    return this.update(this.http.post<IUser>(`${BASE}/pinned-search/`, { ...search, isPin, ...(name !== undefined ? { name } : {}) }));
+  /** Saving a search that is already saved keeps its name (and favourite) unless `name` is given. */
+  pinSearch(search: ISummarySearch, isPin: boolean, name?: string, kind: SavedSearchKind = 'simple') {
+    return this.update(this.http.post<IUser>(`${BASE}/pinned-search/`, { ...search, isPin, kind, ...(name !== undefined ? { name } : {}) }));
   }
-  renameSearch(id: string, name: string) {
-    return this.update(this.http.put<IUser>(`${BASE}/pinned-search/${id}`, { name }));
+  /** Rename, (un)favourite or change the search itself; an alert on the old search follows the change. */
+  updateSearch(id: string, patch: { name?: string; search?: ISummarySearch; isFavorite?: boolean }) {
+    return this.update(this.http.put<IUser>(`${BASE}/pinned-search/${id}`, patch));
   }
   pinLabel(label: string) {
     return this.update(this.http.post<IUser>(`${BASE}/pinned-label/`, { label }));

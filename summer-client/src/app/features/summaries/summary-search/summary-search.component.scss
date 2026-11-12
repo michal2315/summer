@@ -3,8 +3,8 @@
 // Token colors, shared by the box, and the popup titles.
 $tok-user: #1d39c4;
 $tok-user-bg: #e8edff;
-$tok-type: #08793a;
-$tok-type-bg: #e3f6ea;
+$tok-field: #08793a;
+$tok-field-bg: #e3f6ea;
 $tok-and: $accent;
 $tok-and-bg: #e4e4f4;
 $tok-or: #b54d00;
@@ -13,6 +13,8 @@ $tok-not: #c41d3a;
 $tok-not-bg: #fde3e8;
 $tok-phrase: #8a6400;
 $tok-phrase-bg: #fff3bf;
+$tok-saved: #9e1068;
+$tok-saved-bg: #ffe6f2;
 
 :host {
   display: block;
@@ -117,8 +119,8 @@ $tok-phrase-bg: #fff3bf;
 .tok-user {
   @include pill($tok-user, $tok-user-bg);
 }
-.tok-type {
-  @include pill($tok-type, $tok-type-bg);
+.tok-field {
+  @include pill($tok-field, $tok-field-bg);
 }
 .tok-and {
   @include pill($tok-and, $tok-and-bg);
@@ -131,6 +133,9 @@ $tok-phrase-bg: #fff3bf;
 }
 .tok-phrase {
   @include pill($tok-phrase, $tok-phrase-bg);
+}
+.tok-saved {
+  @include pill($tok-saved, $tok-saved-bg);
 }
 .tok-capsule {
   @include pill($capsule, $capsule-bg);
@@ -189,7 +194,8 @@ $tok-phrase-bg: #fff3bf;
 }
 
 .cheat-example {
-  flex: 0 0 130px;
+  flex: 0 0 auto;
+  min-width: 130px;
   font-size: 13px;
   white-space: pre;
 }
@@ -292,6 +298,30 @@ $tok-phrase-bg: #fff3bf;
   color: $gray;
 }
 
+// A saved search: favourite star and kind, in the $ list and the saved chips.
+.fav {
+  color: $star;
+}
+.kind-tag {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: $gray;
+  background: $gray-tag;
+  &.advanced {
+    color: $accent;
+    background: #e4e4f4;
+  }
+}
+.chip-kind {
+  font-size: 11px;
+  color: $gray;
+}
+.popup-title-hint {
+  font-weight: 400;
+  color: $gray;
+}
+
 .empty {
   padding: 8px;
   color: $gray;
@@ -349,4 +379,30 @@ $tok-phrase-bg: #fff3bf;
   .spacer {
     flex: 1;
   }
+}
+
+// What ← does with the word at the caret.
+.arrow-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.kbd-key {
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: $dark-blue;
+  background: $input-color;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
 }

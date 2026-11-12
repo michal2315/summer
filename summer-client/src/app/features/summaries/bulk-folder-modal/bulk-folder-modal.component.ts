@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
@@ -10,13 +11,16 @@ import { FolderService, managedFolderPaths } from '../../../shared/services/fold
 import { bulkResultMessage } from '../bulk-scope';
 
 export interface BulkFolderData {
-  /** The selected summaries that may be placed (yours to edit, not drafts or sumaroons). */
+  /** The selected summaries that may be placed (anything you see, except drafts and sumaroons). */
   summaryIds: string[];
   /** Why part of the selection is left out (empty when none is). */
   note: string;
 }
 
-/** Add the selected summaries to one of the folders you manage (they keep their other folders). Closes with true after a change. */
+/**
+ * Add the selected summaries to folders you manage. Not a move or a copy: the same summary also appears in each chosen
+ * folder and keeps the folders it is already in. Closes with true after a change.
+ */
 @Component({
   selector: 'app-bulk-folder-modal',
   imports: [FormsModule, NzButtonModule, NzSelectModule, SkeletonComponent],
@@ -31,7 +35,7 @@ export class BulkFolderModalComponent {
   private readonly users = inject(UserService);
   private readonly message = inject(NzMessageService);
 
-  readonly folder = signal<string | null>(null);
+  readonly picked = signal<string[]>([]);
   readonly options = signal<{ _id: string; path: string }[] | null>(null);
   readonly busy = signal(false);
 
@@ -43,19 +47,20 @@ export class BulkFolderModalComponent {
   }
 
   add() {
-    const folderId = this.folder();
-    if (!folderId) return;
+    const folderIds = this.picked();
+    if (!folderIds.length) return;
     this.busy.set(true);
-    this.folders
-      .addItems(folderId, this.data.summaryIds, true)
-      .subscribe({
-        next: (result) => {
-          const text = bulkResultMessage(result, 'תמציות נוספו לתיקייה');
-          if (result.skipped.length) this.message.warning(text);
-          else this.message.success(text);
-          this.modal.close(true);
-        },
-        error: () => this.busy.set(false),
-      });
+    forkJoin(folderIds.map((f) => this.folders.addItems(f, this.data.summaryIds, true))).subscribe({
+      next: (results) => {
+        // Every folder gets the same summaries, so the skips repeat per folder; report them once.
+        const [first] = results;
+        const where = folderIds.length > 1 ? `ל-${folderIds.length} תיקיות` : 'לתיקייה';
+        const text = bulkResultMessage(first, `תמציות נוספו ${where}`);
+        if (first.skipped.length) this.message.warning(text);
+        else this.message.success(text);
+        this.modal.close(true);
+      },
+      error: () => this.busy.set(false),
+    });
   }
 }

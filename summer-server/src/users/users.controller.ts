@@ -54,8 +54,8 @@ export class UsersController {
   }
 
   @Put('pinned-search/:id')
-  renameSearch(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: Body_): Promise<ApiUser> {
-    return this.users.renameSearch(me, id, body?.name);
+  updateSearch(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: Body_): Promise<ApiUser> {
+    return this.users.updateSearch(me, id, body);
   }
 
   @Post('pinned-label')

@@ -31,10 +31,10 @@
         <div browser-below-title class="below-title">
           @if (folder()) {
             <div class="crumbs" aria-label="מיקום התיקייה">
-              <a routerLink="/summaries">כל התמציות</a>
+              <a routerLink="/summaries" [queryParams]="withSearch()">כל התמציות</a>
               @for (a of ancestors(); track a._id) {
                 <span class="sep" nz-icon nzType="left" aria-hidden="true"></span>
-                <a routerLink="/summaries" [queryParams]="{ folderId: a._id }">{{ a.name }}</a>
+                <a routerLink="/summaries" [queryParams]="withSearch({ folderId: a._id })">{{ a.name }}</a>
               }
             </div>
           }

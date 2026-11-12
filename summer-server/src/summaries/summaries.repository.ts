@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { SQL, and, asc, eq, exists, gte, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
+import { SQL, SQLWrapper, and, asc, eq, exists, gte, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { Capsule, CapsuleLookup, NO_CAPSULES, capsuleTokenId, isCapsuleToken, wordsOf } from '../capsules/capsule';
-import { idsWhere, textLike, uuidArray } from '../common/sql';
+import { idsWhere, textLike, textWholeWord, uuidArray } from '../common/sql';
 import { dayRange } from '../common/time';
 import { DatabaseService } from '../database/database.service';
 import {
@@ -26,7 +26,10 @@ import {
 } from '../database/schema';
 import { folderEditable, folderVisible } from '../folders/folder.access';
 import { summaryEditable, summaryVisible } from './summary.access';
-import { Bucket, QueryCondition, QueryGroup, SummarySearch, TEXT_FIELDS, TextField, parseQuery } from './summary-search';
+import { Bucket, QueryCondition, QueryGroup, QueryTerm, SummarySearch, TEXT_FIELDS, TermField, TextField, colorValue, parseQuery } from './summary-search';
+
+type ValueTermField = Extract<TermField, 'author' | 'type' | 'color'>;
+const isValueField = (f: TermField | undefined): f is ValueTermField => f === 'author' || f === 'type' || f === 'color';
 
 const ALL_TEXT_FIELDS: TextField[] = TEXT_FIELDS.filter((f) => f !== 'text');
 /** The basic search's "search in" checkboxes. */
@@ -113,34 +116,24 @@ export class SummariesRepository {
     const textFields: TextField[] = checked.length ? checked : ALL_TEXT_FIELDS;
 
     const query = parseQuery(f.text);
-    const anyGroup = query.groups.map((g) =>
-      and(
-        ...g.map((t) => {
-          const capsule = t.capsule ? capsules.byName(t.term) : undefined;
-          if (capsule) return t.neg ? notTrue(this.capsuleMatch(capsule, textFields)) : this.capsuleMatch(capsule, textFields);
-          const match = this.textMatch(t.term, textFields);
-          return match && t.neg ? not(match) : match;
-        }),
-      ),
-    );
+    const termMatch = (t: QueryTerm): SQL | undefined => {
+      const capsule = t.capsule ? capsules.byName(t.term) : undefined;
+      if (capsule) return t.neg ? notTrue(this.capsuleMatch(capsule, textFields)) : this.capsuleMatch(capsule, textFields);
+      if (isValueField(t.field)) return t.neg ? notTrue(this.valueMatch(t.field, t.term)) : this.valueMatch(t.field, t.term);
+      const match = this.textMatch(t.term, t.field ? [t.field] : textFields, t.exact);
+      return match && t.neg ? not(match) : match;
+    };
+    const anyGroup = query.groups.map((g) => {
+      // A summary has one author, type and color: `@a @b` means either of them.
+      const byField = new Map<string, SQL[]>();
+      const rest: (SQL | undefined)[] = [];
+      for (const t of g) {
+        if (!isValueField(t.field) || t.neg) rest.push(termMatch(t));
+        else byField.set(t.field, [...(byField.get(t.field) ?? []), this.valueMatch(t.field, t.term)]);
+      }
+      return and(...rest, ...[...byField.values()].map((list) => or(...list)));
+    });
     if (anyGroup.length) conds.push(or(...anyGroup)!);
-    if (query.users.length)
-      conds.push(inArray(summaries.createdBy, this.db.select({ id: users.id }).from(users).where(inArray(sql`lower(${users.username})`, query.users))));
-    if (query.contentTypes.length)
-      conds.push(
-        inArray(
-          summaries.contentTypeId,
-          this.db
-            .select({ id: contentTypes.id })
-            .from(contentTypes)
-            .where(
-              or(
-                inArray(sql`lower(${contentTypes.name})`, query.contentTypes.map((t) => t.toLowerCase())),
-                inArray(contentTypes.displayName, query.contentTypes),
-              ),
-            ),
-        ),
-      );
     const advanced = f.query && this.queryGroup(f.query, timeZone, capsules);
     if (advanced) conds.push(advanced);
 
@@ -170,13 +163,30 @@ export class SummariesRepository {
     return conds;
   }
 
-  /** `term` appears (case-insensitive substring) in any of `fields`; undefined when no field applies. */
-  private textMatch(term: string, fields: readonly TextField[]): SQL | undefined {
+  /** `@user`, `:type:` or `:color:` from the search text: username or full name / content type name or display name / palette color. */
+  private valueMatch(field: ValueTermField, value: string): SQL {
+    if (field === 'author')
+      return inArray(summaries.createdBy, this.db.select({ id: users.id }).from(users).where(or(eq(sql`lower(${users.username})`, value.toLowerCase()), eq(users.fullName, value))));
+    if (field === 'type')
+      return inArray(
+        summaries.contentTypeId,
+        this.db
+          .select({ id: contentTypes.id })
+          .from(contentTypes)
+          .where(or(eq(sql`lower(${contentTypes.name})`, value.toLowerCase()), eq(contentTypes.displayName, value))),
+      );
+    const color = colorValue(value);
+    return color ? eq(summaries.color, color) : sql`false`;
+  }
+
+  /** `term` appears (case-insensitive substring; with `exact`, as whole words) in any of `fields`; undefined when no field applies. */
+  private textMatch(term: string, fields: readonly TextField[], exact = false): SQL | undefined {
+    const like = (col: SQLWrapper) => (exact ? textWholeWord(col, term) : textLike(col, term));
     const anyOf: SQL[] = [];
     const has = (f: TextField) => fields.includes('text') || fields.includes(f);
-    if (has('title')) anyOf.push(textLike(summaries.title, term));
-    if (has('content')) anyOf.push(textLike(summaries.contentText, term));
-    if (has('notes')) anyOf.push(textLike(summaries.notesText, term));
+    if (has('title')) anyOf.push(like(summaries.title));
+    if (has('content')) anyOf.push(like(summaries.contentText));
+    if (has('notes')) anyOf.push(like(summaries.notesText));
     if (has('labels'))
       anyOf.push(
         exists(
@@ -184,7 +194,7 @@ export class SummariesRepository {
             .select({ x: sql`1` })
             .from(summaryLabels)
             .innerJoin(labels, eq(labels.id, summaryLabels.labelId))
-            .where(and(eq(summaryLabels.summaryId, summaries.id), textLike(labels.name, term))),
+            .where(and(eq(summaryLabels.summaryId, summaries.id), like(labels.name))),
         ),
       );
     if (has('comments'))
@@ -193,7 +203,7 @@ export class SummariesRepository {
           this.db
             .select({ x: sql`1` })
             .from(comments)
-            .where(and(eq(comments.summaryId, summaries.id), textLike(comments.content, term))),
+            .where(and(eq(comments.summaryId, summaries.id), like(comments.content))),
         ),
       );
     return anyOf.length ? or(...anyOf) : undefined;

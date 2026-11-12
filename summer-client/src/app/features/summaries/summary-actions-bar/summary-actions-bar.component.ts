@@ -79,9 +79,11 @@ export class SummaryActionsBarComponent {
   readonly colorOpen = signal(false);
 
   /**
-   * What each bulk edit applies to: only summaries the user may edit; a sumaroon or a draft never sits in a folder. To-draft and delete touch only your own summaries.
+   * What each bulk edit applies to: only summaries the user may edit — except adding to folders, which only adds a
+   * pointer, so any summary you see may go in (but a sumaroon or a draft never sits in a folder). To-draft and delete
+   * touch only your own summaries.
    */
-  readonly folderScope = computed(() => bulkScope(this.store.selectedRows(), { sumaroons: false, drafts: false }));
+  readonly folderScope = computed(() => bulkScope(this.store.selectedRows(), { editOnly: false, sumaroons: false, drafts: false }));
   readonly labelsScope = computed(() => bulkScope(this.store.selectedRows()));
   readonly mineIds = computed(() => this.store.selectedRows().filter((r) => r.summary?.user?._id === this.users.userId()).map((r) => r.id));
   readonly draftIds = computed(() => this.store.selectedRows().filter((r) => r.summary?.user?._id === this.users.userId() && !r.summary.isDraft).map((r) => r.id));
@@ -91,7 +93,7 @@ export class SummaryActionsBarComponent {
     if (!scope.ids.length) return;
     this.modal
       .create<BulkFolderModalComponent, BulkFolderData, boolean>({
-        nzTitle: 'הוספה לתיקייה',
+        nzTitle: 'הוספה לתיקיות',
         nzContent: BulkFolderModalComponent,
         nzData: { summaryIds: scope.ids, note: scopeNote(scope) },
         nzFooter: null,
@@ -179,7 +181,7 @@ export class SummaryActionsBarComponent {
   /** Tooltip on a bulk edit button: its name, plus why part (or all) of the selection is left out. */
   tip(name: string, scope: BulkScope): string {
     if (!this.store.selectedCount()) return name;
-    const note = scope.ids.length ? scopeNote(scope) : 'אין בבחירה תמציות שאפשר לערוך';
+    const note = scope.ids.length || scope.notEditable < scope.total ? scopeNote(scope) : 'אין בבחירה תמציות שאפשר לערוך';
     return note ? `${name} · ${note}` : name;
   }
 

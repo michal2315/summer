@@ -1,0 +1,68 @@
+@use 'tokens' as *;
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: $dark-gray;
+}
+
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: $gray;
+  background: $gray-tag;
+  &.advanced {
+    color: $accent;
+    background: #e4e4f4;
+  }
+}
+
+// The builder sits in the form rather than over the feed.
+.builder ::ng-deep .panel {
+  box-shadow: none;
+  border: 1px solid $border-strong;
+  max-height: 52vh;
+  animation: none;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  min-height: 18px;
+}
+
+.muted {
+  color: $gray;
+}
+
+.warn {
+  color: $orange-strong;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

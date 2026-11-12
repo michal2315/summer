@@ -9,6 +9,17 @@
   @media (max-width: $bp-mobile) {
     padding: 0;
   }
+
+  // Inside a modal the modal is the card.
+  &.in-modal {
+    padding: 0;
+    background: $white;
+    min-height: 0;
+    .page {
+      padding: 0;
+      max-width: none;
+    }
+  }
 }
 
 // The form sits as a white card on the grey page background, like the feed's cards.

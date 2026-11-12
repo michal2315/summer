@@ -5,7 +5,9 @@
       <span class="hits">{{ hits() }} תוצאות</span>
     }
     <span class="spacer"></span>
-    <button type="button" class="icon-btn" (click)="closed.emit()" nz-tooltip="סגירה (Esc)" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+    @if (!embedded()) {
+      <button type="button" class="icon-btn" (click)="closed.emit()" nz-tooltip="סגירה (Esc)" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+    }
   </div>
 
   <div class="sentence">
@@ -30,12 +32,46 @@
   </div>
 
   <div class="foot">
-    <button nz-button nzType="primary" type="button" (click)="submit()"><span nz-icon nzType="search"></span> חיפוש</button>
+    @if (!embedded()) {
+      <button nz-button nzType="primary" type="button" (click)="submit()"><span nz-icon nzType="search"></span> חיפוש</button>
+      <button
+        nz-button
+        type="button"
+        [disabled]="!query()"
+        nz-popover
+        nzPopoverTrigger="click"
+        nzPopoverTitle="שמירת החיפוש המתקדם"
+        nzPopoverPlacement="top"
+        [nzPopoverContent]="saveTpl"
+        [nzPopoverVisible]="saveOpen()"
+        (nzPopoverVisibleChange)="onSavePopover($event)"
+        [nz-tooltip]="query() ? 'שמירה כחיפוש מתקדם' : 'הוסיפו תנאי כדי לשמור'"
+      >
+        <span nz-icon nzType="save"></span> שמירה
+      </button>
+    }
     <button nz-button type="button" (click)="reset()" nz-tooltip="ניקוי כל התנאים"><span nz-icon nzType="undo"></span> ניקוי</button>
     <span class="spacer"></span>
     <span class="foot-hint">נבנה יחד עם הטקסט שבתיבת החיפוש</span>
   </div>
 </div>
+
+<ng-template #saveTpl>
+  <div class="save-search">
+    <input
+      nz-input
+      placeholder="שם החיפוש"
+      maxlength="120"
+      aria-label="שם החיפוש"
+      [ngModel]="saveName()"
+      (ngModelChange)="saveName.set($event)"
+      (keydown.enter)="$event.preventDefault(); save()"
+    />
+    <div class="save-actions">
+      <button nz-button nzType="primary" type="button" [nzLoading]="saveBusy()" [disabled]="!saveName().trim()" (click)="save()">שמירה</button>
+    </div>
+  </div>
+</ng-template>
 
 <!-- A group: the operator sits on the bracket rail and flips with a click; children are conditions or nested groups. -->
 <ng-template #groupTpl let-node let-depth="depth">

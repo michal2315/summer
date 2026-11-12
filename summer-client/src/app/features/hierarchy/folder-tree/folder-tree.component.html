@@ -46,7 +46,7 @@
             (drop)="onDrop($event, null)"
           >
             <span class="twisty"></span>
-            <a class="link" routerLink="/summaries">
+            <a class="link" routerLink="/summaries" [queryParams]="withSearch()">
               <span class="icon root-icon" nz-icon nzType="home"></span>
               <span class="label">כל התמציות</span>
             </a>
@@ -70,7 +70,7 @@
             (drop)="onDrop($event, NO_FOLDER)"
           >
             <span class="twisty"></span>
-            <a class="link" routerLink="/summaries" [queryParams]="{ folderId: NO_FOLDER }">
+            <a class="link" routerLink="/summaries" [queryParams]="withSearch({ folderId: NO_FOLDER })">
               <span class="icon folder" nz-icon nzType="inbox"></span>
               <span class="label">תמציות ללא שיוך</span>
               @if (store.unfiledCount() !== null) {
@@ -120,7 +120,7 @@
           } @else {
             <span class="twisty"></span>
           }
-          <a class="link" routerLink="/summaries" [queryParams]="{ folderId: f._id }" (click)="expand(f._id)">
+          <a class="link" routerLink="/summaries" [queryParams]="withSearch({ folderId: f._id })" (click)="expand(f._id)">
             <span class="icon folder" nz-icon [nzType]="open ? 'folder-open' : 'folder'"></span>
             <span class="label" [innerHTML]="mark(f.name)"></span>
             @if (f.hiddenCount) {

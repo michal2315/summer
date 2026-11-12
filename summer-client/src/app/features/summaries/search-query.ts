@@ -1,5 +1,5 @@
 import { Params } from '@angular/router';
-import { IQueryGroup, ISavedSearch, ISummarySearch, SearchType, SortKey } from '../../shared/models';
+import { IQueryGroup, ISavedSearch, ISummarySearch, SavedSearchKind, SearchType, SortKey } from '../../shared/models';
 import { countConditions } from './advanced-search/query-tree';
 
 /** Search state ⇄ URL query params, so searches are linkable, survive reloads and work with back/forward. */
@@ -108,3 +108,9 @@ export function describeSearch(s: ISummarySearch): string {
 
 /** A saved search's label: its name, or a description of its filters. */
 export const savedSearchName = (s: Pick<ISavedSearch, 'name' | 'search'>) => s.name || describeSearch(s.search);
+
+/** The search part of the URL's query params, carried along when moving to another folder so the search stays. */
+export const searchParamsOf = (p: Params): Params => Object.fromEntries(SEARCH_PARAM_KEYS.filter((k) => p[k] != null && p[k] !== '').map((k) => [k, p[k]]));
+
+/** How a saved search's kind reads in lists. */
+export const SAVED_SEARCH_KIND_LABEL: Record<SavedSearchKind, string> = { simple: 'חיפוש פשוט', advanced: 'חיפוש מתקדם' };

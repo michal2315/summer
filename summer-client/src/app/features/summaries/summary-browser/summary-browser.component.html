@@ -42,6 +42,14 @@
     } @else {
       <span class="count">{{ store.total() }} {{ tabs[tabIndex()].label }}</span>
     }
+    <span class="spacer"></span>
+    <ng-content select="[browser-actions]" />
+  </div>
+
+  <ng-content select="[browser-below-title]" />
+
+  <!-- Feed controls sit right above the feed, below any projected folder cards. -->
+  <div class="toolbar">
     <app-summary-actions-bar [excelActions]="excelActions()" />
     <span class="spacer"></span>
     @if (!runningId()) {
@@ -54,10 +62,7 @@
       <label nz-radio-button nzValue="list" appAltKey="listView" aria-label="תצוגת כרטיסים"><span nz-icon nzType="unordered-list"></span></label>
       <label nz-radio-button nzValue="table" appAltKey="tableView" aria-label="תצוגת טבלה"><span nz-icon nzType="table"></span></label>
     </nz-radio-group>
-    <ng-content select="[browser-actions]" />
   </div>
-
-  <ng-content select="[browser-below-title]" />
 
   <!-- Only the list scrolls, so the always-visible rail spans exactly the feed (native scrollbars are hidden app-wide). -->
   <div class="feed">

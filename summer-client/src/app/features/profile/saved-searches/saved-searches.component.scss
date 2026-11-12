@@ -106,10 +106,28 @@
   }
 }
 
-.rename {
-  width: 260px;
+.name-row {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.kind {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: $gray;
+  background: $gray-tag;
+  &.advanced {
+    color: $accent;
+    background: #e4e4f4;
+  }
+}
+
+.icon-btn.fav-on {
+  color: $star;
 }
 
 .empty {

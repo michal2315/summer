@@ -10,7 +10,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { NzModalService } from 'ng-zorro-antd/modal';
+import { NzModalRef, NzModalService } from 'ng-zorro-antd/modal';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -118,7 +118,7 @@ const LABELS_PAGE = 20;
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-summary.component.html',
   styleUrl: './create-summary.component.scss',
-  host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
+  host: { '(window:beforeunload)': 'onBeforeUnload($event)', '[class.in-modal]': 'inModal' },
 })
 export class CreateSummaryComponent implements HasPendingChanges {
   private readonly fb = inject(FormBuilder).nonNullable;
@@ -142,6 +142,9 @@ export class CreateSummaryComponent implements HasPendingChanges {
   /** /summaries/new?parentId=… — start a sumaroon inside that running summary. */
   readonly parentId = input<string | undefined>(undefined);
   readonly isEdit = computed(() => !!this.summary());
+  /** Opened as a modal (e.g. from the timeline): publishing closes it with the saved summary instead of navigating. */
+  private readonly modalRef = inject<NzModalRef<CreateSummaryComponent, ISummary>>(NzModalRef, { optional: true });
+  readonly inModal = !!this.modalRef;
 
   readonly K = SummaryKind;
   readonly kindLabel = SUMMARY_KIND_LABEL;
@@ -885,7 +888,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
         if (isDraft && v.folders.length && kind !== SummaryKind.Sumaroon)
           this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
         this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
-        if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });
+        if (this.modalRef) this.modalRef.close(s);
+        else if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });
         // Running summaries have their own page; a sumaroon opens in its running summary's panel.
         else if (s.kind === SummaryKind.Running) this.router.navigate(['/running', s._id]);
         else if (s.parentId) this.router.navigate(['/running', s.parentId], { queryParams: { summaryId: s._id } });

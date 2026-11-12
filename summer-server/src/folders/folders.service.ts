@@ -112,9 +112,10 @@ export class FoldersService {
     return folder ?? {};
   }
 
-  /** Add items to the folder, keeping the folders they are already in. Needs folder management AND edit rights on each item. */
   /**
-   * Strict (default): every item must be placeable, else 403 (not its editor) / 400 (a draft or a sumaroon), and nothing
+   * Add items to the folder, keeping the folders they are already in: another pointer to the same summary, not a move or
+   * a copy. Needs folder management and only sight of each item (folders don't change who may see a summary).
+   * Strict (default): every item must be placeable, else 404 (not visible) / 400 (a draft or a sumaroon), and nothing
    * is placed. `partial`: places the placeable ones and reports the rest.
    */
   async addItems(me: CurrentUser, id: string, body: unknown): Promise<ApiBulkResult> {
@@ -122,12 +123,12 @@ export class FoldersService {
     const summaryIds = unique(input.summaryIds);
     await this.assertEditable(me, id);
 
-    const editableSummaries = await this.summaries.visibleIds(me, summaryIds, 'edit');
-    const skipped: ApiBulkResult['skipped'] = summaryIds.filter((i) => !editableSummaries.has(i)).map((i) => ({ id: i, reason: 'not-editor' }));
-    if (!input.partial && skipped.length) throw new ForbiddenException('only a summary’s editors may place it in a folder');
+    const visibleSummaries = await this.summaries.visibleIds(me, summaryIds);
+    const skipped: ApiBulkResult['skipped'] = summaryIds.filter((i) => !visibleSummaries.has(i)).map((i) => ({ id: i, reason: 'not-found' }));
+    if (!input.partial && skipped.length) throw new NotFoundException();
 
     const placeable: string[] = [];
-    for (const sid of summaryIds.filter((s) => editableSummaries.has(s))) {
+    for (const sid of summaryIds.filter((s) => visibleSummaries.has(s))) {
       const row = await this.summaries.findById(sid);
       const reason = row?.isDraft ? 'draft' : row?.kind === 'sumaroon' ? 'sumaroon' : null;
       if (reason && !input.partial)

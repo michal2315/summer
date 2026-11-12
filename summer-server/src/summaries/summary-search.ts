@@ -116,7 +116,13 @@ export type Bucket = (typeof BUCKETS)[number];
 
 const MAX_TERMS = 10;
 
-/** Boolean operator words, Hebrew and English. Quote one ("לא") to search for the word itself. */
+/**
+ * Marks a word as syntax: an operator (and / or / not), @user, #capsule or :field:value. The search box puts it there
+ * when the user presses ← on such a word; without it the word is plain text ("או", "#1", "a:b" are searched as typed).
+ */
+export const MARK = '\u2063';
+
+/** Boolean operator words, Hebrew and English. */
 const OPERATORS: Record<string, 'and' | 'or' | 'not'> = {
   and: 'and',
   וגם: 'and',
@@ -128,57 +134,138 @@ const OPERATORS: Record<string, 'and' | 'or' | 'not'> = {
   בלי: 'not',
 };
 
+export type TermField = TextField | 'author' | 'type' | 'color';
+
+/** `:field:value` field names, Hebrew and English. Kept in sync with the client's SEARCH_FIELDS. */
+const FIELD_NAMES: Record<string, Exclude<TermField, 'text'>> = {
+  title: 'title',
+  כותרת: 'title',
+  content: 'content',
+  תוכן: 'content',
+  notes: 'notes',
+  הערות: 'notes',
+  comments: 'comments',
+  תגובות: 'comments',
+  label: 'labels',
+  labels: 'labels',
+  תווית: 'labels',
+  type: 'type',
+  סוג: 'type',
+  author: 'author',
+  user: 'author',
+  כותב: 'author',
+  color: 'color',
+  צבע: 'color',
+};
+
+/** `:color:<name>` names of the summary palette, Hebrew and English. Kept in sync with the client's COLOR_NAMES. */
+const COLOR_NAMES: Record<string, string> = {
+  ורוד: '#fe9eae',
+  pink: '#fe9eae',
+  אדום: '#ff0000',
+  red: '#ff0000',
+  כתום: '#ffa500',
+  orange: '#ffa500',
+  ירוק: '#008000',
+  green: '#008000',
+  טורקיז: '#00b2b2',
+  teal: '#00b2b2',
+  כחול: '#0000c9',
+  blue: '#0000c9',
+  סגול: '#800080',
+  purple: '#800080',
+  אפור: '#808080',
+  gray: '#808080',
+};
+
+/** A `:color:` value as the stored hex, or undefined when it names no color. */
+export function colorValue(v: string): string | undefined {
+  const k = v.trim().toLowerCase();
+  if (COLOR_NAMES[k]) return COLOR_NAMES[k];
+  return /^#?[0-9a-f]{6}$/.test(k) ? (k.startsWith('#') ? k : `#${k}`) : undefined;
+}
+
 export interface QueryTerm {
   term: string;
   neg: boolean;
+  /** Came from "quotes": whole words only (otherwise matched anywhere, also inside words). */
+  exact?: boolean;
   /** Written as `#name`: a capsule when one has that name, otherwise the plain word. */
   capsule?: boolean;
+  /** `@user` (author) or `:field:value`: the term applies to this field only. */
+  field?: Exclude<TermField, 'text'>;
 }
 
 export interface ParsedQuery {
   /** OR of AND-groups (AND binds tighter): `a b or not c` → [[a, b], [¬c]] */
   groups: QueryTerm[][];
-  /** `@username` → summaries by these users (any of) */
-  users: string[];
-  /** `:lecture` / `:שיעור` → content type name or display name, `_` for spaces (any of) */
-  contentTypes: string[];
   /** names of the `#name` terms, to look up as capsules */
   capsules: string[];
 }
 
+/** Closes a `:field:value` token, whose value may have spaces. */
+export const END = '\u2064';
+
+/** A :field:value token (from its MARK up to END, or the end of the text), a "phrase", or a word. */
+const TOKEN_RE = /(?<!\S)\u2063:[^\u2064]*\u2064?|"([^"]*)"?|\S+/g;
+
+const strip = (s: string) => s.replace(/[\u2063\u2064]/g, '');
+
+/** A :field:value token's text (without MARK / END) → its term; undefined while unfinished (ignored). */
+function fieldTerm(body: string): Omit<QueryTerm, 'neg'> | undefined {
+  const m = /^:([^:\s]+):([\s\S]*)$/.exec(body);
+  const field = m ? FIELD_NAMES[m[1].toLowerCase()] : undefined;
+  if (!field) return undefined;
+  const raw = m![2].trim();
+  const quoted = /^"(.*)"?$/.exec(raw);
+  const value = (quoted ? quoted[1].replace(/"$/, '') : raw).trim();
+  return value ? { term: value, exact: !!quoted, field } : undefined;
+}
+
+/** A marked word (without its mark) → operator or term; undefined for a bare `@` / `#` (ignored). */
+function markedWord(word: string): { op: 'and' | 'or' | 'not' } | { term: Omit<QueryTerm, 'neg'> | undefined } {
+  const op = OPERATORS[word.toLowerCase()];
+  if (op) return { op };
+  if (word.startsWith('@')) return { term: word.length > 1 ? { term: word.slice(1).replace(/_/g, ' '), field: 'author' } : undefined };
+  if (word.startsWith('#')) return { term: word.length > 1 ? { term: word.slice(1), capsule: true } : undefined };
+  return { term: { term: word } };
+}
+
 /**
- * Query text, kept in sync with the client's search-syntax.ts: "quoted phrases" stay whole, other words split on
- * whitespace, `#name` names a capsule (`_` for spaces) or else is the plain word, adjacent terms are ANDed. Operators that don't sit between terms
- * (leading `or`, trailing `not`) are dropped. Matching is case-insensitive substring.
+ * Query text, kept in sync with the client's search-syntax.ts: "quoted phrases" stay whole and match whole words, other
+ * words split on whitespace and match anywhere, adjacent terms are ANDed. Only words that start with MARK are syntax
+ * (see MARK). Operators that don't sit between terms (leading `or`, trailing `not`) are dropped. Case-insensitive.
  */
 export function parseQuery(text: string): ParsedQuery {
   const groups: QueryTerm[][] = [[]];
-  const users: string[] = [];
-  const types: string[] = [];
   let pendingOr = false;
   let neg = false;
   let count = 0;
 
-  for (const m of text.matchAll(/"([^"]*)"?|\S+/g)) {
-    const word = m[0];
-    const op = m[1] === undefined ? OPERATORS[word.toLowerCase()] : undefined;
-    if (m[1] === undefined && /^@\S/.test(word)) users.push(word.slice(1).toLowerCase());
-    else if (m[1] === undefined && /^:\S/.test(word)) types.push(word.slice(1).replace(/_/g, ' '));
-    else if (op === 'or') pendingOr = groups[groups.length - 1].length > 0;
-    else if (op === 'not') neg = true;
-    else if (op !== 'and') {
-      const capsule = m[1] === undefined && /^#\S/.test(word);
-      const term = (m[1] ?? word.replace(/^#/, '')).trim();
-      if (!term || count >= MAX_TERMS) continue;
-      if (pendingOr) groups.push([]);
-      groups[groups.length - 1].push(capsule ? { term, neg, capsule } : { term, neg });
-      pendingOr = neg = false;
-      count++;
-    }
+  for (const m of text.matchAll(TOKEN_RE)) {
+    const raw = m[0];
+    let term: Omit<QueryTerm, 'neg'> | undefined;
+    if (raw.startsWith(MARK + ':')) term = fieldTerm(strip(raw));
+    else if (m[1] !== undefined) term = { term: strip(m[1]).trim(), exact: true };
+    else if (raw.startsWith(MARK)) {
+      const parsed = markedWord(strip(raw));
+      if ('op' in parsed) {
+        if (parsed.op === 'or') pendingOr = groups[groups.length - 1].length > 0;
+        else if (parsed.op === 'not') neg = true;
+        continue;
+      }
+      term = parsed.term;
+    } else term = { term: strip(raw) };
+
+    if (!term?.term || count >= MAX_TERMS) continue;
+    if (pendingOr) groups.push([]);
+    groups[groups.length - 1].push({ ...term, neg });
+    pendingOr = neg = false;
+    count++;
   }
   const live = groups.filter((g) => g.length);
   const capsules = live.flat().flatMap((t) => (t.capsule ? [t.term] : []));
-  return { groups: live, users: [...new Set(users)], contentTypes: [...new Set(types)], capsules: [...new Set(capsules)] };
+  return { groups: live, capsules: [...new Set(capsules)] };
 }
 
 /** Capsules a search refers to: `#name` in the text and `#cap:<id>` words in the advanced tree. */

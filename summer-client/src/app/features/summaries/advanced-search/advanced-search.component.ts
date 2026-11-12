@@ -3,6 +3,9 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -18,6 +21,7 @@ import { FolderPath, FolderService, folderPaths } from '../../../shared/services
 import { stripPaging } from '../../../shared/services/search-history.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { capsuleTokenId, isCapsuleToken, treeCapsuleIds } from '../../../shared/utils/capsules';
+import { describeSearch } from '../search-query';
 import {
   EditCondition,
   EditGroup,
@@ -55,7 +59,7 @@ const COLOR_NAMES: Record<string, string> = {
  */
 @Component({
   selector: 'app-advanced-search',
-  imports: [NgTemplateOutlet, FormsModule, NzButtonModule, NzDatePickerModule, NzIconModule, NzSelectModule, NzToolTipModule, CapsuleWordsInputComponent],
+  imports: [NgTemplateOutlet, FormsModule, NzButtonModule, NzDatePickerModule, NzIconModule, NzInputModule, NzPopoverModule, NzSelectModule, NzToolTipModule, CapsuleWordsInputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './advanced-search.component.html',
   styleUrl: './advanced-search.component.scss',
@@ -66,13 +70,24 @@ export class AdvancedSearchComponent {
   private readonly folders = inject(FolderService);
   private readonly contentTypes = inject(ContentTypeService);
   private readonly capsules = inject(CapsuleService);
+  private readonly message = inject(NzMessageService);
 
   /** The applied search; its `query` seeds the builder. */
   readonly search = input<ISummarySearch>({});
   /** What is typed in the search box right now (counted together with the tree). */
   readonly text = input('');
+  /**
+   * Inside a form that edits a saved search: no close / search / save buttons, and every change of the tree is
+   * reported through `queryChange` instead.
+   */
+  readonly embedded = input(false);
   readonly run = output<IQueryGroup | undefined>();
   readonly closed = output<void>();
+  readonly queryChange = output<IQueryGroup | undefined>();
+
+  readonly saveOpen = signal(false);
+  readonly saveName = signal('');
+  readonly saveBusy = signal(false);
 
   readonly fields = FIELDS;
   readonly fieldKeys = FIELD_KEYS;
@@ -138,6 +153,11 @@ export class AdvancedSearchComponent {
       )
       .subscribe((n) => this.hits.set(n));
     effect(() => {
+      const q = this.query();
+      if (untracked(this.embedded)) untracked(() => this.queryChange.emit(q));
+    });
+
+    effect(() => {
       const s = { ...stripPaging(this.search()), text: this.text().trim() || undefined, query: this.query(), sort: undefined };
       untracked(() => this.count$.next(s));
     });
@@ -184,6 +204,32 @@ export class AdvancedSearchComponent {
 
   submit() {
     this.run.emit(this.query());
+  }
+
+  /** What saving from here keeps: the box text, the other applied filters and the tree. */
+  private searchToSave(): ISummarySearch {
+    return { ...stripPaging(this.search()), text: this.text().trim() || undefined, query: this.query() };
+  }
+
+  onSavePopover(open: boolean) {
+    this.saveOpen.set(open);
+    if (open) this.saveName.set(describeSearch(this.searchToSave()));
+  }
+
+  /** Saves the tree (with the box text) as an advanced saved search. */
+  save() {
+    const name = this.saveName().trim();
+    if (this.saveBusy() || !name || !this.query()) return;
+    this.saveBusy.set(true);
+    const done = () => this.saveBusy.set(false);
+    this.users.pinSearch(this.searchToSave(), true, name, 'advanced').subscribe({
+      next: () => {
+        this.saveOpen.set(false);
+        this.message.success('החיפוש המתקדם נשמר — אפשר למצוא אותו גם בעמוד הפרופיל');
+      },
+      complete: done,
+      error: done,
+    });
   }
 
   // ---- template helpers

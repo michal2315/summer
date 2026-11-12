@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { labels, permissions } from './catalog';
 import { createdAt, id, updatedAt } from './columns';
 import { summaries } from './summaries';
@@ -84,7 +84,13 @@ export const userPinnedUsers = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.pinnedUserId] }), check('user_pinned_users_not_self', sql`${t.userId} <> ${t.pinnedUserId}`)],
 );
 
-/** Saved searches: an opaque client search object (ISummarySearch minus paging), optionally named by the user. */
+export const SAVED_SEARCH_KINDS = ['simple', 'advanced'] as const;
+export type SavedSearchKind = (typeof SAVED_SEARCH_KINDS)[number];
+
+/**
+ * Personal saved searches: an opaque client search object (ISummarySearch minus paging), optionally named by the user.
+ * `kind` is where it was saved from (search bar: simple, advanced panel: advanced) and decides how it is edited.
+ */
 export const userPinnedSearches = pgTable(
   'user_pinned_searches',
   {
@@ -92,9 +98,11 @@ export const userPinnedSearches = pgTable(
     userId: userFk(),
     search: jsonb().$type<Record<string, unknown>>().notNull(),
     name: text(),
+    kind: text().$type<SavedSearchKind>().notNull().default('simple'),
+    isFavorite: boolean().notNull().default(false),
     createdAt: createdAt(),
   },
-  (t) => [index().on(t.userId, t.createdAt)],
+  (t) => [index().on(t.userId, t.createdAt), check('user_pinned_searches_kind', sql`${t.kind} in ('simple', 'advanced')`)],
 );
 
 /** What a summary template fills in: ids as picked in the form; labels by name, since typing a new one creates it. */

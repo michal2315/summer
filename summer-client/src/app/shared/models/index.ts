@@ -32,7 +32,7 @@ export interface IUser {
   fullName: string;
   department?: string;
   isSystem?: boolean;
-  /** saved searches, newest first */
+  /** personal saved searches, favourites first, then newest first */
   pinnedSearches: ISavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
@@ -43,11 +43,16 @@ export interface IUser {
   recentExtraField: string[];
 }
 
-/** A search the user saved; unnamed ones are shown by `describeSearch`. */
+/** Where a saved search was saved from: the search bar (simple) or the advanced panel (advanced). */
+export type SavedSearchKind = 'simple' | 'advanced';
+
+/** A personal saved search; unnamed ones are shown by `describeSearch`. */
 export interface ISavedSearch {
   _id: string;
   name: string | null;
   search: ISummarySearch;
+  kind: SavedSearchKind;
+  isFavorite: boolean;
 }
 
 export type UserRef = Pick<IUser, '_id' | 'username' | 'fullName' | 'department' | 'isSystem'>;

@@ -45,7 +45,7 @@ const feedQuery = z.object({
 const preferencesBody = z.object({ mailAlerts: z.boolean().optional(), mailActivity: z.boolean().optional() });
 
 /** The parts of a saved search that select summaries (paging, sort and buckets don't apply to an alert). */
-const SEARCH_KEYS = ['text', 'searchTypes', 'contentTypes', 'colors', 'users', 'labels', 'folders', 'dates', 'createdDates', 'query'];
+export const SEARCH_KEYS = ['text', 'searchTypes', 'contentTypes', 'colors', 'users', 'labels', 'folders', 'dates', 'createdDates', 'query'];
 
 export interface ApiRule {
   _id: string;

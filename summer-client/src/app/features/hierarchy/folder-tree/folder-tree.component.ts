@@ -18,6 +18,7 @@ import { FolderService, SUMMARY_DRAG_TYPE } from '../../../shared/services/folde
 import type { AddToFolderData } from '../add-to-folder-modal/add-to-folder-modal.component';
 import type { FolderEditorData } from '../folder-editor-modal/folder-editor-modal.component';
 import { FolderTreeStore, NO_FOLDER } from '../folder-tree.store';
+import { searchParamsOf } from '../../summaries/search-query';
 
 /** A folder's summaries render this many at a time as the tree scrolls. */
 const ITEMS_PAGE = 50;
@@ -65,7 +66,13 @@ export class FolderTreeComponent {
   readonly folderId = computed<string | null>(() => this.params()['folderId'] ?? null);
   readonly summaryId = computed<string | null>(() => this.params()['summaryId'] ?? null);
   readonly runningId = computed<string | null>(() => this.params()['runningId'] ?? null);
-  private readonly itemOpen = computed(() => !!this.summaryId() || !!this.runningId());
+  /** The home page's search, kept when moving to another folder. */
+  private readonly searchParams = computed(() => searchParamsOf(this.params()));
+
+  /** Query params for a link from the tree: `p` plus the current search. */
+  withSearch(p: Params = {}): Params {
+    return { ...this.searchParams(), ...p };
+  }
 
   readonly expanded = signal(new Set<string>());
   /** How many of each folder's items are rendered (default ITEMS_PAGE). */
@@ -96,13 +103,28 @@ export class FolderTreeComponent {
   private hoverId: string | null = null;
 
   constructor() {
-    // Reveal the selected folder (and, when an item is open, its contents) in the tree.
+    // Open the selected folder and its ancestors in the tree. Moving up to an ancestor (a breadcrumb, "all summaries")
+    // closes the folders between it and the folder that was selected.
+    let prev: string | null | undefined;
     effect(() => {
       const byId = this.store.byId();
-      const path: string[] = [];
-      for (let f = byId.get(this.folderId() ?? ''); f; f = f.parentId ? byId.get(f.parentId) : undefined) path.unshift(f._id);
-      if (!this.itemOpen()) path.pop();
-      untracked(() => path.forEach((id) => this.expand(id)));
+      const id = this.folderId();
+      if (!this.onHome()) return;
+      const pathOf = (from: string | null) => {
+        const path: string[] = [];
+        for (let f = from ? byId.get(from) : undefined; f; f = f.parentId ? byId.get(f.parentId) : undefined) path.unshift(f._id);
+        return path;
+      };
+      const path = pathOf(id);
+      const before = prev && prev !== id ? pathOf(prev) : [];
+      prev = id;
+      // Where `id` sits on the previous folder's path (null = the root, above every folder); -1 = not an ancestor.
+      const at = id === null ? -1 : before.indexOf(id);
+      const below = id === null || at >= 0 ? before.slice(at + 1) : [];
+      untracked(() => {
+        if (below.length) this.collapse(below);
+        path.forEach((f) => this.expand(f));
+      });
     });
   }
 
@@ -150,14 +172,17 @@ export class FolderTreeComponent {
     if (!this.expanded().has(id)) this.expanded.update((s) => new Set(s).add(id));
   }
 
+  private collapse(ids: string[]) {
+    this.expanded.update((s) => {
+      const next = new Set(s);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+
   toggle(id: string) {
-    if (this.expanded().has(id)) {
-      this.expanded.update((s) => {
-        const next = new Set(s);
-        next.delete(id);
-        return next;
-      });
-    } else this.expand(id);
+    if (this.expanded().has(id)) this.collapse([id]);
+    else this.expand(id);
   }
 
   /** Which query param shows this tree item in the viewer. */
@@ -173,7 +198,7 @@ export class FolderTreeComponent {
   }
 
   itemParams(folderId: string, item: IFolderItem): Params {
-    return { folderId, [this.paramOf(item)]: item._id };
+    return this.withSearch({ folderId, [this.paramOf(item)]: item._id });
   }
 
   /** The row is the home page's current selection (and no running summary covers its list). */
@@ -297,7 +322,7 @@ export class FolderTreeComponent {
       });
     } else if (folder) {
       this.service.addItems(folder._id, [d.item._id], true).subscribe((r) => {
-        if (r.skipped.length) this.message.warning(`אין לך הרשאת עריכה ל"${d.item.name}"`);
+        if (r.skipped.length) this.message.warning(`לא ניתן להוסיף את "${d.item.name}"`);
         else {
           this.message.success(`"${d.item.name}" נוספה אל "${folder.name}"`);
           this.expand(folder._id);
@@ -320,7 +345,7 @@ export class FolderTreeComponent {
       const reason = r.skipped[0]?.reason;
       if (reason === 'draft') this.message.warning('טיוטות לא נכנסות לתיקיות');
       else if (reason === 'sumaroon') this.message.warning('תמציתונית נמצאת רק בתוך תמצית הרצף שלה');
-      else if (reason) this.message.warning(`אין לך הרשאת עריכה ל"${s.title}"`);
+      else if (reason) this.message.warning(`"${s.title}" לא נמצאה`);
       else {
         this.message.success(`"${s.title}" נוספה אל "${folder.name}"`);
         this.expand(folder._id);
@@ -336,7 +361,7 @@ export class FolderTreeComponent {
   }
 
   private select(folderId: string | null) {
-    this.router.navigate(['/summaries'], { queryParams: { folderId } });
+    this.router.navigate(['/summaries'], { queryParams: this.withSearch({ folderId }) });
   }
 
   // The folder modals are lazy-loaded so they stay out of the initial bundle (the side nav is in it).

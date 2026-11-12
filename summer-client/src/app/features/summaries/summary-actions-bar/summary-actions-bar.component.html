@@ -35,7 +35,7 @@
       </button>
       <ng-template #lockedInfo>
         <div class="locked-info">
-          <div>{{ locked }} מהנבחרות ללא הרשאת עריכה — תיקייה ותגיות ידלגו עליהן.</div>
+          <div>{{ locked }} מהנבחרות ללא הרשאת עריכה — תגיות ידלגו עליהן (הוספה לתיקיות כן תחול עליהן).</div>
           <button nz-button nzSize="small" type="button" (click)="store.deselect(store.selectedNotEditable())">הסרה מהבחירה</button>
         </div>
       </ng-template>
@@ -46,7 +46,7 @@
 
   <!-- Edits: one compact icon group; each tooltip names the action and what part of the selection it applies to. -->
   <nz-button-group nzSize="small" class="edits">
-    <button nz-button type="button" [disabled]="!folderScope().ids.length" [nz-tooltip]="tip('הוספה לתיקייה', folderScope())" aria-label="הוספה לתיקייה" (click)="addToFolder()">
+    <button nz-button type="button" [disabled]="!folderScope().ids.length" [nz-tooltip]="tip('הוספה לתיקיות (התמצית נשארת גם במקומה)', folderScope())" aria-label="הוספה לתיקיות" (click)="addToFolder()">
       <span nz-icon nzType="folder"></span>
     </button>
     <button nz-button type="button" [disabled]="!labelsScope().ids.length" [nz-tooltip]="tip('תגיות', labelsScope())" aria-label="תגיות" (click)="editLabels()">

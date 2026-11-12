@@ -38,7 +38,7 @@
       }
     } @else {
       @for (s of table.data; track s._id) {
-        <tr [class.active]="s._id === openId()" [attr.data-summary-id]="s._id" (click)="toggle.emit(s)">
+        <tr [class.active]="s._id === openId()" [attr.data-summary-id]="s._id" (click)="onRowClick(s, $event)" (dblclick)="onRowDblClick(s, $event)">
           @if (store.selectMode()) {
             <td [nzChecked]="store.selected().has(s._id)" (nzCheckedChange)="store.toggleSelected(s._id)" (click)="$event.stopPropagation()"></td>
           }

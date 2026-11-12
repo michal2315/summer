@@ -1,23 +1,22 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
-import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Observable } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { ISavedSearch } from '../../../shared/models';
 import { NotificationsSettingsService } from '../../notifications/notification-rules';
-import { alertSearch, describeSearch, savedSearchName, searchToParams } from '../../summaries/search-query';
+import { SAVED_SEARCH_KIND_LABEL, alertSearch, describeSearch, savedSearchName, searchToParams } from '../../summaries/search-query';
+import { SavedSearchEditorComponent, SavedSearchEditorData } from './saved-search-editor/saved-search-editor.component';
 
-/** The user's saved searches on their own profile: open one in the feed, rename, remove, or turn it into an alert. */
+/** The user's own saved searches on their profile: open one in the feed, favourite, edit, remove, or turn it into an alert. */
 @Component({
   selector: 'app-saved-searches',
-  imports: [FormsModule, RouterLink, NzButtonModule, NzIconModule, NzInputModule, NzPopconfirmModule, NzPopoverModule, NzToolTipModule],
+  imports: [RouterLink, NzButtonModule, NzIconModule, NzPopconfirmModule, NzToolTipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './saved-searches.component.html',
   styleUrl: './saved-searches.component.scss',
@@ -27,15 +26,14 @@ export class SavedSearchesComponent {
   private readonly alerts = inject(NotificationsSettingsService);
   private readonly message = inject(NzMessageService);
   private readonly router = inject(Router);
+  private readonly modal = inject(NzModalService);
 
   readonly list = computed(() => this.users.user()?.pinnedSearches ?? []);
   readonly label = savedSearchName;
   readonly describe = describeSearch;
+  readonly kindLabel = SAVED_SEARCH_KIND_LABEL;
 
-  /** The saved search whose rename popover is open. */
-  readonly renaming = signal<string | null>(null);
-  readonly renameValue = signal('');
-  /** Ids with a request in flight (alert or rename). */
+  /** Ids with a request in flight (alert or favourite). */
   readonly busy = signal(new Set<string>());
 
   constructor() {
@@ -46,17 +44,22 @@ export class SavedSearchesComponent {
     this.router.navigate(['/summaries'], { queryParams: searchToParams(s.search) });
   }
 
-  // ---- rename / remove
+  // ---- favourite / edit / remove
 
-  onRenamePopover(s: ISavedSearch, open: boolean) {
-    this.renaming.set(open ? s._id : null);
-    if (open) this.renameValue.set(this.label(s));
+  /** Favourites come first wherever saved searches are listed. */
+  toggleFavorite(s: ISavedSearch) {
+    if (this.isBusy(s)) return;
+    this.track(s, this.users.updateSearch(s._id, { isFavorite: !s.isFavorite }), () => {});
   }
 
-  rename(s: ISavedSearch) {
-    const name = this.renameValue().trim();
-    if (!name || this.isBusy(s)) return;
-    this.track(s, this.users.renameSearch(s._id, name), () => this.renaming.set(null));
+  edit(s: ISavedSearch) {
+    this.modal.create<SavedSearchEditorComponent, SavedSearchEditorData, boolean>({
+      nzTitle: 'עריכת חיפוש שמור',
+      nzContent: SavedSearchEditorComponent,
+      nzData: { saved: s },
+      nzFooter: null,
+      nzWidth: s.kind === 'advanced' ? 760 : 520,
+    });
   }
 
   remove(s: ISavedSearch) {

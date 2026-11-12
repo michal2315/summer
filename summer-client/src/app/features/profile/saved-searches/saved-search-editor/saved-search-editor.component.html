@@ -1,0 +1,43 @@
+<div class="editor">
+  <div class="field">
+    <span class="field-label">שם החיפוש</span>
+    <input nz-input maxlength="120" aria-label="שם החיפוש" [ngModel]="name()" (ngModelChange)="name.set($event)" (keydown.enter)="$event.preventDefault(); save()" />
+  </div>
+
+  <div class="field">
+    <div class="field-label">
+      החיפוש
+      <span class="kind" [class.advanced]="advanced"><span nz-icon [nzType]="advanced ? 'apartment' : 'search'"></span> {{ kindLabel }}</span>
+    </div>
+    <app-summary-search
+      [search]="initial"
+      [showBell]="false"
+      [searchActions]="false"
+      [advancedSearch]="false"
+      placeholder="טקסט לחיפוש"
+      (textInput)="text.set($event)"
+      (searchChange)="onSearch($event)"
+    />
+    @if (advanced) {
+      <app-advanced-search class="builder" [search]="initial" [text]="text()" [embedded]="true" (queryChange)="query.set($event)" />
+    }
+  </div>
+
+  <div class="status">
+    @if (empty()) {
+      <span class="warn">החיפוש ריק: הקלידו טקסט{{ advanced ? ' או הוסיפו תנאי' : '' }}</span>
+    } @else if (clash()) {
+      <span class="warn">החיפוש הזה כבר שמור בשם "{{ clashName() }}"</span>
+    } @else if (hits() !== null) {
+      <span class="muted">נמצאות כרגע {{ hits() }} תמציות</span>
+    }
+    @if (hasAlert()) {
+      <span class="muted"><span nz-icon nzType="bell"></span> יש התראה על החיפוש, והיא תתעדכן יחד איתו</span>
+    }
+  </div>
+
+  <div class="footer">
+    <button nz-button type="button" (click)="modal.close(false)">ביטול</button>
+    <button nz-button nzType="primary" type="button" [disabled]="!name().trim() || empty() || !!clash()" [nzLoading]="busy()" (click)="save()">שמירה</button>
+  </div>
+</div>

@@ -1,12 +1,36 @@
-<div class="head">
-  @if (editingTitle()) {
-    <input nz-input class="title-input" [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" (keydown.enter)="saveTitle()" (keydown.escape)="editingTitle.set(false)" aria-label="כותרת ציר הזמן" />
-    <button nz-button nzType="text" nzShape="circle" type="button" (click)="saveTitle()" aria-label="שמירה"><span nz-icon nzType="check"></span></button>
-  } @else {
-    <div class="modal-title" role="heading" aria-level="2">{{ title() }}</div>
-    <button nz-button nzType="text" nzShape="circle" type="button" (click)="draftTitle.set(title()); editingTitle.set(true)" aria-label="עריכת כותרת"><span nz-icon nzType="edit"></span></button>
-  }
+<div class="actions-bar" role="toolbar" aria-label="פעולות ציר הזמן">
+  <!-- RTL: bottomLeft aligns the popover's right edge with the button's, so it opens inward, inside the modal. -->
+  <button
+    nz-button
+    nzType="primary"
+    type="button"
+    nz-dropdown
+    [nzDropdownMenu]="addMenu"
+    nz-popover
+    [nzPopoverContent]="eventForm"
+    [nzPopoverTrigger]="null"
+    [nzPopoverVisible]="addingEvent()"
+    (nzPopoverVisibleChange)="addingEvent.set($event)"
+    nzPopoverPlacement="bottomLeft"
+  >
+    <span nz-icon nzType="plus"></span> הוספה <span nz-icon nzType="down"></span>
+  </button>
+  <nz-dropdown-menu #addMenu="nzDropdownMenu">
+    <ul nz-menu>
+      <li nz-menu-item (click)="newSummary()"><span nz-icon nzType="file-add"></span> תמצית חדשה</li>
+      <li nz-menu-item (click)="startEvent()"><span nz-icon nzType="flag"></span> אירוע</li>
+    </ul>
+  </nz-dropdown-menu>
+
+  <nz-range-picker [ngModel]="range()" (ngModelChange)="range.set($event ?? [])" nzFormat="dd/MM/yyyy" [nzPlaceHolder]="['מתאריך', 'עד תאריך']" aria-label="טווח זמן" />
+
+  <nz-radio-group [ngModel]="basis()" (ngModelChange)="basis.set($event)" nzButtonStyle="solid" aria-label="לפי איזה זמן למקם תמציות">
+    <label nz-radio-button nzValue="event">זמן ביעד</label>
+    <label nz-radio-button nzValue="creation">זמן יצירת התמצית</label>
+  </nz-radio-group>
+
   <span class="spacer"></span>
+
   <button nz-button type="button" nz-dropdown [nzDropdownMenu]="exportMenu" [nzLoading]="exporting()"><span nz-icon nzType="download"></span> ייצוא</button>
   <nz-dropdown-menu #exportMenu="nzDropdownMenu">
     <ul nz-menu>
@@ -15,25 +39,60 @@
       <li nz-menu-item (click)="export('txt')">טקסט (TXT)</li>
     </ul>
   </nz-dropdown-menu>
+  <ng-template #eventForm>
+    <div class="event-form">
+      <input nz-input [ngModel]="eventTitle()" (ngModelChange)="eventTitle.set($event)" (keydown.enter)="addEvent()" (keydown.escape)="addingEvent.set(false)" placeholder="שם האירוע" aria-label="שם האירוע" />
+      <nz-date-picker [ngModel]="eventDate()" (ngModelChange)="eventDate.set($event)" nzFormat="dd/MM/yyyy" nzPlaceHolder="תאריך" />
+      <div class="event-form-actions">
+        <button nz-button nzSize="small" type="button" (click)="addingEvent.set(false)">ביטול</button>
+        <button nz-button nzSize="small" nzType="primary" type="button" [disabled]="!eventTitle().trim() || !eventDate()" (click)="addEvent()">הוספה</button>
+      </div>
+    </div>
+  </ng-template>
 </div>
 
-@if (undated) {
-  <div class="undated">{{ undated }} מהתמציות שנבחרו ללא תאריך אירוע ולא מופיעות בציר</div>
+<div class="head">
+  @if (editingTitle()) {
+    <input nz-input class="title-input" [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" (keydown.enter)="saveTitle()" (keydown.escape)="editingTitle.set(false)" aria-label="כותרת ציר הזמן" />
+    <button nz-button nzType="text" nzShape="circle" type="button" (click)="saveTitle()" aria-label="שמירה"><span nz-icon nzType="check"></span></button>
+  } @else {
+    <div class="modal-title" role="heading" aria-level="2">{{ title() }}</div>
+    <button nz-button nzType="text" nzShape="circle" type="button" (click)="draftTitle.set(title()); editingTitle.set(true)" aria-label="עריכת כותרת"><span nz-icon nzType="edit"></span></button>
+  }
+</div>
+
+@if (undated() || outOfRange()) {
+  <div class="notes">
+    @if (undated()) {
+      <div>{{ undated() }} מהתמציות שנבחרו ללא תאריך אירוע ולא מופיעות בציר</div>
+    }
+    @if (outOfRange()) {
+      <div>{{ outOfRange() }} פריטים מחוץ לטווח הזמן שנבחר</div>
+    }
+  </div>
 }
 
-@if (!sorted().length) {
-  <nz-empty nzNotFoundImage="simple" nzNotFoundContent="לאף אחת מהתמציות שנבחרו אין תאריך אירוע" />
+@if (!items().length) {
+  <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="outOfRange() ? 'אין פריטים בטווח הזמן שנבחר' : basis() === 'event' ? 'לאף אחת מהתמציות שנבחרו אין תאריך אירוע' : 'אין פריטים בציר'" />
 } @else {
   <div class="viewport" (wheel)="onWheel($event)">
     <ol class="track" #track>
       <li class="track-title">{{ title() }}</li>
-      @for (s of sorted(); track s._id; let odd = $odd) {
-        <li class="event" [class.up]="odd">
-          <button type="button" class="card" (click)="open(s)" [style.border-color]="s.color || null">
-            <span class="date">{{ date(s) }}</span>
-            <span class="name">{{ s.title }}</span>
-          </button>
-          <span class="dot" [style.background]="s.color || null"></span>
+      @for (i of items(); track i.key; let odd = $odd) {
+        <li class="event" [class.up]="odd" [class.custom]="!!i.event">
+          @if (i.event; as e) {
+            <div class="card">
+              <span class="date">{{ date(i) }}</span>
+              <span class="name">{{ i.title }}</span>
+              <button nz-button nzType="text" nzSize="small" nzShape="circle" type="button" class="remove" (click)="removeEvent(e)" aria-label="הסרת האירוע"><span nz-icon nzType="close"></span></button>
+            </div>
+          } @else {
+            <button type="button" class="card" (click)="open(i)" [style.border-color]="i.color || null">
+              <span class="date">{{ date(i) }}</span>
+              <span class="name">{{ i.title }}</span>
+            </button>
+          }
+          <span class="dot" [style.background]="i.color || null"></span>
         </li>
       }
     </ol>

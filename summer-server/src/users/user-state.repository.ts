@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { idsWhere } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
 import {
+  SavedSearchKind,
+  notificationRules,
   summaries,
   userFavLabels,
   userFavSummaries,
@@ -100,17 +102,29 @@ export class UserStateRepository {
     await this.db.delete(userPinnedSearches).where(eq(userPinnedSearches.id, id));
   }
 
-  async addPinnedSearch(userId: string, search: Record<string, unknown>, name: string | null): Promise<void> {
-    await this.db.insert(userPinnedSearches).values({ userId, search, name });
+  async addPinnedSearch(userId: string, values: { search: Record<string, unknown>; name: string | null; kind: SavedSearchKind; isFavorite: boolean }): Promise<void> {
+    await this.db.insert(userPinnedSearches).values({ userId, ...values });
   }
 
   /** False when the search is not the user's. */
-  async renamePinnedSearch(userId: string, id: string, name: string | null): Promise<boolean> {
+  async updatePinnedSearch(userId: string, id: string, patch: { name?: string | null; search?: Record<string, unknown>; isFavorite?: boolean }): Promise<boolean> {
     const rows = await this.db
       .update(userPinnedSearches)
-      .set({ name })
+      .set(patch)
       .where(and(eq(userPinnedSearches.id, id), eq(userPinnedSearches.userId, userId)))
       .returning({ id: userPinnedSearches.id });
     return rows.length > 0;
+  }
+
+  /** The user's search alerts (rules with a saved search). */
+  searchAlerts(userId: string) {
+    return this.db
+      .select({ id: notificationRules.id, search: notificationRules.search })
+      .from(notificationRules)
+      .where(and(eq(notificationRules.userId, userId), isNotNull(notificationRules.search)));
+  }
+
+  async setAlertSearch(ruleId: string, search: Record<string, unknown>): Promise<void> {
+    await this.db.update(notificationRules).set({ search, updatedAt: new Date() }).where(eq(notificationRules.id, ruleId));
   }
 }

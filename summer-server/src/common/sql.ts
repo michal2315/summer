@@ -39,6 +39,15 @@ export function textLike(col: SQLWrapper, text: string, mode: 'contains' | 'pref
   return ilike(sql`translate(${col}, ${FOLD_FROM}, ${FOLD_TO})`, likePattern(foldText(text), mode));
 }
 
+/** Not a letter or digit (Hebrew spelled out: the database's ctype may not class it as alphanumeric). */
+const NON_WORD = '[^[:alnum:]א-ת_]';
+
+/** `text` in `col` as whole words only (not inside a longer word), case-insensitive, folded like textLike. */
+export function textWholeWord(col: SQLWrapper, text: string): SQL {
+  const escaped = foldText(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return sql`translate(${col}, ${FOLD_FROM}, ${FOLD_TO}) ~* ${`(^|${NON_WORD})${escaped}(${NON_WORD}|$)`}`;
+}
+
 /** A literal uuid[] — built element by element because drizzle expands JS arrays into `($1, $2)` lists. */
 export function uuidArray(ids: string[]): SQL {
   if (!ids.length) return sql`ARRAY[]::uuid[]`;
