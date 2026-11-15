@@ -61,6 +61,64 @@ $tok-saved-bg: #ffe6f2;
   color: $gray;
 }
 
+// The applied search is a saved one: its name as a pill before the text, and the box tinted to match.
+.box.saved {
+  border-color: rgba($tok-saved, 0.45);
+  background: linear-gradient(270deg, rgba($tok-saved-bg, 0.7), $white 45%);
+
+  .search-icon {
+    color: $tok-saved;
+  }
+  &.open,
+  &.focused {
+    border-color: $tok-saved;
+    box-shadow: 0 0 0 3px rgba($tok-saved, 0.12);
+  }
+}
+
+.saved-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 45%;
+  height: 26px;
+  padding-inline: 10px;
+  border-radius: 13px;
+  font-size: 13px;
+  font-weight: 600;
+  color: $white;
+  background: $tok-saved;
+  cursor: default;
+  animation: pill-in 0.2s ease both;
+
+  &.advanced {
+    background: linear-gradient(137deg, $tok-saved 0%, #6b0f9e 100%);
+  }
+  [nz-icon] {
+    font-size: 12px;
+  }
+}
+
+.saved-pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saved-pill {
+    animation: none;
+  }
+}
+
 // The mirror and the input must lay out text identically: same font, no padding, no per-token spacing.
 .field {
   position: relative;
@@ -301,6 +359,10 @@ $tok-saved-bg: #ffe6f2;
 // A saved search: favourite star and kind, in the $ list and the saved chips.
 .fav {
   color: $star;
+}
+.option-bell {
+  color: $accent;
+  font-size: 11px;
 }
 .kind-tag {
   font-size: 11px;

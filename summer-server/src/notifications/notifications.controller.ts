@@ -1,15 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
 import { ApiNotification } from '../common/api-types';
 import { IdPipe } from '../common/validation';
 import { MailPreferences } from './notifications.repository';
-import { ApiRule, NotificationsService } from './notifications.service';
+import { NotificationsService } from './notifications.service';
 
 /**
- * The client shares one prefix between the bell inbox and notification rules:
- * POST/PUT/DELETE /notifications[/:id] manage the caller's rules; GET /notifications is the inbox;
- * GET/PUT /notifications/preferences are the caller's e-mail switches.
+ * GET /notifications is the bell inbox; GET/PUT /notifications/preferences are the caller's e-mail switches.
+ * Alerts live on queries (/queries/:id/alert).
  */
 @Controller('notifications')
 export class NotificationsController {
@@ -32,11 +31,6 @@ export class NotificationsController {
     return {};
   }
 
-  @Get('settings')
-  rules(@Me() me: CurrentUser): Promise<ApiRule[]> {
-    return this.notifications.rules(me);
-  }
-
   @Get('preferences')
   preferences(@Me() me: CurrentUser): Promise<MailPreferences> {
     return this.notifications.preferences(me);
@@ -45,21 +39,5 @@ export class NotificationsController {
   @Put('preferences')
   setPreferences(@Me() me: CurrentUser, @Body() body: unknown): Promise<MailPreferences> {
     return this.notifications.setPreferences(me, body);
-  }
-
-  @Post()
-  createRule(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiRule> {
-    return this.notifications.saveRule(me, body, 'create');
-  }
-
-  @Put()
-  updateRule(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiRule> {
-    return this.notifications.saveRule(me, body, 'update');
-  }
-
-  @Delete(':id')
-  async deleteRule(@Me() me: CurrentUser, @Param('id', IdPipe) id: string): Promise<object> {
-    await this.notifications.deleteRule(me, id);
-    return {};
   }
 }

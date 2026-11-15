@@ -1,103 +1,95 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Observable } from 'rxjs';
-import { UserService } from '../../../core/auth/user.service';
-import { ISavedSearch } from '../../../shared/models';
-import { NotificationsSettingsService } from '../../notifications/notification-rules';
-import { SAVED_SEARCH_KIND_LABEL, alertSearch, describeSearch, savedSearchName, searchToParams } from '../../summaries/search-query';
+import { IQuery } from '../../../shared/models';
+import { QueryService } from '../../../shared/services/query.service';
+import { QUERY_KIND_LABEL, describeSearch, searchToParams } from '../../summaries/search-query';
 import { SavedSearchEditorComponent, SavedSearchEditorData } from './saved-search-editor/saved-search-editor.component';
 
-/** The user's own saved searches on their profile: open one in the feed, favourite, edit, remove, or turn it into an alert. */
+/** Lists longer than this get a filter box. */
+const FILTER_FROM = 6;
+
+/** The user's saved searches (queries) on their profile: open one in the feed, favourite, edit, remove, or alert on it. */
 @Component({
   selector: 'app-saved-searches',
-  imports: [RouterLink, NzButtonModule, NzIconModule, NzPopconfirmModule, NzToolTipModule],
+  imports: [FormsModule, RouterLink, NzButtonModule, NzIconModule, NzInputModule, NzPopconfirmModule, NzToolTipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './saved-searches.component.html',
   styleUrl: './saved-searches.component.scss',
 })
 export class SavedSearchesComponent {
-  private readonly users = inject(UserService);
-  private readonly alerts = inject(NotificationsSettingsService);
+  readonly queries = inject(QueryService);
   private readonly message = inject(NzMessageService);
   private readonly router = inject(Router);
   private readonly modal = inject(NzModalService);
 
-  readonly list = computed(() => this.users.user()?.pinnedSearches ?? []);
-  readonly label = savedSearchName;
   readonly describe = describeSearch;
-  readonly kindLabel = SAVED_SEARCH_KIND_LABEL;
+  readonly kindLabel = QUERY_KIND_LABEL;
+
+  readonly filter = signal('');
+  readonly showFilter = computed(() => this.queries.queries().length > FILTER_FROM);
+  readonly list = computed(() => this.queries.search(this.filter(), Infinity));
 
   /** Ids with a request in flight (alert or favourite). */
   readonly busy = signal(new Set<string>());
 
   constructor() {
-    if (this.alerts.rules() === null) this.alerts.load();
+    this.queries.ensureLoaded();
   }
 
-  open(s: ISavedSearch) {
-    this.router.navigate(['/summaries'], { queryParams: searchToParams(s.search) });
+  open(q: IQuery) {
+    this.router.navigate(['/summaries'], { queryParams: searchToParams(q.search) });
   }
 
   // ---- favourite / edit / remove
 
   /** Favourites come first wherever saved searches are listed. */
-  toggleFavorite(s: ISavedSearch) {
-    if (this.isBusy(s)) return;
-    this.track(s, this.users.updateSearch(s._id, { isFavorite: !s.isFavorite }), () => {});
+  toggleFavorite(q: IQuery) {
+    if (this.isBusy(q)) return;
+    this.track(q, this.queries.update(q._id, { isFavorite: !q.isFavorite }), () => {});
   }
 
-  edit(s: ISavedSearch) {
+  edit(q: IQuery) {
     this.modal.create<SavedSearchEditorComponent, SavedSearchEditorData, boolean>({
       nzTitle: 'עריכת חיפוש שמור',
       nzContent: SavedSearchEditorComponent,
-      nzData: { saved: s },
+      nzData: { saved: q },
       nzFooter: null,
-      nzWidth: s.kind === 'advanced' ? 760 : 520,
+      nzWidth: q.kind === 'advanced' ? 760 : 520,
     });
   }
 
-  remove(s: ISavedSearch) {
-    this.users.pinSearch(s.search, false).subscribe(() => this.message.success('החיפוש הוסר מהשמורים'));
+  remove(q: IQuery) {
+    this.queries.remove(q._id).subscribe(() => this.message.success(q.alert ? 'החיפוש הוסר מהשמורים, וגם ההתראה עליו' : 'החיפוש הוסר מהשמורים'));
   }
 
   // ---- alerts
 
-  /** The alert rule for this search, if one exists. */
-  alertFor(s: ISavedSearch) {
-    return this.alerts.alertFor(s.search);
+  /** Bell: alert on this search (active), or stop. */
+  toggleAlert(q: IQuery) {
+    if (this.isBusy(q)) return;
+    if (q.alert) this.track(q, this.queries.removeAlert(q._id), () => this.message.success('ההתראה על החיפוש בוטלה'));
+    else this.track(q, this.queries.setAlert(q._id, { isActive: true }), () => this.message.success('תתקבל התראה על תמציות חדשות שמתאימות לחיפוש'));
   }
 
-  /** A search that selects nothing (e.g. only a sort) can't become an alert. */
-  canAlert(s: ISavedSearch) {
-    return Object.keys(alertSearch(s.search)).length > 0;
+  isBusy(q: IQuery) {
+    return this.busy().has(q._id);
   }
 
-  toggleAlert(s: ISavedSearch) {
-    if (this.isBusy(s)) return;
-    const existing = this.alertFor(s);
-    if (existing?._id) {
-      this.track(s, this.alerts.delete(existing._id), () => this.message.success('ההתראה על החיפוש בוטלה'));
-    } else {
-      this.track(s, this.alerts.addAlert(s.search, s.name), () => this.message.success('תתקבל התראה על תמציות חדשות שמתאימות לחיפוש'));
-    }
-  }
-
-  isBusy(s: ISavedSearch) {
-    return this.busy().has(s._id);
-  }
-
-  private track(s: ISavedSearch, req: Observable<unknown>, next: () => void) {
+  private track(q: IQuery, req: Observable<unknown>, next: () => void) {
     const set = (on: boolean) =>
       this.busy.update((b) => {
         const copy = new Set(b);
-        if (on) copy.add(s._id);
-        else copy.delete(s._id);
+        if (on) copy.add(q._id);
+        else copy.delete(q._id);
         return copy;
       });
     set(true);

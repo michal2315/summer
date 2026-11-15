@@ -18,19 +18,30 @@ export interface UserRef {
   isSystem?: boolean;
 }
 
-/** A personal saved search; without a name the client describes it from its filters. */
-export interface ApiSavedSearch {
+/** The caller's alert on a query. */
+export interface ApiQueryAlert {
   _id: string;
-  name: string | null;
-  search: Record<string, unknown>;
-  /** where it was saved from: the search bar (simple) or the advanced panel */
+  /** off pauses the alert */
+  isActive: boolean;
+  isMail: boolean;
+  isDigest: boolean;
+  creationDate: string;
+}
+
+/** A query: a saved search, which may also alert. */
+export interface ApiQuery {
+  _id: string;
+  name: string;
+  /** edited with the search box only (simple) or with the condition builder too (advanced) */
   kind: 'simple' | 'advanced';
+  search: Record<string, unknown>;
   isFavorite: boolean;
+  creationDate: string;
+  updateDate: string;
+  alert: ApiQueryAlert | null;
 }
 
 export interface ApiUser extends UserRef {
-  /** favourites first, then newest first */
-  pinnedSearches: ApiSavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
@@ -167,10 +178,10 @@ export interface ApiNotification {
   createdBy?: Pick<UserRef, '_id' | 'username' | 'fullName'>;
 }
 
-/** A notifications-page feed entry: the notification, the rule that raised it (if any), and its summary. */
+/** A notifications-page feed entry: the notification, the query whose alert raised it (if any), and its summary. */
 export interface ApiNotificationFeedItem extends ApiNotification {
-  kind: 'rule' | 'search' | 'comment' | 'mention' | 'tag' | 'follow';
-  rule?: { _id: string; name: string };
+  kind: 'alert' | 'comment' | 'mention' | 'tag' | 'follow';
+  query?: { _id: string; name: string };
   summary: ApiSummary;
 }
 

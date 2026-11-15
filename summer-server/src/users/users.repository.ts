@@ -9,7 +9,6 @@ import {
   userFollows,
   userPinnedLabels,
   userPinnedPermissions,
-  userPinnedSearches,
   userPinnedUsers,
   users,
 } from '../database/schema';
@@ -122,13 +121,7 @@ export class UsersRepository {
           .orderBy(asc(table.createdAt))
       ).map((r) => r.name);
 
-    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, pinnedUsers, following] = await Promise.all([
-      this.db
-        .select({ _id: userPinnedSearches.id, name: userPinnedSearches.name, search: userPinnedSearches.search, kind: userPinnedSearches.kind, isFavorite: userPinnedSearches.isFavorite })
-        .from(userPinnedSearches)
-        .where(eq(userPinnedSearches.userId, userId))
-        .orderBy(asc(userPinnedSearches.createdAt))
-        .then((rows) => rows.reverse().sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite))),
+    const [pinnedLabels, favoriteLabels, pinnedPermissions, pinnedUsers, following] = await Promise.all([
       labelNames(userPinnedLabels),
       labelNames(userFavLabels),
       ids(userPinnedPermissions, userPinnedPermissions.permissionId),
@@ -149,7 +142,6 @@ export class UsersRepository {
 
     return {
       ...toRef(user),
-      pinnedSearches,
       pinnedLabels,
       favoriteLabels,
       pinnedPermissions,

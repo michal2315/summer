@@ -43,7 +43,7 @@ const COMMENTS = ['תודה רבה! עזר מאוד 🙏', 'יש טעות קטנ
 
 const TABLES = [
   'folder_summaries', 'folder_editors', 'folder_permissions', 'folders',
-  'notifications', 'notification_rule_hits', 'notification_rules', 'whats_new_seen', 'user_pinned_searches', 'user_pinned_permissions', 'user_fav_labels',
+  'notifications', 'query_alert_hits', 'query_alerts', 'queries', 'whats_new_seen', 'user_pinned_permissions', 'user_fav_labels',
   'user_pinned_labels', 'user_fav_summaries', 'user_follows',
   'comments', 'summary_files',
   'summary_seen', 'summary_tagged_users', 'summary_tagged_permissions', 'summary_fields', 'summary_labels', 'summary_editors', 'summary_permissions',
@@ -333,13 +333,78 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
       { userId: mgolan.id, summaryId: summaryIds[11], text: 'סיכום חדש נוסף לאוסף', kind: 'follow', createdAt: new Date(now - 4 * DAY), viewedAt: new Date(now - 3 * DAY) },
     ]);
 
-    await tx.insert(s.notificationRules).values({
-      userId: mgolan.id,
-      name: 'הרצאות חדשות במבני נתונים',
-      conditions: [{ field: { _id: f(1), name: 'שם הקורס', type: 'string' }, funcName: 'stringContains', content: ['מבני נתונים'] }],
-      isMail: false,
-      isNotify: true,
-      createdAt: new Date(now - 30 * DAY),
-    });
+    // Queries (saved searches) of mgolan's, some with alerts. Catalog fields go in the advanced tree as `field: 'field'`.
+    const group = (op: 'AND' | 'OR', ...children: Record<string, unknown>[]) => ({ type: 'group', op, children });
+    const cond = (c: Record<string, unknown>) => ({ type: 'cond', words: [], values: [], ...c });
+    const queryDefs: {
+      name: string;
+      kind: 'simple' | 'advanced';
+      search: Record<string, unknown>;
+      isFavorite?: boolean;
+      alert?: { isActive: boolean; isMail: boolean; isDigest: boolean };
+      daysAgo: number;
+    }[] = [
+      {
+        name: 'הרצאות חדשות במבני נתונים',
+        kind: 'advanced',
+        search: { query: group('AND', cond({ field: 'field', fieldId: f(1), op: 'all', words: ['מבני נתונים'] }), cond({ field: 'contentType', op: 'isOneOf', values: ['lecture'] })) },
+        alert: { isActive: true, isMail: false, isDigest: true },
+        daysAgo: 30,
+      },
+      {
+        name: 'חומר למבחן',
+        kind: 'simple',
+        search: { text: 'מבחן', labels: ['חומר למבחן'] },
+        isFavorite: true,
+        alert: { isActive: true, isMail: true, isDigest: false },
+        daysAgo: 21,
+      },
+      { name: 'התמציות של דנה לוי', kind: 'simple', search: { text: '⁣@dlevi', sort: '-creationDate' }, daysAgo: 14 },
+      {
+        name: 'הרצאות 1–5 באלגוריתמים',
+        kind: 'advanced',
+        search: { query: group('AND', cond({ field: 'field', fieldId: f(1), op: 'all', words: ['אלגוריתמים'] }), cond({ field: 'field', fieldId: f(3), op: 'range', from: '1', to: '5' })) },
+        alert: { isActive: false, isMail: false, isDigest: false },
+        daysAgo: 10,
+      },
+      { name: 'סיבוכיות', kind: 'simple', search: { text: '"סיבוכיות"' }, isFavorite: true, daysAgo: 7 },
+      {
+        name: 'גרפים או עצים בכותרת',
+        kind: 'advanced',
+        search: { query: group('OR', cond({ field: 'title', op: 'any', words: ['גרפים', 'עצי'] }), cond({ field: 'labels', op: 'all', words: ['הוכחות'] })) },
+        daysAgo: 5,
+      },
+      {
+        name: 'ירוקות או כתומות מ־3 החודשים האחרונים',
+        kind: 'advanced',
+        search: { query: group('AND', cond({ field: 'color', op: 'isOneOf', values: ['#008000', '#ffa500'] }), cond({ field: 'createdDate', op: 'after', from: new Date(now - 90 * DAY).toISOString() })) },
+        alert: { isActive: true, isMail: false, isDigest: false },
+        daysAgo: 2,
+      },
+      { name: 'פסיכולוגיה — זיכרון', kind: 'simple', search: { text: 'זיכרון', contentTypes: ['lecture', 'textbook'] }, daysAgo: 1 },
+    ];
+    const alertIds = new Map<string, string>();
+    for (const q of queryDefs) {
+      const at = new Date(now - q.daysAgo * DAY);
+      const [row] = await tx
+        .insert(s.queries)
+        .values({ ownerId: mgolan.id, name: q.name, kind: q.kind, search: q.search, isFavorite: q.isFavorite ?? false, createdAt: at, updatedAt: at })
+        .returning({ id: s.queries.id });
+      if (!q.alert) continue;
+      const [alert] = await tx.insert(s.queryAlerts).values({ queryId: row.id, userId: mgolan.id, ...q.alert, createdAt: at, updatedAt: at }).returning({ id: s.queryAlerts.id });
+      alertIds.set(q.name, alert.id);
+    }
+
+    // A couple of alert notifications, so the notifications page shows them by query.
+    const alerted = [
+      { query: 'חומר למבחן', summary: summaryIds[2], hoursAgo: 5 },
+      { query: 'ירוקות או כתומות מ־3 החודשים האחרונים', summary: summaryIds[39], hoursAgo: 30 },
+      { query: 'הרצאות חדשות במבני נתונים', summary: summaryIds[6], hoursAgo: 52 },
+    ];
+    for (const a of alerted) {
+      const alertId = alertIds.get(a.query)!;
+      await tx.insert(s.notifications).values({ userId: mgolan.id, summaryId: a.summary, text: `תמצית חדשה תואמת לחיפוש "${a.query}"`, kind: 'alert', alertId, createdAt: new Date(now - a.hoursAgo * 3_600_000) });
+      await tx.insert(s.queryAlertHits).values({ alertId, summaryId: a.summary });
+    }
   });
 }

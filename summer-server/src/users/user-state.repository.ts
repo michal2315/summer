@@ -1,18 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { idsWhere } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
 import {
-  SavedSearchKind,
-  notificationRules,
   summaries,
   userFavLabels,
   userFavSummaries,
   userFollows,
   userPinnedLabels,
   userPinnedPermissions,
-  userPinnedSearches,
   userPinnedUsers,
 } from '../database/schema';
 import { summaryVisible } from '../summaries/summary.access';
@@ -92,39 +89,5 @@ export class UserStateRepository {
 
   async unfollow(followerId: string, followedId: string): Promise<void> {
     await this.db.delete(userFollows).where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)));
-  }
-
-  pinnedSearches(userId: string) {
-    return this.db.select().from(userPinnedSearches).where(eq(userPinnedSearches.userId, userId));
-  }
-
-  async deletePinnedSearch(id: string): Promise<void> {
-    await this.db.delete(userPinnedSearches).where(eq(userPinnedSearches.id, id));
-  }
-
-  async addPinnedSearch(userId: string, values: { search: Record<string, unknown>; name: string | null; kind: SavedSearchKind; isFavorite: boolean }): Promise<void> {
-    await this.db.insert(userPinnedSearches).values({ userId, ...values });
-  }
-
-  /** False when the search is not the user's. */
-  async updatePinnedSearch(userId: string, id: string, patch: { name?: string | null; search?: Record<string, unknown>; isFavorite?: boolean }): Promise<boolean> {
-    const rows = await this.db
-      .update(userPinnedSearches)
-      .set(patch)
-      .where(and(eq(userPinnedSearches.id, id), eq(userPinnedSearches.userId, userId)))
-      .returning({ id: userPinnedSearches.id });
-    return rows.length > 0;
-  }
-
-  /** The user's search alerts (rules with a saved search). */
-  searchAlerts(userId: string) {
-    return this.db
-      .select({ id: notificationRules.id, search: notificationRules.search })
-      .from(notificationRules)
-      .where(and(eq(notificationRules.userId, userId), isNotNull(notificationRules.search)));
-  }
-
-  async setAlertSearch(ruleId: string, search: Record<string, unknown>): Promise<void> {
-    await this.db.update(notificationRules).set({ search, updatedAt: new Date() }).where(eq(notificationRules.id, ruleId));
   }
 }

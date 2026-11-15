@@ -81,16 +81,16 @@ export class MailWorker implements OnApplicationBootstrap, OnApplicationShutdown
     }
     const byUser = new Map<string, MailRow[]>();
     for (const r of rows) {
-      // The rule may since have been deleted, paused, or taken off the digest; the user may have turned alert mails off.
-      if (!r.rule?.isNotify || !r.rule.isDigest || !r.recipient.mailAlerts || !(await this.deliverable(r))) continue;
+      // The alert may since have been deleted, paused, or taken off the digest; the user may have turned alert mails off.
+      if (!r.alert?.isActive || !r.alert.isDigest || !r.recipient.mailAlerts || !(await this.deliverable(r))) continue;
       byUser.set(r.recipient.id, [...(byUser.get(r.recipient.id) ?? []), r]);
     }
     for (const items of byUser.values()) {
       const groups = new Map<string, DigestGroup>();
       for (const r of items) {
-        const g = groups.get(r.rule!.id) ?? { ruleName: r.rule!.name, items: [] };
+        const g = groups.get(r.alert!.id) ?? { ruleName: r.alert!.name, items: [] };
         g.items.push(r);
-        groups.set(r.rule!.id, g);
+        groups.set(r.alert!.id, g);
       }
       const recipient = items[0].recipient;
       if (!(await this.send(digestMail(this.mailContext, recipient.email!, [...groups.values()]), recipient.id)))

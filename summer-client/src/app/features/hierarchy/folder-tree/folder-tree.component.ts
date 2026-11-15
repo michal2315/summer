@@ -223,10 +223,13 @@ export class FolderTreeComponent {
     return this.isManager(f) && (!parent || this.isManager(parent));
   }
 
-  /** A summary can leave its folder only with that folder's managers (the server also checks edit rights on it). */
-  canMoveSummary(from: string | null): boolean {
+  /**
+   * Only your own summaries can be dragged in the tree (always, not just in drag mode), and taking one out of its
+   * folder needs that folder's managers.
+   */
+  canMoveSummary(item: IFolderItem, from: string | null): boolean {
     const folder = from ? this.store.byId().get(from) : null;
-    return !from || (!!folder && this.isManager(folder));
+    return item.mine && (!from || (!!folder && this.isManager(folder)));
   }
 
   /** The current drag being the dragged summary row (for the dimmed look). */
@@ -321,12 +324,15 @@ export class FolderTreeComponent {
         if (folder) this.expand(folder._id);
       });
     } else if (folder) {
+      // A move: place it in the target, then take it out of the folder it was dragged from.
       this.service.addItems(folder._id, [d.item._id], true).subscribe((r) => {
-        if (r.skipped.length) this.message.warning(`לא ניתן להוסיף את "${d.item.name}"`);
-        else {
-          this.message.success(`"${d.item.name}" נוספה אל "${folder.name}"`);
+        if (r.skipped.length) return void this.message.warning(`לא ניתן להעביר את "${d.item.name}"`);
+        const done = () => {
+          this.message.success(`"${d.item.name}" הועברה אל "${folder.name}"`);
           this.expand(folder._id);
-        }
+        };
+        if (d.from) this.service.removeItems(d.from, [d.item._id]).subscribe(done);
+        else done();
       });
     } else {
       this.service.removeItems(d.from!, [d.item._id]).subscribe(() => this.message.success(`"${d.item.name}" הוצאה מהתיקייה`));

@@ -28,7 +28,8 @@ export class WhatsNewService {
 
   async open(): Promise<void> {
     const { WhatsNewModalComponent } = await import('./whats-new-modal/whats-new-modal.component');
-    this.modal.create({ nzTitle: 'מה חדש ב-Summer', nzContent: WhatsNewModalComponent, nzFooter: null, nzWidth: 620 });
+    // The component draws its own banner, close button and footer.
+    this.modal.create({ nzContent: WhatsNewModalComponent, nzFooter: null, nzClosable: false, nzWidth: 640, nzBodyStyle: { padding: '0' }, nzCentered: true });
   }
 
   /** Release list (newest first) with each version's HTML from public/whats-new/<version>.html. */

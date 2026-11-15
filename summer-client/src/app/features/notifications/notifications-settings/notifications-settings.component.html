@@ -1,5 +1,5 @@
   <div class="layout" [class.collapsed]="panelCollapsed()">
-    <!-- Management: e-mail switches and the user's rules. Picking a rule narrows the feed to what it raised.
+    <!-- Management: e-mail switches and the user's alerts (on saved searches). Picking one narrows the feed to what it raised.
          Collapses to a thin strip at the side (remembered per browser); the feed takes the room. -->
     @if (panelCollapsed()) {
       <!-- The whole strip is the expand button. -->
@@ -17,8 +17,8 @@
         </button>
       </div>
       <div class="muted intro">
-        כללים שמגדירים מתי תקבלו התראה על תמצית שמתפרסמת או נערכת: לפי ערכי השדות שלה או לפי כמוסה, או לפי חיפוש שמור (מהפעמון שבתיבת החיפוש).
-        כל כלל מתריע פעם אחת על כל תמצית.
+        התראה היא על חיפוש שמור: כשתמצית שמתאימה לחיפוש מתפרסמת או נערכת, תקבלו התראה — פעם אחת על כל תמצית.
+        אפשר להפעיל התראה על חיפוש שכבר שמרתם, או ליצור חיפוש חדש עם התראה.
       </div>
 
       @if (service.preferences(); as p) {
@@ -38,45 +38,90 @@
           </label>
           <label class="pref">
             <nz-switch nzSize="small" [ngModel]="p.mailAlerts" (ngModelChange)="service.setPreference('mailAlerts', $event)" [nzDisabled]="!p.email" />
-            <span>מייל על כללי התראה: מיידי או בסיכום יומי, לפי ההגדרה של כל כלל</span>
+            <span>מייל על התראות של חיפושים שמורים: מיידי או בסיכום יומי, לפי ההגדרה של כל התראה</span>
           </label>
         </div>
       }
 
-      <nz-input-group [nzPrefix]="searchIcon" class="filter">
-        <input nz-input placeholder="סינון כללים" [ngModel]="service.filter()" (ngModelChange)="service.filter.set($event)" aria-label="סינון כללים" />
-      </nz-input-group>
-      <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+      <!-- Turn on an alert for a saved search that doesn't have one yet. -->
+      <div class="add-alert">
+        <div class="add-title"><span nz-icon nzType="bell"></span> התראה על חיפוש שמור</div>
+        <nz-select
+          class="add-select"
+          nzShowSearch
+          nzServerSearch
+          nzPlaceHolder="חיפוש בחיפושים השמורים לפי שם"
+          [nzNotFoundContent]="queries.queries().length ? 'אין חיפוש שמור בלי התראה בשם הזה' : 'אין עדיין חיפושים שמורים'"
+          [ngModel]="null"
+          (ngModelChange)="activate($event)"
+          (nzOnSearch)="addText.set($event)"
+          aria-label="הפעלת התראה על חיפוש שמור"
+        >
+          @for (q of addOptions(); track q._id) {
+            <nz-option nzCustomContent [nzValue]="q._id" [nzLabel]="q.name">
+              <span class="add-option">
+                @if (q.isFavorite) {
+                  <span class="fav" nz-icon nzType="star" nzTheme="fill"></span>
+                }
+                <span nz-icon [nzType]="q.kind === 'advanced' ? 'apartment' : 'search'" [attr.aria-label]="kindLabel[q.kind]"></span>
+                <span class="add-name">{{ q.name }}</span>
+                <span class="add-desc">{{ describe(q.search) }}</span>
+              </span>
+            </nz-option>
+          }
+        </nz-select>
+      </div>
 
-      @if (service.rules() === null) {
+      <div class="list-title">
+        ההתראות שלי
+        @if (queries.alerting().length) {
+          <span class="count">{{ queries.alerting().length }}</span>
+        }
+      </div>
+      @if (queries.alerting().length > 5) {
+        <nz-input-group [nzPrefix]="searchIcon" class="filter">
+          <input nz-input placeholder="סינון ההתראות" [ngModel]="filter()" (ngModelChange)="filter.set($event)" aria-label="סינון ההתראות" />
+        </nz-input-group>
+        <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+      }
+
+      @if (queries.list() === null) {
         <div class="list"><app-skeleton variant="rows" [count]="4" /></div>
       } @else {
         <ul class="list">
-          @for (r of page.items(); track r._id) {
-            <li class="item" [class.paused]="!r.isNotify" [class.picked]="r._id === ruleId()">
-              <button type="button" class="text" (click)="pick(r)" [attr.aria-pressed]="r._id === ruleId()" [attr.aria-label]="'הצגת ההתראות מהכלל ' + r.name">
+          @for (q of page.items(); track q._id) {
+            @let a = q.alert!;
+            <li class="item" [class.paused]="!a.isActive" [class.picked]="q._id === queryId()">
+              <button type="button" class="text" (click)="pick(q)" [attr.aria-pressed]="q._id === queryId()" [attr.aria-label]="'הצגת ההתראות מהחיפוש ' + q.name">
                 <span class="rule-name">
-                  @if (r.search) {
-                    <span class="kind" nz-icon nzType="search" aria-label="התראה על חיפוש"></span>
-                  }
-                  {{ r.name }}
+                  <span class="kind" nz-icon [nzType]="q.kind === 'advanced' ? 'apartment' : 'search'" [attr.aria-label]="kindLabel[q.kind]"></span>
+                  {{ q.name }}
                 </span>
-                <span class="desc">{{ r | notificationName }}</span>
+                <span class="desc">{{ describe(q.search) }}</span>
                 <span class="channels">
-                  @if (!r.isNotify) {
+                  @if (!a.isActive) {
                     <nz-tag><span nz-icon nzType="pause-circle"></span> מושהה</nz-tag>
                   } @else {
-                    @if (r.isMail) {
+                    <nz-tag><span nz-icon nzType="bell"></span> במערכת</nz-tag>
+                    @if (a.isMail) {
                       <nz-tag><span nz-icon nzType="mail"></span> מייל מיידי</nz-tag>
                     }
-                    @if (r.isDigest) {
+                    @if (a.isDigest) {
                       <nz-tag><span nz-icon nzType="schedule"></span> סיכום יומי</nz-tag>
                     }
                   }
                 </span>
               </button>
               <span class="row-actions">
-                <a nz-button nzType="text" nzShape="circle" nzSize="small" [routerLink]="[r._id, 'edit']" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
+                <nz-switch
+                  nzSize="small"
+                  [ngModel]="a.isActive"
+                  (ngModelChange)="setActive(q, $event)"
+                  [nzDisabled]="isBusy(q)"
+                  [nz-tooltip]="a.isActive ? 'השהיית ההתראה' : 'הפעלת ההתראה'"
+                  [attr.aria-label]="a.isActive ? 'השהיית ההתראה' : 'הפעלת ההתראה'"
+                />
+                <a nz-button nzType="text" nzShape="circle" nzSize="small" [routerLink]="[q._id, 'edit']" nz-tooltip="עריכת החיפוש וההתראה" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
                 <button
                   nz-button
                   nzType="text"
@@ -84,19 +129,21 @@
                   nzSize="small"
                   nzDanger
                   type="button"
+                  [disabled]="isBusy(q)"
                   nz-popconfirm
-                  nzPopconfirmTitle="למחוק את הכלל?"
-                  nzOkText="מחיקה"
-                  nzCancelText="ביטול"
-                  (nzOnConfirm)="remove(r)"
-                  aria-label="מחיקה"
+                  nzPopconfirmTitle="לבטל את ההתראה? החיפוש יישאר בחיפושים השמורים."
+                  nzOkText="ביטול ההתראה"
+                  nzCancelText="חזרה"
+                  (nzOnConfirm)="cancel(q)"
+                  nz-tooltip="ביטול ההתראה"
+                  aria-label="ביטול ההתראה"
                 >
-                  <span nz-icon nzType="delete"></span>
+                  <span nz-icon nzType="stop"></span>
                 </button>
               </span>
             </li>
           } @empty {
-            <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="service.filter() ? 'אין כללים תואמים' : 'עדיין אין כללי התראה'" />
+            <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="filter() ? 'אין התראות תואמות' : 'עדיין אין התראות. בחרו חיפוש שמור למעלה, או צרו התראה חדשה.'" />
           }
         </ul>
         @if (page.hasMore()) {
@@ -122,10 +169,10 @@
           <app-notification-bell />
         </div>
         <app-notification-feed
-          [ruleId]="ruleId()"
-          [ruleName]="ruleName()"
-          (pickRule)="ruleId.set($event)"
-          (clearRule)="ruleId.set(null)"
+          [queryId]="queryId()"
+          [queryName]="queryName()"
+          (pickQuery)="queryId.set($event)"
+          (clearQuery)="queryId.set(null)"
           (opened)="open($event, main)"
         />
       </div>

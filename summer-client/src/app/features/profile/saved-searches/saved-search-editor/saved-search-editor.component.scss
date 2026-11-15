@@ -64,5 +64,12 @@
 .footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+// On the far side from the save buttons.
+.full-edit {
+  margin-inline-end: auto;
+  padding-inline: 0;
 }

@@ -4,11 +4,22 @@ import { alias } from 'drizzle-orm/pg-core';
 import { CurrentUser } from '../auth/identity-provider';
 import { idsWhere } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
-import { NotificationKind, comments, contentTypes, labels, notificationRuleHits, notificationRules, notifications, summaries, summaryLabels, userFollows, users } from '../database/schema';
+import { NotificationKind, comments, contentTypes, labels, notifications, queries, queryAlertHits, queryAlerts, summaries, summaryLabels, userFollows, users } from '../database/schema';
 import { summaryVisible } from '../summaries/summary.access';
 
-export type RuleRow = typeof notificationRules.$inferSelect;
-export type RuleValues = Pick<RuleRow, 'name' | 'conditions' | 'matchAny' | 'search' | 'isMail' | 'isDigest' | 'isNotify'>;
+/** An active alert as fan-out needs it: whom it notifies, how, and its query. */
+export interface AlertRule {
+  /** the alert's id */
+  id: string;
+  userId: string;
+  isActive: boolean;
+  isMail: boolean;
+  isDigest: boolean;
+  /** the query's name */
+  name: string;
+  search: Record<string, unknown>;
+}
+
 export type NewNotification = typeof notifications.$inferInsert;
 
 /** A user who may receive notifications, with what deciding their e-mail needs. */
@@ -44,7 +55,7 @@ export interface MailRow {
   actorName: string | null;
   mailAttempts: number;
   recipient: Recipient;
-  rule: Pick<RuleRow, 'id' | 'name' | 'isMail' | 'isDigest' | 'isNotify'> | null;
+  alert: Pick<AlertRule, 'id' | 'name' | 'isMail' | 'isDigest' | 'isActive'> | null;
 }
 
 export interface MailPreferences {
@@ -92,11 +103,11 @@ export class NotificationsRepository {
     return this.db.insert(notifications).values(rows).returning({ id: notifications.id, userId: notifications.userId });
   }
 
-  /** A rule matched a summary its owner was already notified about in this event: its e-mails ride on that notification. */
-  async addRuleDelivery(notificationId: string, ruleId: string, mail: boolean, digest: boolean): Promise<void> {
+  /** An alert matched a summary its user was already notified about in this event: its e-mails ride on that notification. */
+  async addAlertDelivery(notificationId: string, alertId: string, mail: boolean, digest: boolean): Promise<void> {
     await this.db
       .update(notifications)
-      .set({ ruleId: sql`coalesce(${notifications.ruleId}, ${ruleId}::uuid)`, mail: sql`${notifications.mail} or ${mail}`, digest: sql`${notifications.digest} or ${digest}` })
+      .set({ alertId: sql`coalesce(${notifications.alertId}, ${alertId}::uuid)`, mail: sql`${notifications.mail} or ${mail}`, digest: sql`${notifications.digest} or ${digest}` })
       .where(eq(notifications.id, notificationId));
   }
 
@@ -139,11 +150,11 @@ export class NotificationsRepository {
           isActive: users.isActive,
           mailAlerts: users.mailAlerts,
           mailActivity: users.mailActivity,
-          ruleId: notificationRules.id,
-          ruleName: notificationRules.name,
-          ruleIsMail: notificationRules.isMail,
-          ruleIsDigest: notificationRules.isDigest,
-          ruleIsNotify: notificationRules.isNotify,
+          alertId: queryAlerts.id,
+          alertName: queries.name,
+          alertIsMail: queryAlerts.isMail,
+          alertIsDigest: queryAlerts.isDigest,
+          alertIsActive: queryAlerts.isActive,
         })
         .from(notifications)
         .innerJoin(users, eq(users.id, notifications.userId))
@@ -152,7 +163,8 @@ export class NotificationsRepository {
         .leftJoin(author, eq(author.id, summaries.createdBy))
         .leftJoin(comments, eq(comments.id, notifications.commentId))
         .leftJoin(actor, eq(actor.id, notifications.createdBy))
-        .leftJoin(notificationRules, eq(notificationRules.id, notifications.ruleId))
+        .leftJoin(queryAlerts, eq(queryAlerts.id, notifications.alertId))
+        .leftJoin(queries, eq(queries.id, queryAlerts.queryId))
         .where(inArray(notifications.id, ids))
         .orderBy(asc(notifications.createdAt));
       return rows
@@ -167,7 +179,7 @@ export class NotificationsRepository {
           actorName: r.actorName,
           mailAttempts: r.mailAttempts,
           recipient: { id: r.userId, groupKeys: r.groupKeys, email: r.email, mailAlerts: r.mailAlerts, mailActivity: r.mailActivity },
-          rule: r.ruleId ? { id: r.ruleId, name: r.ruleName!, isMail: r.ruleIsMail!, isDigest: r.ruleIsDigest!, isNotify: r.ruleIsNotify! } : null,
+          alert: r.alertId ? { id: r.alertId, name: r.alertName!, isMail: r.alertIsMail!, isDigest: r.alertIsDigest!, isActive: r.alertIsActive! } : null,
         }));
     });
   }
@@ -213,9 +225,9 @@ export class NotificationsRepository {
 
   /**
    * The notifications page feed: notifications about a summary the caller can still see, newest first,
-   * optionally only those one rule raised. Paged by offset; one row past `limit` tells the caller there's more.
+   * optionally only those one query's alert raised. Paged by offset; one row past `limit` tells the caller there's more.
    */
-  feed(me: CurrentUser, opts: { ruleId?: string; kinds: NotificationKind[]; unread: boolean; offset: number; limit: number }) {
+  feed(me: CurrentUser, opts: { queryId?: string; kinds: NotificationKind[]; unread: boolean; offset: number; limit: number }) {
     return this.db
       .select({
         id: notifications.id,
@@ -223,8 +235,8 @@ export class NotificationsRepository {
         summaryId: notifications.summaryId,
         createdAt: notifications.createdAt,
         viewedAt: notifications.viewedAt,
-        ruleId: notificationRules.id,
-        ruleName: notificationRules.name,
+        queryId: queries.id,
+        queryName: queries.name,
         kind: notifications.kind,
         authorId: author.id,
         authorUsername: author.username,
@@ -233,8 +245,9 @@ export class NotificationsRepository {
       .from(notifications)
       .innerJoin(summaries, eq(summaries.id, notifications.summaryId))
       .leftJoin(author, eq(author.id, notifications.createdBy))
-      .leftJoin(notificationRules, eq(notificationRules.id, notifications.ruleId))
-      .where(and(eq(notifications.userId, me.id), summaryVisible(me), opts.ruleId ? eq(notifications.ruleId, opts.ruleId) : undefined, opts.kinds.length ? inArray(notifications.kind, opts.kinds) : undefined, opts.unread ? isNull(notifications.viewedAt) : undefined))
+      .leftJoin(queryAlerts, eq(queryAlerts.id, notifications.alertId))
+      .leftJoin(queries, eq(queries.id, queryAlerts.queryId))
+      .where(and(eq(notifications.userId, me.id), summaryVisible(me), opts.queryId ? eq(queries.id, opts.queryId) : undefined, opts.kinds.length ? inArray(notifications.kind, opts.kinds) : undefined, opts.unread ? isNull(notifications.viewedAt) : undefined))
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .offset(opts.offset)
       .limit(opts.limit + 1);
@@ -252,43 +265,31 @@ export class NotificationsRepository {
     return rows.map((r) => r.id);
   }
 
-  activeRules(): Promise<RuleRow[]> {
-    return this.db.select().from(notificationRules).where(eq(notificationRules.isNotify, true));
+  /** Every active alert with its query, oldest first (so who is told first doesn't change between runs). */
+  activeAlerts(): Promise<AlertRule[]> {
+    return this.db
+      .select({
+        id: queryAlerts.id,
+        userId: queryAlerts.userId,
+        isActive: queryAlerts.isActive,
+        isMail: queryAlerts.isMail,
+        isDigest: queryAlerts.isDigest,
+        name: queries.name,
+        search: queries.search,
+      })
+      .from(queryAlerts)
+      .innerJoin(queries, eq(queries.id, queryAlerts.queryId))
+      .where(eq(queryAlerts.isActive, true))
+      .orderBy(asc(queryAlerts.createdAt), asc(queryAlerts.id));
   }
 
-  rulesOf(userId: string): Promise<RuleRow[]> {
-    return this.db.select().from(notificationRules).where(eq(notificationRules.userId, userId)).orderBy(desc(notificationRules.createdAt));
-  }
-
-  async insertRule(values: RuleValues & { userId: string }): Promise<RuleRow> {
-    const [row] = await this.db.insert(notificationRules).values(values).returning();
-    return row;
-  }
-
-  async updateRule(userId: string, id: string, values: RuleValues): Promise<RuleRow | undefined> {
-    const [row] = await this.db
-      .update(notificationRules)
-      .set({ ...values, updatedAt: new Date() })
-      .where(and(eq(notificationRules.id, id), eq(notificationRules.userId, userId)))
-      .returning();
-    return row;
-  }
-
-  /** Rules that already notified about this summary. */
-  async ruleHits(summaryId: string): Promise<Set<string>> {
-    const rows = await this.db.select({ id: notificationRuleHits.ruleId }).from(notificationRuleHits).where(eq(notificationRuleHits.summaryId, summaryId));
+  /** Alerts that already notified about this summary. */
+  async alertHits(summaryId: string): Promise<Set<string>> {
+    const rows = await this.db.select({ id: queryAlertHits.alertId }).from(queryAlertHits).where(eq(queryAlertHits.summaryId, summaryId));
     return new Set(rows.map((r) => r.id));
   }
 
-  async addRuleHit(ruleId: string, summaryId: string): Promise<void> {
-    await this.db.insert(notificationRuleHits).values({ ruleId, summaryId }).onConflictDoNothing();
-  }
-
-  async deleteRule(userId: string, id: string): Promise<boolean> {
-    const rows = await this.db
-      .delete(notificationRules)
-      .where(and(eq(notificationRules.id, id), eq(notificationRules.userId, userId)))
-      .returning({ id: notificationRules.id });
-    return rows.length > 0;
+  async addAlertHit(alertId: string, summaryId: string): Promise<void> {
+    await this.db.insert(queryAlertHits).values({ alertId, summaryId }).onConflictDoNothing();
   }
 }

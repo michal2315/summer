@@ -14,14 +14,14 @@
 
 <div class="feed-header">
   <div class="feed-title" role="heading" aria-level="2">
-    @if (ruleName(); as name) {
-      התראות מהכלל <span class="feed-rule">{{ name }}</span>
+    @if (queryName(); as name) {
+      התראות מהחיפוש <span class="feed-rule">{{ name }}</span>
     } @else {
       כל ההתראות
     }
   </div>
-  @if (ruleId()) {
-    <button type="button" nz-button nzType="link" nzSize="small" (click)="clearRule.emit()"><span nz-icon nzType="close"></span> הצגת הכל</button>
+  @if (queryId()) {
+    <button type="button" nz-button nzType="link" nzSize="small" (click)="clearQuery.emit()"><span nz-icon nzType="close"></span> הצגת הכל</button>
   }
   <span class="spacer"></span>
   @if (unread()) {
@@ -31,13 +31,13 @@
 
 <ul class="items">
   @for (n of items(); track n._id) {
-    @let info = n.rule ? ruleInfo().get(n.rule._id) : undefined;
+    @let info = n.query ? queryInfo().get(n.query._id) : undefined;
     <li class="item" [class.unread]="!n.isViewed" [attr.aria-label]="(n.isViewed ? '' : 'חדש: ') + n.text">
-      <!-- One quiet line: what kind, who / which rule, when. The full text and why it matched are in the tooltip. -->
+      <!-- One quiet line: what kind, who / which saved search, when. The full text and why it matched are in the tooltip. -->
       <div class="alert" [nz-tooltip]="details" nzTooltipPlacement="topRight" [nzTooltipMouseEnterDelay]="0.4">
         <span class="alert-icon" nz-icon [nzType]="kindIcon(n.kind)"></span>
-        @if (n.rule; as r) {
-          <button type="button" class="alert-label rule" (click)="pickRule.emit(r._id)" [attr.aria-label]="'הצגת ההתראות מהכלל ' + r.name">{{ r.name }}</button>
+        @if (n.query; as r) {
+          <button type="button" class="alert-label rule" (click)="pickQuery.emit(r._id)" [attr.aria-label]="'הצגת ההתראות מהחיפוש ' + r.name">{{ r.name }}</button>
         } @else {
           <span class="alert-label">{{ shortLabel(n) }}</span>
         }
@@ -70,7 +70,7 @@
   <nz-empty
     nzNotFoundImage="simple"
     [nzNotFoundContent]="
-      unreadOnly() ? 'אין התראות שלא נקראו' : ruleId() ? 'הכלל הזה עוד לא התריע על אף תמצית' : kinds().size ? 'אין התראות מהסוגים שנבחרו' : 'עדיין אין התראות על תמציות'
+      unreadOnly() ? 'אין התראות שלא נקראו' : queryId() ? 'החיפוש הזה עוד לא התריע על אף תמצית' : kinds().size ? 'אין התראות מהסוגים שנבחרו' : 'עדיין אין התראות על תמציות'
     "
   />
 } @else if (hasMore()) {

@@ -31,12 +31,15 @@
     } @else if (hits() !== null) {
       <span class="muted">נמצאות כרגע {{ hits() }} תמציות</span>
     }
-    @if (hasAlert()) {
+    @if (hasAlert) {
       <span class="muted"><span nz-icon nzType="bell"></span> יש התראה על החיפוש, והיא תתעדכן יחד איתו</span>
     }
   </div>
 
   <div class="footer">
+    <button nz-button nzType="link" type="button" class="full-edit" (click)="openFull()">
+      <span nz-icon nzType="setting"></span> {{ hasAlert ? 'עריכה מלאה והגדרות ההתראה' : 'עריכה מלאה והוספת התראה' }}
+    </button>
     <button nz-button type="button" (click)="modal.close(false)">ביטול</button>
     <button nz-button nzType="primary" type="button" [disabled]="!name().trim() || empty() || !!clash()" [nzLoading]="busy()" (click)="save()">שמירה</button>
   </div>

@@ -33,6 +33,8 @@ export interface ApiFolderItem {
   _id: string;
   name: string;
   kind: 'summary' | 'running' | 'sumaroon';
+  /** The caller wrote it (only those can be dragged to another folder in the tree). */
+  mine: boolean;
 }
 
 const payloadSchema = z.object({
@@ -74,7 +76,7 @@ export class FoldersService {
   async items(me: CurrentUser, id: string): Promise<ApiFolderItem[]> {
     await this.assertVisible(me, id);
     const rows = await this.repo.items(id, this.summaries.visible(me));
-    return rows.map((s) => ({ _id: s.id, name: s.name, kind: s.kind }));
+    return rows.map((s) => ({ _id: s.id, name: s.name, kind: s.kind, mine: s.createdBy === me.id }));
   }
 
   async create(me: CurrentUser, body: unknown): Promise<ApiFolder> {

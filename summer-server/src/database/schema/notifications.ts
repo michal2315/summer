@@ -1,11 +1,12 @@
 import { sql } from 'drizzle-orm';
-import { AnyPgColumn, boolean, index, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { createdAt, id, updatedAt } from './columns';
+import { AnyPgColumn, boolean, index, pgTable, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { createdAt, id } from './columns';
+import { queryAlerts } from './queries';
 import { comments, summaries } from './summaries';
 import { users } from './users';
 
-export const NOTIFICATION_KINDS = ['rule', 'search', 'comment', 'mention', 'tag', 'follow'] as const;
-/** rule / search: a notification rule matched (conditions / a saved search); the rest is activity by another user. */
+export const NOTIFICATION_KINDS = ['alert', 'comment', 'mention', 'tag', 'follow'] as const;
+/** alert: a query's alert matched a summary; the rest is activity by another user. */
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export const notifications = pgTable(
@@ -21,8 +22,8 @@ export const notifications = pgTable(
     /** What raised it (the notifications page filters by it). */
     kind: text().$type<NotificationKind>().notNull(),
     createdBy: uuid().references(() => users.id, { onDelete: 'set null' }),
-    /** The rule that raised it; null for activity (tags, comments, mentions, followed users). */
-    ruleId: uuid().references((): AnyPgColumn => notificationRules.id, { onDelete: 'set null' }),
+    /** The alert that raised it; null for activity (tags, comments, mentions, followed users). */
+    alertId: uuid().references((): AnyPgColumn => queryAlerts.id, { onDelete: 'set null' }),
     /** The comment it is about (comment on your summary, mention); e-mails quote it. */
     commentId: uuid().references(() => comments.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
@@ -39,52 +40,4 @@ export const notifications = pgTable(
     index('notifications_mail_pending_index').on(t.createdAt).where(sql`${t.mail}`),
     index('notifications_digest_pending_index').on(t.createdAt).where(sql`${t.digest}`),
   ],
-);
-
-export interface RuleCondition {
-  field: { _id: string; name: string; type: string };
-  funcName: string;
-  content: (string | number | null)[];
-}
-
-/**
- * Per-user rules: "notify me when a published summary matches". A rule is either field conditions (all of them, or
- * any one with `matchAny`) or a saved search (`search`, the client's ISummarySearch, matched with the feed's SQL).
- */
-export const notificationRules = pgTable(
-  'notification_rules',
-  {
-    id: id(),
-    userId: uuid()
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    name: text().notNull(),
-    conditions: jsonb().$type<RuleCondition[]>().notNull(),
-    matchAny: boolean().notNull().default(false),
-    search: jsonb().$type<Record<string, unknown>>(),
-    /** Also e-mail each match right away. */
-    isMail: boolean().notNull().default(false),
-    /** Also list matches in the owner's daily digest e-mail. */
-    isDigest: boolean().notNull().default(false),
-    /** The rule is active: matches reach the bell (and the e-mails above). Off pauses the rule. */
-    isNotify: boolean().notNull().default(true),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [index().on(t.userId)],
-);
-
-/** Which rule already notified about which summary, so re-checking on every edit notifies once. */
-export const notificationRuleHits = pgTable(
-  'notification_rule_hits',
-  {
-    ruleId: uuid()
-      .notNull()
-      .references(() => notificationRules.id, { onDelete: 'cascade' }),
-    summaryId: uuid()
-      .notNull()
-      .references(() => summaries.id, { onDelete: 'cascade' }),
-    createdAt: createdAt(),
-  },
-  (t) => [primaryKey({ columns: [t.ruleId, t.summaryId] }), index().on(t.summaryId)],
 );

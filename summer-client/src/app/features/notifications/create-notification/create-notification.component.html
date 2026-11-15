@@ -1,85 +1,114 @@
-<form class="page" nz-form nzLayout="vertical" [formGroup]="form" (ngSubmit)="save()">
+<form class="page" (ngSubmit)="save()">
   <div class="header">
     <a routerLink="/notifications" class="back-link"><span nz-icon nzType="arrow-right"></span> חזרה לדף ההתראות</a>
-    <div class="page-title" role="heading" aria-level="1">{{ id() ? 'עריכת כלל התראה' : 'התראה חדשה' }}</div>
+    <div class="page-title" role="heading" aria-level="1">{{ id() ? 'עריכת חיפוש והתראה' : 'התראה חדשה' }}</div>
+    <div class="muted">התראה היא על חיפוש שמור: מה שנשמר כאן מופיע גם בחיפושים השמורים, בתיבת החיפוש ובעמוד הפרופיל.</div>
   </div>
 
-  @if (loadingRule()) {
+  @if (loading()) {
     <app-skeleton variant="form" [count]="4" />
   } @else {
-    <nz-form-item>
-      <nz-form-label nzRequired nzFor="rule-name">שם הכלל</nz-form-label>
-      <nz-form-control nzErrorTip="חובה למלא שם">
-        <input nz-input id="rule-name" formControlName="name" placeholder="לדוגמה: הרצאות חדשות במבני נתונים" />
-      </nz-form-control>
-    </nz-form-item>
+    <label class="field">
+      <span class="field-label">שם החיפוש</span>
+      <input
+        nz-input
+        name="name"
+        maxlength="120"
+        placeholder="לדוגמה: הרצאות חדשות במבני נתונים"
+        [ngModel]="name()"
+        (ngModelChange)="name.set($event); touch()"
+        [class.invalid]="submitted() && !name().trim()"
+      />
+      @if (submitted() && !name().trim()) {
+        <span class="error">חובה למלא שם</span>
+      }
+    </label>
 
-    <div class="channels" role="group" aria-label="משלוח ההתראות">
-      <label nz-checkbox formControlName="isNotify"><span nz-icon nzType="bell"></span> פעיל (התראה במערכת)</label>
-      <label nz-checkbox formControlName="isMail"><span nz-icon nzType="mail"></span> מייל מיידי על כל התאמה</label>
-      <label nz-checkbox formControlName="isDigest"><span nz-icon nzType="schedule"></span> סיכום יומי במייל</label>
+    <div class="section-title" role="heading" aria-level="2">החיפוש</div>
+    <nz-radio-group class="match" name="kind" nzButtonStyle="solid" nzSize="small" [ngModel]="kind()" (ngModelChange)="setKind($event)" aria-label="סוג החיפוש">
+      <label nz-radio-button nzValue="simple"><span nz-icon nzType="search"></span> חיפוש פשוט</label>
+      <label nz-radio-button nzValue="advanced"><span nz-icon nzType="apartment"></span> חיפוש מתקדם</label>
+    </nz-radio-group>
+    <div class="muted">
+      @if (kind() === 'simple') {
+        טקסט בתיבת החיפוש, עם &#64;משתמשים, :שדות, #כמוסות ו־וגם / או / לא.
+      } @else {
+        טקסט ותנאים: שדות של התמצית ושדות של סוגי התוכן (מספרים, תאריכים, רשימות), בקבוצות של וגם / או.
+      }
     </div>
-    @if (!form.controls.isNotify.value) {
-      <div class="muted">הכלל מושהה: לא יתקבלו התראות או מיילים עליו עד שיופעל שוב.</div>
-    } @else if ((form.controls.isMail.value || form.controls.isDigest.value) && mailBlocked()) {
-      <div class="mail-warning"><span nz-icon nzType="warning"></span> {{ mailBlocked() }}</div>
+
+    <!-- The real search box (its own save / share / bell are off here), and in advanced mode the condition builder. -->
+    <app-summary-search
+      class="search-box"
+      [search]="seed()"
+      [showBell]="false"
+      [searchActions]="false"
+      [advancedSearch]="false"
+      placeholder="טקסט לחיפוש"
+      (textInput)="onText($event)"
+      (searchChange)="onSearch($event)"
+    />
+    @if (kind() === 'advanced') {
+      <app-advanced-search class="builder" [search]="seed()" [text]="text()" [embedded]="true" (queryChange)="onQuery($event)" (loaded)="onLoaded($event)" />
+    } @else if (dropsTree()) {
+      <div class="mail-warning"><span nz-icon nzType="warning"></span> לחיפוש יש תנאים מתקדמים — בחיפוש פשוט הם לא יישמרו.</div>
     }
 
-    @if (search(); as s) {
-      <div class="section-title" role="heading" aria-level="2">התראה על חיפוש</div>
-      <div class="muted">תתקבל התראה כשתמצית שמתאימה לחיפוש הזה מתפרסמת או נערכת. משנים כאן את הטקסט, או פותחים את החיפוש המתקדם לתנאים.</div>
-      <!-- The real search box: text with @users, :types and #capsules, and the advanced search (its own pin/share/bell are off here). -->
-      <app-summary-search class="search-box" [search]="s" [showBell]="false" [searchActions]="false" placeholder="טקסט לחיפוש" (searchChange)="setSearch($event)" />
-      @if (searchFilters().length) {
-        <div class="filters" role="list" aria-label="מסננים נוספים בחיפוש">
-          @for (f of searchFilters(); track f.key) {
-            <span class="filter-chip" role="listitem">
-              <span class="filter-label">{{ f.label }}</span>
-              <button type="button" class="filter-remove" (click)="removeFilter(f.key)" [attr.aria-label]="'הסרת המסנן ' + f.label"><span nz-icon nzType="close"></span></button>
-            </span>
-          }
-        </div>
-      }
-      <div class="search-rule">
-        <span nz-icon nzType="search"></span>
-        <span class="search-desc">
-          @if (searchEmpty()) {
-            <span class="error">החיפוש ריק: הוסיפו טקסט או תנאי כדי שהכלל יתריע.</span>
-          } @else if (matchCount() === null) {
-            סופרים תמציות מתאימות…
-          } @else {
-            {{ matchCount() }} תמציות מתאימות לחיפוש כרגע
-          }
-        </span>
-        <button nz-button nzType="link" type="button" (click)="openSearch()" [disabled]="searchEmpty()">הצגת התוצאות</button>
-      </div>
-    } @else {
-      <div class="section-title" role="heading" aria-level="2">תנאים</div>
-      <nz-radio-group class="match" formControlName="matchAny" nzButtonStyle="solid" nzSize="small" aria-label="אילו תנאים צריכים להתקיים">
-        <label nz-radio-button [nzValue]="false">כל התנאים</label>
-        <label nz-radio-button [nzValue]="true">אחד מהתנאים</label>
-      </nz-radio-group>
-      <div class="conditions" formArrayName="conditions">
-        @for (c of form.controls.conditions.controls; track c; let i = $index) {
-          <div class="condition" [class.invalid]="submitted() && c.invalid">
-            <span class="and">{{ i === 0 ? 'כאשר' : form.controls.matchAny.value ? 'או' : 'וגם' }}</span>
-            <app-create-notification-condition [formControlName]="i" />
-            <button nz-button nzType="text" type="button" (click)="removeCondition(i)" [disabled]="form.controls.conditions.length === 1" aria-label="הסרת תנאי">
-              <span nz-icon nzType="minus-circle"></span>
-            </button>
-          </div>
+    @if (searchFilters().length) {
+      <div class="filters" role="list" aria-label="מסננים נוספים בחיפוש">
+        @for (f of searchFilters(); track f.key) {
+          <span class="filter-chip" role="listitem">
+            <span class="filter-label">{{ f.label }}</span>
+            <button type="button" class="filter-remove" (click)="removeFilter(f.key)" [attr.aria-label]="'הסרת המסנן ' + f.label"><span nz-icon nzType="close"></span></button>
+          </span>
         }
       </div>
-      <button nz-button nzType="dashed" type="button" (click)="addCondition()" class="add"><span nz-icon nzType="plus"></span> הוספת תנאי</button>
+    }
+    <div class="search-rule">
+      <span nz-icon nzType="search"></span>
+      <span class="search-desc">
+        @if (empty()) {
+          <span [class.error]="submitted()">החיפוש ריק: הקלידו טקסט{{ kind() === 'advanced' ? ' או הוסיפו תנאי' : '' }}.</span>
+        } @else if (clash()) {
+          <span class="error">החיפוש הזה כבר שמור בשם "{{ clash()!.name }}"</span>
+        } @else if (matchCount() === null) {
+          סופרים תמציות מתאימות…
+        } @else {
+          {{ matchCount() }} תמציות מתאימות לחיפוש כרגע
+        }
+      </span>
+      <button nz-button nzType="link" type="button" (click)="openSearch()" [disabled]="empty()">הצגת התוצאות</button>
+    </div>
+
+    <div class="section-title" role="heading" aria-level="2">התראה</div>
+    <label nz-checkbox name="alertOn" [ngModel]="alertOn()" (ngModelChange)="alertOn.set($event); touch()">
+      <span nz-icon nzType="bell"></span> התראה כשתמצית שמתאימה לחיפוש מתפרסמת או נערכת
+    </label>
+    @if (alertOn()) {
+      <div class="channels" role="group" aria-label="משלוח ההתראות">
+        <label nz-checkbox name="isActive" [ngModel]="isActive()" (ngModelChange)="isActive.set($event); touch()">פעילה (התראה במערכת)</label>
+        <label nz-checkbox name="isMail" [ngModel]="isMail()" (ngModelChange)="isMail.set($event); touch()"><span nz-icon nzType="mail"></span> מייל מיידי על כל התאמה</label>
+        <label nz-checkbox name="isDigest" [ngModel]="isDigest()" (ngModelChange)="isDigest.set($event); touch()"><span nz-icon nzType="schedule"></span> סיכום יומי במייל</label>
+      </div>
+      @if (!isActive()) {
+        <div class="muted">ההתראה מושהית: לא יתקבלו התראות או מיילים עליה עד שתופעל שוב.</div>
+      } @else if ((isMail() || isDigest()) && mailBlocked()) {
+        <div class="mail-warning"><span nz-icon nzType="warning"></span> {{ mailBlocked() }}</div>
+      }
+    } @else {
+      <div class="muted">בלי התראה — החיפוש יישמר רק בחיפושים השמורים.</div>
     }
 
-    @if (preview(); as p) {
-      <div class="preview"><span nz-icon nzType="info-circle"></span> {{ p }}</div>
+    @if (!empty() && name().trim()) {
+      <div class="preview">
+        <span nz-icon nzType="info-circle"></span>
+        "{{ name().trim() }}": {{ describeSearch(draft()) }}{{ alertOn() ? (isActive() ? ' · עם התראה' : ' · התראה מושהית') : '' }}
+      </div>
     }
   }
 
   <div class="actions">
     <a nz-button routerLink="/notifications">ביטול</a>
-    <button nz-button nzType="primary" type="submit" [nzLoading]="saving()">שמירה</button>
+    <button nz-button nzType="primary" type="submit" [nzLoading]="saving()" [disabled]="loading()">שמירה</button>
   </div>
 </form>

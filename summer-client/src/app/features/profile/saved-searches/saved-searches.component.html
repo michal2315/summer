@@ -1,19 +1,28 @@
 <div class="saved" role="region" aria-label="חיפושים שמורים">
-  <div class="title" role="heading" aria-level="2"><span nz-icon nzType="save"></span> החיפושים השמורים שלי</div>
+  <div class="title-row">
+    <div class="title" role="heading" aria-level="2">
+      <span nz-icon nzType="save"></span> החיפושים השמורים שלי
+      @if (queries.queries().length) {
+        <span class="count">{{ queries.queries().length }}</span>
+      }
+    </div>
+    @if (showFilter()) {
+      <input nz-input nzSize="small" class="filter" placeholder="סינון לפי שם" aria-label="סינון החיפושים השמורים" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
+    }
+    <a class="new-link" routerLink="/notifications/create" nz-tooltip="חיפוש חדש עם תנאים והתראה"><span nz-icon nzType="plus"></span> חיפוש עם התראה</a>
+  </div>
 
   @if (list().length) {
     <ul class="cards">
       @for (s of list(); track s._id) {
-        @let alert = alertFor(s);
-        <li class="card" [class.alerting]="alert">
+        @let alert = s.alert;
+        <li class="card" [class.alerting]="alert?.isActive">
           <button type="button" class="open" (click)="open(s)" nz-tooltip="פתיחת החיפוש בפיד">
             <span class="name-row">
-              <span class="name">{{ label(s) }}</span>
+              <span class="name">{{ s.name }}</span>
               <span class="kind" [class.advanced]="s.kind === 'advanced'">{{ kindLabel[s.kind] }}</span>
             </span>
-            @if (s.name) {
-              <span class="desc">{{ describe(s.search) }}</span>
-            }
+            <span class="desc">{{ describe(s.search) }}</span>
           </button>
 
           <div class="actions">
@@ -29,25 +38,18 @@
             >
               <span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'"></span>
             </button>
-            @if (canAlert(s)) {
-              <button
-                type="button"
-                class="icon-btn"
-                [class.on]="alert"
-                [disabled]="isBusy(s)"
-                (click)="toggleAlert(s)"
-                [nz-tooltip]="alert ? 'ביטול ההתראה' : 'יצירת התראה על תמציות חדשות שמתאימות לחיפוש'"
-                aria-label="התראה על החיפוש"
-                [attr.aria-pressed]="!!alert"
-              >
-                <span nz-icon nzType="bell" [nzTheme]="alert ? 'fill' : 'outline'"></span>
-              </button>
-              @if (alert?._id) {
-                <a class="icon-btn" [routerLink]="['/notifications', alert!._id, 'edit']" nz-tooltip="הגדרות ההתראה (מייל, סיכום יומי)" aria-label="הגדרות ההתראה">
-                  <span nz-icon nzType="setting"></span>
-                </a>
-              }
-            }
+            <button
+              type="button"
+              class="icon-btn"
+              [class.on]="alert?.isActive"
+              [disabled]="isBusy(s)"
+              (click)="toggleAlert(s)"
+              [nz-tooltip]="alert ? (alert.isActive ? 'ביטול ההתראה' : 'ההתראה מושהית — לחיצה מבטלת אותה') : 'יצירת התראה על תמציות חדשות שמתאימות לחיפוש'"
+              aria-label="התראה על החיפוש"
+              [attr.aria-pressed]="!!alert"
+            >
+              <span nz-icon [nzType]="alert && !alert.isActive ? 'pause-circle' : 'bell'" [nzTheme]="alert?.isActive ? 'fill' : 'outline'"></span>
+            </button>
             <button type="button" class="icon-btn" (click)="edit(s)" nz-tooltip="עריכת החיפוש והשם" aria-label="עריכה">
               <span nz-icon nzType="edit"></span>
             </button>
@@ -55,7 +57,7 @@
               type="button"
               class="icon-btn danger"
               nz-popconfirm
-              nzPopconfirmTitle="להסיר את החיפוש מהשמורים?"
+              [nzPopconfirmTitle]="alert ? 'להסיר את החיפוש מהשמורים? גם ההתראה עליו תימחק.' : 'להסיר את החיפוש מהשמורים?'"
               nzOkText="הסרה"
               nzCancelText="ביטול"
               (nzOnConfirm)="remove(s)"
@@ -68,7 +70,9 @@
         </li>
       }
     </ul>
-  } @else {
+  } @else if (filter()) {
+    <div class="empty">אין חיפוש שמור בשם הזה.</div>
+  } @else if (queries.list() !== null) {
     <div class="empty">אין עדיין חיפושים שמורים. אחרי חיפוש, כפתור השמירה שבתיבת החיפוש (או בחיפוש המתקדם) שומר אותו כאן. החיפושים השמורים אישיים, ורק אתם רואים אותם.</div>
   }
 </div>

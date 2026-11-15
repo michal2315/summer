@@ -16,13 +16,13 @@ export interface INotification {
   createdBy?: Pick<IUser, '_id' | 'username' | 'fullName'>;
 }
 
-/** What raised a notification: a rule (conditions / saved search) matched, or another user's activity. */
-export type NotificationKind = 'rule' | 'search' | 'comment' | 'mention' | 'tag' | 'follow';
+/** What raised a notification: a query's alert matched, or another user's activity. */
+export type NotificationKind = 'alert' | 'comment' | 'mention' | 'tag' | 'follow';
 
-/** A notifications-page feed entry: the notification, the rule that raised it (if any), and its summary. */
+/** A notifications-page feed entry: the notification, the query whose alert raised it (if any), and its summary. */
 export interface INotificationFeedItem extends INotification {
   kind: NotificationKind;
-  rule?: { _id: string; name: string };
+  query?: { _id: string; name: string };
   summary: ISummary;
 }
 
@@ -32,8 +32,6 @@ export interface IUser {
   fullName: string;
   department?: string;
   isSystem?: boolean;
-  /** personal saved searches, favourites first, then newest first */
-  pinnedSearches: ISavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
@@ -43,17 +41,35 @@ export interface IUser {
   recentExtraField: string[];
 }
 
-/** Where a saved search was saved from: the search bar (simple) or the advanced panel (advanced). */
-export type SavedSearchKind = 'simple' | 'advanced';
+/** How a query is edited: the search box text only (simple), or with the condition builder too (advanced). */
+export type QueryKind = 'simple' | 'advanced';
 
-/** A personal saved search; unnamed ones are shown by `describeSearch`. */
-export interface ISavedSearch {
+/** The caller's alert on a query: notifications (and e-mails) about summaries it finds later. */
+export interface IQueryAlert {
   _id: string;
-  name: string | null;
-  search: ISummarySearch;
-  kind: SavedSearchKind;
-  isFavorite: boolean;
+  /** off pauses the alert */
+  isActive: boolean;
+  /** also e-mail each match right away */
+  isMail: boolean;
+  /** also list matches in the daily digest e-mail */
+  isDigest: boolean;
+  creationDate: string;
 }
+
+/** A query: a named search. Every query is one of the user's saved searches, and may alert. */
+export interface IQuery {
+  _id: string;
+  name: string;
+  kind: QueryKind;
+  search: ISummarySearch;
+  isFavorite: boolean;
+  creationDate: string;
+  updateDate: string;
+  alert: IQueryAlert | null;
+}
+
+/** Alert settings as they are sent. */
+export type QueryAlertSettings = Pick<IQueryAlert, 'isActive' | 'isMail' | 'isDigest'>;
 
 export type UserRef = Pick<IUser, '_id' | 'username' | 'fullName' | 'department' | 'isSystem'>;
 
@@ -279,11 +295,13 @@ export interface ISummarySearch {
 }
 
 export type QueryTextField = 'text' | 'title' | 'content' | 'notes' | 'comments' | 'labels';
-export type QueryField = QueryTextField | 'author' | 'contentType' | 'folder' | 'color' | 'eventDate' | 'createdDate';
-export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between';
+/** `field`: a content-type catalog field, named by the condition's `fieldId`. */
+export type QueryField = QueryTextField | 'author' | 'contentType' | 'folder' | 'color' | 'eventDate' | 'createdDate' | 'field';
+/** eq / gt / lt / range compare a number catalog field (eq and gt read `from`, lt reads `to`). */
+export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between' | 'eq' | 'gt' | 'lt' | 'range';
 
 /**
- * Capsule (כמוסה): a named word list from the external capsules service, usable in searches and notification rules.
+ * Capsule (כמוסה): a named word list from the external capsules service, usable in searches and alerts.
  * must: every one has to appear · mustNot: none may appear ·
  * optional: with no must words, at least one has to appear; otherwise they only add highlights.
  */
@@ -304,12 +322,14 @@ export interface ICapsule {
 export interface IQueryCondition {
   type: 'cond';
   field: QueryField;
+  /** the catalog field, for `field: 'field'` */
+  fieldId?: string;
   op: QueryOp;
   /** text fields; a capsule is the word `#cap:<id>` */
   words?: string[];
-  /** author / folder ids, content type names, color hexes */
+  /** author / folder ids, content type names, color hexes; list catalog fields: the items */
   values?: string[];
-  /** date fields: ISO instants of local midnight */
+  /** date fields: ISO instants of local midnight; number catalog fields: the bounds, as numbers in text */
   from?: string;
   to?: string;
 }
@@ -344,6 +364,8 @@ export interface IFolderItem {
   _id: string;
   name: string;
   kind: SummaryKind;
+  /** The current user wrote it (only those can be dragged to another folder in the tree). */
+  mine: boolean;
 }
 
 export interface FolderPayload {
@@ -354,54 +376,11 @@ export interface FolderPayload {
   managers: string[];
 }
 
-/** Comparison operators for notification-rule conditions, offered per field type (spec §8.1). */
-export enum NotificationsFunctionsOptions {
-  StringContains = 'stringContains',
-  StringNotContains = 'stringNotContains',
-  NumberBigger = 'numberBigger',
-  NumberSmaller = 'numberSmaller',
-  NumberEqual = 'numberEqual',
-  NumberBetween = 'numberBetween',
-  DateAfter = 'dateAfter',
-  DateBefore = 'dateBefore',
-  DateBetween = 'dateBetween',
-  ArrayContains = 'arrayContains',
-  ArrayNotContains = 'arrayNotContains',
-  /** content: [capsule id, capsule name] (the name is only for display) */
-  CapsuleMatches = 'capsuleMatches',
-  CapsuleNotMatches = 'capsuleNotMatches',
-}
-
-export interface INotificationSettingsCondition {
-  field: IField;
-  funcName: NotificationsFunctionsOptions;
-  /** operand(s); two entries for *Between. An open-ended bound is the UI's Infinity sentinel, sent as null (JSON has no Infinity). */
-  content: (string | number | null)[];
-}
-
-export interface INotificationSettings {
-  _id?: string;
-  name: string;
-  /** empty for a search alert */
-  conditions: INotificationSettingsCondition[];
-  /** any one condition is enough, instead of all of them */
-  matchAny?: boolean;
-  /** a saved search: notify about published summaries it finds (instead of conditions) */
-  search?: ISummarySearch;
-  /** also e-mail each match right away */
-  isMail: boolean;
-  /** also list matches in the daily digest e-mail */
-  isDigest: boolean;
-  /** the rule is active (matches reach the bell, and the e-mails); off pauses it */
-  isNotify: boolean;
-  creationDate?: string;
-}
-
 /** The user's e-mail switches (GET/PUT /notifications/preferences). */
 export interface IMailPreferences {
   /** null when the identity provider has no address: nothing can be mailed */
   email: string | null;
-  /** rule matches (each rule also picks immediate and/or digest) */
+  /** alert matches (each alert also picks immediate and/or digest) */
   mailAlerts: boolean;
   /** tags, comments, mentions, followed users publishing */
   mailActivity: boolean;

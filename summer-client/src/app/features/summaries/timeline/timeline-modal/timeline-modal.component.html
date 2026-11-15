@@ -1,23 +1,33 @@
 <div class="actions-bar" role="toolbar" aria-label="פעולות ציר הזמן">
   <!-- RTL: bottomLeft aligns the popover's right edge with the button's, so it opens inward, inside the modal. -->
-  <button
-    nz-button
-    nzType="primary"
-    type="button"
-    nz-dropdown
-    [nzDropdownMenu]="addMenu"
+  <!-- One anchor per form: the span holds the new-summary popover, the button the event one. -->
+  <span
     nz-popover
-    [nzPopoverContent]="eventForm"
+    [nzPopoverContent]="summaryForm"
     [nzPopoverTrigger]="null"
-    [nzPopoverVisible]="addingEvent()"
-    (nzPopoverVisibleChange)="addingEvent.set($event)"
+    [nzPopoverVisible]="creatingSummary()"
+    (nzPopoverVisibleChange)="creatingSummary.set($event)"
     nzPopoverPlacement="bottomLeft"
   >
-    <span nz-icon nzType="plus"></span> הוספה <span nz-icon nzType="down"></span>
-  </button>
+    <button
+      nz-button
+      nzType="primary"
+      type="button"
+      nz-dropdown
+      [nzDropdownMenu]="addMenu"
+      nz-popover
+      [nzPopoverContent]="eventForm"
+      [nzPopoverTrigger]="null"
+      [nzPopoverVisible]="addingEvent()"
+      (nzPopoverVisibleChange)="addingEvent.set($event)"
+      nzPopoverPlacement="bottomLeft"
+    >
+      <span nz-icon nzType="plus"></span> הוספה <span nz-icon nzType="down"></span>
+    </button>
+  </span>
   <nz-dropdown-menu #addMenu="nzDropdownMenu">
     <ul nz-menu>
-      <li nz-menu-item (click)="newSummary()"><span nz-icon nzType="file-add"></span> תמצית חדשה</li>
+      <li nz-menu-item (click)="startSummary()"><span nz-icon nzType="file-add"></span> תמצית חדשה</li>
       <li nz-menu-item (click)="startEvent()"><span nz-icon nzType="flag"></span> אירוע</li>
     </ul>
   </nz-dropdown-menu>
@@ -46,6 +56,32 @@
       <div class="event-form-actions">
         <button nz-button nzSize="small" type="button" (click)="addingEvent.set(false)">ביטול</button>
         <button nz-button nzSize="small" nzType="primary" type="button" [disabled]="!eventTitle().trim() || !eventDate()" (click)="addEvent()">הוספה</button>
+      </div>
+    </div>
+  </ng-template>
+  <ng-template #summaryForm>
+    <div class="summary-form">
+      <input nz-input [ngModel]="summaryTitle()" (ngModelChange)="summaryTitle.set($event)" (keydown.escape)="creatingSummary.set(false)" placeholder="כותרת" aria-label="כותרת" />
+      <input
+        nz-input
+        dir="ltr"
+        [ngModel]="summaryLink()"
+        (ngModelChange)="summaryLink.set($event)"
+        (keydown.escape)="creatingSummary.set(false)"
+        placeholder="קישור (https://…)"
+        aria-label="קישור"
+      />
+      <nz-select nzMode="multiple" nzShowSearch [ngModel]="permissions()" (ngModelChange)="permissions.set($event)" nzPlaceHolder="הרשאות" aria-label="הרשאות">
+        @for (p of permissionGroups.assignable(); track p._id) {
+          <nz-option [nzValue]="p._id" [nzLabel]="p.name" />
+        }
+      </nz-select>
+      @if (summaryLink().trim() && !linkValid()) {
+        <div class="hint error">קישור צריך להתחיל ב-http:// או https://</div>
+      }
+      <div class="event-form-actions">
+        <button nz-button nzSize="small" type="button" (click)="creatingSummary.set(false)">ביטול</button>
+        <button nz-button nzSize="small" nzType="primary" type="button" [disabled]="!canCreateSummary()" [nzLoading]="savingSummary()" (click)="createSummary()">יצירה</button>
       </div>
     </div>
   </ng-template>

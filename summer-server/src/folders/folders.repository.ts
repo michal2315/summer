@@ -94,7 +94,7 @@ export class FoldersRepository {
   /** Summaries directly in the folder that the caller may see, sorted by title. */
   items(folderId: string, summaryVisible: SQL) {
     return this.db
-      .select({ id: summaries.id, name: summaries.title, kind: summaries.kind })
+      .select({ id: summaries.id, name: summaries.title, kind: summaries.kind, createdBy: summaries.createdBy })
       .from(folderSummaries)
       .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
       .where(and(eq(folderSummaries.folderId, folderId), eq(summaries.isDraft, false), summaryVisible))

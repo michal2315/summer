@@ -101,45 +101,46 @@
       <div class="error-text">חובה לבחור סוג תוכן</div>
     }
 
-    <!-- Content-type fields — always a single row -->
-    @if (typeFieldDefs().length) {
-      <div class="type-fields" formGroupName="typeFields">
-        @for (def of typeFieldDefs(); track def.field._id) {
-          @let dup = duplicateFor(def.field._id);
-          <nz-form-item>
-            <nz-form-label [nzRequired]="def.required" [nzFor]="'tf-' + def.field._id">{{ def.field.name }}</nz-form-label>
-            <nz-form-control nzErrorTip="חסר ערך">
-              @switch (def.field.type) {
-                @case (FT.Number) {
-                  <nz-input-number [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" (nzBlur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
-                }
-                @case (FT.Date) {
-                  <nz-date-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="dd/MM/yyyy" />
-                }
-                @case (FT.Hour) {
-                  <nz-time-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="HH:mm" />
-                }
-                @default {
-                  <input nz-input [id]="'tf-' + def.field._id" [formControlName]="def.field._id" (blur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
-                }
+    <!-- Content-type fields — one row, always there (empty or not), so switching types doesn't move the form -->
+    <div class="type-fields" formGroupName="typeFields">
+      @if (!typeFieldDefs().length) {
+        <div class="type-fields-empty muted">{{ contentType() ? 'לסוג התוכן הזה אין שדות ייעודיים' : 'בחרו סוג תוכן כדי לראות את השדות שלו' }}</div>
+      }
+      @for (def of typeFieldDefs(); track def.field._id) {
+        @let dup = duplicateFor(def.field._id);
+        <nz-form-item>
+          <nz-form-label [nzRequired]="def.required" [nzFor]="'tf-' + def.field._id">{{ def.field.name }}</nz-form-label>
+          <nz-form-control nzErrorTip="חסר ערך">
+            @switch (def.field.type) {
+              @case (FT.Number) {
+                <nz-input-number [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" (nzBlur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
               }
-              @if (dup) {
-                <div class="dup" nz-popover [nzPopoverContent]="dupList" nzPopoverTrigger="hover">
-                  <span nz-icon nzType="exclamation-circle"></span> קיימת תמצית למזהה זה (ניתן ליצור בכל זאת) — {{ dup.summaries.length }} תמציות
-                </div>
-                <ng-template #dupList>
-                  <ul class="dup-list">
-                    @for (s of dup.summaries; track s._id) {
-                      <li><a [routerLink]="['/summaries', s._id]" target="_blank">{{ s.title }}</a></li>
-                    }
-                  </ul>
-                </ng-template>
+              @case (FT.Date) {
+                <nz-date-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="dd/MM/yyyy" />
               }
-            </nz-form-control>
-          </nz-form-item>
-        }
-      </div>
-    }
+              @case (FT.Hour) {
+                <nz-time-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="HH:mm" />
+              }
+              @default {
+                <input nz-input [id]="'tf-' + def.field._id" [formControlName]="def.field._id" (blur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
+              }
+            }
+            @if (dup) {
+              <div class="dup" nz-popover [nzPopoverContent]="dupList" nzPopoverTrigger="hover">
+                <span nz-icon nzType="exclamation-circle"></span> קיימת תמצית למזהה זה (ניתן ליצור בכל זאת) — {{ dup.summaries.length }} תמציות
+              </div>
+              <ng-template #dupList>
+                <ul class="dup-list">
+                  @for (s of dup.summaries; track s._id) {
+                    <li><a [routerLink]="['/summaries', s._id]" target="_blank">{{ s.title }}</a></li>
+                  }
+                </ul>
+              </ng-template>
+            }
+          </nz-form-control>
+        </nz-form-item>
+      }
+    </div>
 
     <div class="grid">
       @if (kind() === K.Running) {
@@ -270,37 +271,61 @@
           <ng-template #permTag let-selected><span class="perm-tag"><span class="dot" [style.background]="permissionColor(selected.nzValue)"></span>{{ selected.nzLabel }}</span></ng-template>
         </nz-form-control>
       </nz-form-item>
+      <!-- One field tags users and groups; it feeds the taggedUsers / taggedPermissions controls (tagsChange). -->
       <nz-form-item>
-        <nz-form-label>תיוג משתמשים</nz-form-label>
-        <nz-form-control nzExtra="משתמשים מתויגים מקבלים התראה">
-          <nz-select formControlName="taggedUsers" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="חיפוש לפי שם" nzDropdownClassName="no-check" (nzOnSearch)="onUserSearch($event)">
-            @for (u of sortedUsers(); track u._id) {
-              <nz-option nzCustomContent [nzValue]="u._id" [nzLabel]="u.fullName">
-                <span class="opt">
-                  <app-avatar [user]="u" [size]="24" />
-                  <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
-                  <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinUser.bind(this, u._id))" [attr.aria-label]="'נעיצה ' + u.fullName">
-                    <span nz-icon nzType="pushpin" [nzTheme]="users.isPinnedUser(u._id) ? 'fill' : 'outline'"></span>
-                  </button>
-                </span>
-              </nz-option>
+        <nz-form-label nzFor="tags">תיוג</nz-form-label>
+        <nz-form-control nzExtra="מתויגים מקבלים התראה; בקבוצה — רק מי שיכול לצפות בתמצית">
+          <nz-select
+            nzId="tags"
+            nzMode="multiple"
+            nzShowSearch
+            nzServerSearch
+            nzPlaceHolder="חיפוש משתמש או קבוצה"
+            nzDropdownClassName="no-check"
+            [nzCustomTemplate]="tagTag"
+            [ngModel]="tagValue()"
+            (ngModelChange)="tagsChange($event)"
+            [ngModelOptions]="{ standalone: true }"
+            (nzOnSearch)="onUserSearch($event)"
+          >
+            @if (sortedUsers().length) {
+              <nz-option-group nzLabel="משתמשים">
+                @for (u of sortedUsers(); track u._id) {
+                  <nz-option nzCustomContent [nzValue]="'u:' + u._id" [nzLabel]="u.fullName">
+                    <span class="opt">
+                      <app-avatar [user]="u" [size]="24" />
+                      <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
+                      <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinUser.bind(this, u._id))" [attr.aria-label]="'נעיצה ' + u.fullName">
+                        <span nz-icon nzType="pushpin" [nzTheme]="users.isPinnedUser(u._id) ? 'fill' : 'outline'"></span>
+                      </button>
+                    </span>
+                  </nz-option>
+                }
+              </nz-option-group>
+            }
+            @if (tagGroups().length) {
+              <nz-option-group nzLabel="קבוצות">
+                @for (p of tagGroups(); track p._id) {
+                  <nz-option nzCustomContent [nzValue]="'g:' + p._id" [nzLabel]="p.name">
+                    <span class="opt">
+                      <span class="group-icon" [style.background]="p.color"><span nz-icon nzType="team"></span></span>
+                      <span class="opt-label">{{ p.name }}</span>
+                    </span>
+                  </nz-option>
+                }
+              </nz-option-group>
             }
           </nz-select>
-        </nz-form-control>
-      </nz-form-item>
-      <nz-form-item>
-        <nz-form-label>תיוג קבוצות</nz-form-label>
-        <nz-form-control nzExtra="חברי הקבוצה שיכולים לצפות בתמצית מקבלים התראה">
-          <nz-select formControlName="taggedPermissions" nzMode="multiple" nzShowSearch nzPlaceHolder="בחירת קבוצות הרשאה" [nzCustomTemplate]="permTag">
-            @for (p of taggablePermissions(); track p._id) {
-              <nz-option nzCustomContent [nzValue]="p._id" [nzLabel]="p.name">
-                <span class="opt">
-                  <span class="dot" [style.background]="p.color"></span>
-                  <span class="opt-label">{{ p.name }}</span>
-                </span>
-              </nz-option>
-            }
-          </nz-select>
+          <ng-template #tagTag let-selected>
+            <span class="perm-tag">
+              @if (selected.nzValue.startsWith('g:')) {
+                <span nz-icon nzType="team" class="tag-kind" [style.color]="permissionColor(selected.nzValue.slice(2))"></span>
+              } @else {
+                <span nz-icon nzType="user" class="tag-kind"></span>
+              }
+              {{ selected.nzLabel }}
+            </span>
+          </ng-template>
         </nz-form-control>
       </nz-form-item>
     </div>
@@ -339,11 +364,32 @@
         <nz-form-item>
           <nz-form-label nzFor="folders" [nzRequired]="folderRequired()">תיקיות</nz-form-label>
           <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור תיקייה" [nzExtra]="folderHint()">
-            <nz-select nzId="folders" formControlName="folders" nzMode="multiple" nzShowSearch nzPlaceHolder="חיפוש תיקייה">
-              @for (f of folderOptions(); track f._id) {
-                <nz-option [nzValue]="f._id" [nzLabel]="f.path" [nzDisabled]="!!f.locked" />
-              }
-            </nz-select>
+            <nz-tree-select
+              nzId="folders"
+              formControlName="folders"
+              [nzNodes]="folderNodes()"
+              nzMultiple
+              nzShowSearch
+              nzHideUnMatched
+              [nzTreeTemplate]="folderNode"
+              [nzDisplayWith]="folderTag"
+              nzPlaceHolder="חיפוש תיקייה"
+              nzNotFoundContent="אין תיקיות שאפשר לשייך אליהן"
+              nzDropdownClassName="folder-picker"
+              [nzDropdownStyle]="{ 'max-height': '360px', overflow: 'auto' }"
+            />
+            <!-- A folder row: click to add/remove it; picked rows are tinted with a check at the end. -->
+            <ng-template #folderNode let-node>
+              <span class="folder-node" [class.picked]="node.isSelected" [class.passage]="!node.isSelectable" [class.locked]="node.isDisabled">
+                <span nz-icon class="folder-icon" [nzType]="node.isExpanded && !node.isLeaf ? 'folder-open' : 'folder'" [nzTheme]="node.isSelected ? 'fill' : 'outline'"></span>
+                <span class="folder-name">{{ node.title }}</span>
+                @if (node.isDisabled) {
+                  <span nz-icon nzType="lock" class="folder-mark" nz-tooltip="רק מנהלי התיקייה יכולים להוציא ממנה את התמצית"></span>
+                } @else if (node.isSelected) {
+                  <span nz-icon nzType="check" class="folder-mark"></span>
+                }
+              </span>
+            </ng-template>
           </nz-form-control>
         </nz-form-item>
       }
@@ -354,16 +400,12 @@
   <div class="section">
     <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="paper-clip"></span> נוספים ונספחים</div>
 
-    @if (notesOpen()) {
-      <nz-form-item>
-        <nz-form-label>הערות</nz-form-label>
-        <nz-form-control>
-          <quill-editor formControlName="notes" placeholder="הערות נוספות" [styles]="{ minHeight: '100px' }" (onEditorCreated)="onEditorCreated($event)" class="editor" />
-        </nz-form-control>
-      </nz-form-item>
-    } @else {
-      <button nz-button nzType="dashed" type="button" class="add-notes" (click)="notesOpen.set(true)"><span nz-icon nzType="plus"></span> הוספת הערות</button>
-    }
+    <nz-form-item>
+      <nz-form-label>הערות</nz-form-label>
+      <nz-form-control>
+        <quill-editor formControlName="notes" placeholder="הערות נוספות" [styles]="{ minHeight: '100px' }" (onEditorCreated)="onEditorCreated($event)" class="editor" />
+      </nz-form-control>
+    </nz-form-item>
 
     <div class="field-label">שדות נוספים</div>
     <div class="extra-add">

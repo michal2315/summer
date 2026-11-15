@@ -13,7 +13,9 @@ import { DateFormatPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
 import { NotificationService } from '../../../shared/services/notification.service';
 import { CapsuleService } from '../../../shared/services/capsule.service';
 import { SummaryCardComponent } from '../../summaries/summary-card/summary-card.component';
-import { NotificationsSettingsService, describeRule, ruleCapsuleIds, ruleHighlight } from '../notification-rules';
+import { QueryService } from '../../../shared/services/query.service';
+import { treeCapsuleIds } from '../../../shared/utils/capsules';
+import { describeSearch } from '../../summaries/search-query';
 
 interface FeedPage {
   items: INotificationFeedItem[];
@@ -22,8 +24,7 @@ interface FeedPage {
 
 /** The filter chips, in order, with each kind's icon on the feed. */
 const KIND_OPTIONS: { kind: NotificationKind; label: string; icon: string }[] = [
-  { kind: 'rule', label: 'כללי התראה', icon: 'notification' },
-  { kind: 'search', label: 'חיפושים שמורים', icon: 'search' },
+  { kind: 'alert', label: 'חיפושים שמורים', icon: 'search' },
   { kind: 'tag', label: 'תיוגים', icon: 'tag' },
   { kind: 'comment', label: 'תגובות', icon: 'message' },
   { kind: 'mention', label: 'אזכורים', icon: 'user' },
@@ -51,17 +52,17 @@ export class NotificationFeedComponent {
   private readonly http = inject(HttpClient);
   private readonly bell = inject(NotificationService);
   private readonly storage = inject(StorageService);
-  private readonly rules = inject(NotificationsSettingsService);
+  private readonly queries = inject(QueryService);
   private readonly capsules = inject(CapsuleService);
   readonly kindIcon = (kind: NotificationKind) => KIND_ICON.get(kind) ?? 'bell';
 
-  /** Only notifications this rule raised; null for all of them. */
-  readonly ruleId = input<string | null>(null);
-  readonly ruleName = input<string | null>(null);
-  readonly clearRule = output<void>();
-  readonly pickRule = output<string>();
+  /** Only notifications this query's alert raised; null for all of them. */
+  readonly queryId = input<string | null>(null);
+  readonly queryName = input<string | null>(null);
+  readonly clearQuery = output<void>();
+  readonly pickQuery = output<string>();
   /** A summary's card was clicked (the page shows it in place of the feed). */
-  readonly opened = output<{ summaryId: string; ruleId?: string }>();
+  readonly opened = output<{ summaryId: string; queryId?: string }>();
 
   readonly kindOptions = KIND_OPTIONS;
   /** Kinds shown; empty shows them all. Remembered per browser. */
@@ -76,21 +77,22 @@ export class NotificationFeedComponent {
   readonly unread = computed(() => this.items().some((n) => !n.isViewed));
   private request?: Subscription;
 
-  /** Per rule: what its alerts highlight in the summary, and why it matched (in words). */
-  readonly ruleInfo = computed(
-    () => new Map((this.rules.rules() ?? []).map((r) => [r._id!, { highlight: ruleHighlight(r), why: describeRule(r) }])),
+  /** Per query: what its alerts highlight in the summary (its search), and why it matched (in words). */
+  readonly queryInfo = computed(
+    () => new Map(this.queries.queries().map((q) => [q._id, { highlight: q.search, why: describeSearch(q.search) }])),
   );
 
   constructor() {
+    this.queries.ensureLoaded();
     effect(() => {
-      this.ruleId();
+      this.queryId();
       this.kinds();
       this.unreadOnly();
       untracked(() => this.load(true));
     });
-    // Capsule rules highlight the capsule's words, so the capsules must be known.
+    // Queries with capsules highlight the capsules' words, so the capsules must be known.
     effect(() => {
-      const ids = (this.rules.rules() ?? []).flatMap(ruleCapsuleIds);
+      const ids = this.queries.queries().flatMap((q) => treeCapsuleIds(q.search.query));
       if (ids.length) untracked(() => this.capsules.ensure({ ids }));
     });
     inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
@@ -119,7 +121,7 @@ export class NotificationFeedComponent {
   }
 
   private load(reset: boolean) {
-    const ruleId = this.ruleId();
+    const queryId = this.queryId();
     const kinds = [...this.kinds()];
     this.request?.unsubscribe();
     if (reset) {
@@ -132,7 +134,7 @@ export class NotificationFeedComponent {
     const loaded = this.unreadOnly() ? this.items().filter((n) => !n.isViewed).length : this.items().length;
     const params: Record<string, string> = { offset: String(reset ? 0 : loaded) };
     if (this.unreadOnly()) params['unread'] = 'true';
-    if (ruleId) params['ruleId'] = ruleId;
+    if (queryId) params['queryId'] = queryId;
     if (kinds.length) params['kinds'] = kinds.join(',');
     this.request = this.http.get<FeedPage>('/api/notifications/feed', { params }).subscribe({
       next: (page) => {
@@ -171,6 +173,6 @@ export class NotificationFeedComponent {
 
   open(n: INotificationFeedItem) {
     this.markViewed(n);
-    this.opened.emit({ summaryId: n.summary._id, ruleId: n.rule?._id });
+    this.opened.emit({ summaryId: n.summary._id, queryId: n.query?._id });
   }
 }

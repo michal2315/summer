@@ -26,7 +26,7 @@ import {
 } from '../database/schema';
 import { folderEditable, folderVisible } from '../folders/folder.access';
 import { summaryEditable, summaryVisible } from './summary.access';
-import { Bucket, QueryCondition, QueryGroup, QueryTerm, SummarySearch, TEXT_FIELDS, TermField, TextField, colorValue, parseQuery } from './summary-search';
+import { Bucket, CATALOG_FIELD, QueryCondition, QueryGroup, QueryTerm, SummarySearch, TEXT_FIELDS, TermField, TextField, colorValue, parseQuery } from './summary-search';
 
 type ValueTermField = Extract<TermField, 'author' | 'type' | 'color'>;
 const isValueField = (f: TermField | undefined): f is ValueTermField => f === 'author' || f === 'type' || f === 'color';
@@ -109,7 +109,7 @@ export class SummariesRepository {
     return new Set(rows.map((r) => r.id));
   }
 
-  /** Search filters shared by the feed, rule matching and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
+  /** Search filters shared by the feed, query alerts and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
   filterConditions(f: SummarySearch, timeZone: string, capsules: CapsuleLookup = NO_CAPSULES): SQL[] {
     const conds: SQL[] = [];
     const checked = f.searchTypes.flatMap((t) => SEARCH_TYPE_FIELDS[t] ?? []);
@@ -214,7 +214,11 @@ export class SummariesRepository {
    * optional word (capsule.ts). A capsule with nothing to look for matches nothing.
    */
   private capsuleMatch(c: Capsule, fields: readonly TextField[]): SQL {
-    const match = (w: string) => this.textMatch(w, fields) ?? sql`false`;
+    return this.capsuleWith(c, (w) => this.textMatch(w, fields) ?? sql`false`);
+  }
+
+  /** capsuleMatch with any word matcher (a catalog field's value, say). */
+  private capsuleWith(c: Capsule, match: (word: string) => SQL): SQL {
     const must = wordsOf(c, 'must').map(match);
     const optional = wordsOf(c, 'optional').map(match);
     if (!must.length && !optional.length) return sql`false`;
@@ -248,6 +252,8 @@ export class SummariesRepository {
     const pick = (cond: SQL) => (c.op === 'isNot' ? notTrue(cond) : cond);
 
     switch (c.field) {
+      case CATALOG_FIELD:
+        return this.catalogCondition(c, timeZone, capsules);
       case 'text':
       case 'title':
       case 'content':
@@ -283,6 +289,72 @@ export class SummariesRepository {
         const to = c.op !== 'after' && c.to ? dayRange(c.to, c.to, timeZone)?.[1] : undefined;
         const bounds = [from && gte(column, from), to && lte(column, to)].filter((b) => !!b);
         return bounds.length ? and(...bounds) : undefined;
+      }
+    }
+  }
+
+  /**
+   * A condition on a catalog field's value (summary_fields). Values are stored as validated text (numbers as numbers,
+   * dates as ISO instants, lists as JSON arrays or comma-separated); one that doesn't read as the operator's type
+   * (the field's type changed since) never matches. A summary without the field never matches, not even "none".
+   */
+  private catalogCondition(c: QueryCondition, timeZone: string, capsules: CapsuleLookup): SQL | undefined {
+    const v = summaryFields.value;
+    const has = (match: SQL) =>
+      exists(
+        this.db
+          .select({ x: sql`1` })
+          .from(summaryFields)
+          .where(and(eq(summaryFields.summaryId, summaries.id), eq(summaryFields.fieldId, c.fieldId!), match)),
+      );
+    const bound = (s: string | undefined) => (s === undefined || s.trim() === '' ? undefined : s.trim());
+
+    switch (c.op) {
+      case 'all':
+      case 'any':
+      case 'none': {
+        const word = (w: string): SQL => {
+          if (!isCapsuleToken(w)) return textLike(v, w);
+          const capsule = capsules.byId(capsuleTokenId(w));
+          return capsule ? this.capsuleWith(capsule, (x) => textLike(v, x)) : sql`false`;
+        };
+        const matches = c.words.filter(Boolean).map(word);
+        if (!matches.length) return undefined;
+        if (c.op === 'any') return has(or(...matches)!);
+        if (c.op === 'none') return has(notTrue(or(...matches)!));
+        return has(and(...matches)!);
+      }
+      case 'eq':
+      case 'gt':
+      case 'lt':
+      case 'range': {
+        const num = sql`(case when pg_input_is_valid(${v}, 'numeric') then ${v}::numeric end)`;
+        const lo = c.op === 'lt' ? undefined : bound(c.from);
+        const hi = c.op === 'eq' || c.op === 'gt' ? undefined : bound(c.to);
+        if (c.op === 'eq') return lo === undefined ? undefined : has(sql`${num} = ${lo}::numeric`);
+        const parts = [lo !== undefined && sql`${num} ${sql.raw(c.op === 'gt' ? '>' : '>=')} ${lo}::numeric`, hi !== undefined && sql`${num} ${sql.raw(c.op === 'lt' ? '<' : '<=')} ${hi}::numeric`].filter(
+          (p): p is SQL => !!p,
+        );
+        return parts.length ? has(and(...parts)!) : undefined;
+      }
+      case 'after':
+      case 'before':
+      case 'between': {
+        const ts = sql`(case when pg_input_is_valid(${v}, 'timestamptz') then ${v}::timestamptz end)`;
+        const from = c.op !== 'before' && c.from ? dayRange(c.from, c.from, timeZone)?.[0] : undefined;
+        const to = c.op !== 'after' && c.to ? dayRange(c.to, c.to, timeZone)?.[1] : undefined;
+        const parts = [from && sql`${ts} >= ${from.toISOString()}::timestamptz`, to && sql`${ts} <= ${to.toISOString()}::timestamptz`].filter((p): p is SQL => !!p);
+        return parts.length ? has(and(...parts)!) : undefined;
+      }
+      case 'isOneOf':
+      case 'isNot': {
+        if (!c.values.length) return undefined;
+        const list = sql`(case when pg_input_is_valid(${v}, 'jsonb') then (case when jsonb_typeof(${v}::jsonb) = 'array' then array(select jsonb_array_elements_text(${v}::jsonb)) else array[btrim(${v})] end) else regexp_split_to_array(btrim(${v}), '\\s*,\\s*') end)`;
+        const overlap = sql`${list} && array[${sql.join(
+          c.values.map((x) => sql`${x}`),
+          sql`, `,
+        )}]::text[]`;
+        return has(c.op === 'isNot' ? notTrue(overlap) : overlap);
       }
     }
   }

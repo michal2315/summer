@@ -188,7 +188,7 @@
 
 <!-- A summary row inside a folder. `folder`: set when the user may take the summary out of it. -->
 <ng-template #summaryItem let-item let-folderId="folderId" let-folder="folder">
-  @let movable = dragMode() && canMoveSummary(folderId);
+  @let movable = canMoveSummary(item, folderId);
   <li role="treeitem" [attr.aria-selected]="isOpen(item)">
     <div
       class="node"
@@ -204,7 +204,7 @@
         <span class="icon" [class]="item.kind === 'running' ? 'running' : 'summary'" nz-icon [nzType]="itemIcon(item)" [nz-tooltip]="item.kind === 'running' ? 'תמצית רצף' : null"></span>
         <span class="label">{{ item.name }}</span>
       </a>
-      @if (movable) {
+      @if (movable && dragMode()) {
         <span class="grip" nz-icon nzType="holder" aria-hidden="true"></span>
       } @else if (folder) {
         <button type="button" class="more" (click)="removeItem(folder, item)" nz-tooltip="הוצאה מהתיקייה" [attr.aria-label]="'הוצאת ' + item.name + ' מהתיקייה'">

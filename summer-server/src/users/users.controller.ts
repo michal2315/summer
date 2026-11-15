@@ -43,21 +43,6 @@ export class UsersController {
     return this.repo.search(text.slice(0, 100), false);
   }
 
-  @Get('pinned-search')
-  pinnedSearches(@Me() me: CurrentUser): Promise<ApiUser> {
-    return this.users.me(me);
-  }
-
-  @Post('pinned-search')
-  pinSearch(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiUser> {
-    return this.users.pinSearch(me, body);
-  }
-
-  @Put('pinned-search/:id')
-  updateSearch(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: Body_): Promise<ApiUser> {
-    return this.users.updateSearch(me, id, body);
-  }
-
   @Post('pinned-label')
   pinLabel(@Me() me: CurrentUser, @Body() body: Body_): Promise<ApiUser> {
     return this.users.toggleLabel(me, 'pinned', body?.label);

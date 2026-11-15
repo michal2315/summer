@@ -25,3 +25,8 @@
 .filter-remove { all: unset; display: inline-flex; padding: 2px; border-radius: 50%; color: $gray; cursor: pointer; }
 .filter-remove:hover { color: $black; background: $input-color; }
 .filter-remove:focus-visible { box-shadow: $focus-ring; }
+
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-label { font-weight: 600; }
+.field input.invalid { border-color: $error-color; }
+.builder { display: block; }

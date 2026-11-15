@@ -16,6 +16,8 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTimePickerModule } from 'ng-zorro-antd/time-picker';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import { NzTreeNode, NzTreeNodeOptions } from 'ng-zorro-antd/tree';
+import { NzTreeSelectModule } from 'ng-zorro-antd/tree-select';
 import { NzUploadFile, NzUploadModule } from 'ng-zorro-antd/upload';
 import { QuillEditorComponent } from 'ngx-quill';
 import type Quill from 'quill';
@@ -30,6 +32,7 @@ import {
   FieldsType,
   IContentType,
   IField,
+  IFolder,
   IFolderRef,
   ISummary,
   ISummaryParent,
@@ -107,6 +110,7 @@ const LABELS_PAGE = 20;
     NzSelectModule,
     NzTimePickerModule,
     NzToolTipModule,
+    NzTreeSelectModule,
     NzUploadModule,
     QuillEditorComponent,
     AvatarComponent,
@@ -152,8 +156,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   readonly FT = FieldsType;
   readonly fieldTypeLabel = FIELD_TYPE_LABEL;
-  /** Notes stay behind a button until wanted (or already filled). */
-  readonly notesOpen = signal(false);
   readonly saving = signal(false);
   private saved = false;
   readonly submitted = signal(false);
@@ -217,7 +219,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   // ---- hierarchy folders (sumaroons live inside their running summary) ----
   private readonly folderService = inject(FolderService);
   /** Every folder the user can see, and the ones they manage (only managers may add a summary to one or take it out). */
-  private readonly allFolders = signal<FolderPath[]>([]);
+  private readonly allFolders = signal<IFolder[]>([]);
   private readonly managedFolders = signal<FolderPath[]>([]);
   /** The folders the summary sits in (edit) that the user can see. */
   private readonly currentFolders = signal<IFolderRef[]>([]);
@@ -226,10 +228,48 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const managed = new Set(this.managedFolders().map((f) => f._id));
     return this.currentFolders().filter((f) => !managed.has(f._id));
   });
-  readonly folderOptions = computed<(FolderPath & { locked?: boolean })[]>(() => [
-    ...this.lockedFolders().map((cur) => ({ ...(this.allFolders().find((f) => f._id === cur._id) ?? { ...cur, path: cur.name }), locked: true })),
-    ...this.managedFolders(),
-  ]);
+  /**
+   * The folder picker's tree. Managed folders can be picked; folders the summary already sits in but the user doesn't
+   * manage are shown picked and locked; other folders appear only as the way down to one of those.
+   */
+  readonly folderNodes = computed<NzTreeNodeOptions[]>(() => {
+    const folders = this.allFolders();
+    const known = new Set(folders.map((f) => f._id));
+    const paths = new Map(folderPaths(folders).map((f) => [f._id, f.path]));
+    const managed = new Set(this.managedFolders().map((f) => f._id));
+    const locked = new Set(this.lockedFolders().map((f) => f._id));
+    const byParent = new Map<string | null, IFolder[]>();
+    for (const f of folders) {
+      const parent = f.parentId && known.has(f.parentId) ? f.parentId : null;
+      byParent.set(parent, [...(byParent.get(parent) ?? []), f]);
+    }
+    const build = (parent: string | null): NzTreeNodeOptions[] =>
+      (byParent.get(parent) ?? [])
+        .sort((a, b) => a.name.localeCompare(b.name, 'he'))
+        .flatMap((f) => {
+          const children = build(f._id);
+          if (!managed.has(f._id) && !locked.has(f._id) && !children.length) return [];
+          return [
+            {
+              key: f._id,
+              title: f.name,
+              path: paths.get(f._id) ?? f.name,
+              children,
+              isLeaf: !children.length,
+              expanded: true,
+              disabled: locked.has(f._id),
+              selectable: managed.has(f._id),
+            },
+          ];
+        });
+    // A folder the summary sits in that isn't in the user's tree still shows (locked), at the root.
+    const strays = this.lockedFolders()
+      .filter((f) => !known.has(f._id))
+      .map((f) => ({ key: f._id, title: f.name, path: f.name, isLeaf: true, disabled: true }));
+    return [...strays, ...build(null)];
+  });
+  /** Selected folders show their full path, so same-named folders in different places can be told apart. */
+  readonly folderTag = (node: NzTreeNode): string => (node.origin['path'] as string | undefined) ?? node.title;
   /** The catch-all "generic" type has to be filed somewhere — when the user manages a folder to file it in. */
   readonly folderRequired = computed(
     () => this.contentType()?.name === GENERIC && this.kind() !== SummaryKind.Sumaroon && this.managedFolders().length > 0,
@@ -293,6 +333,27 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const pinned = new Set(this.users.user()?.pinnedPermissions ?? []);
     return [...this.permissionGroups.list()].sort((a, b) => Number(pinned.has(b._id)) - Number(pinned.has(a._id)));
   });
+
+  // ---- one "tag" field for users and groups ----
+  private readonly taggedPermissionIds = toSignal(
+    this.form.controls.taggedPermissions.valueChanges.pipe(startWith(this.form.controls.taggedPermissions.value)),
+    { requireSync: true },
+  );
+  /** The tag field's value: `u:<id>` for users, `g:<id>` for groups; tagsChange splits it back into the two controls. */
+  readonly tagValue = computed(() => [...this.taggedUserIds().map((id) => `u:${id}`), ...this.taggedPermissionIds().map((id) => `g:${id}`)]);
+  /** Groups matching the typed text (users are searched on the server); tagged ones always stay listed. */
+  readonly tagGroups = computed(() => {
+    const q = this.userQuery().toLowerCase();
+    const tagged = new Set(this.taggedPermissionIds());
+    return this.taggablePermissions().filter((p) => tagged.has(p._id) || !q || p.name.toLowerCase().includes(q));
+  });
+
+  tagsChange(values: string[]) {
+    const ids = (prefix: string) => values.filter((v) => v.startsWith(prefix)).map((v) => v.slice(prefix.length));
+    this.form.controls.taggedUsers.setValue(ids('u:'));
+    this.form.controls.taggedPermissions.setValue(ids('g:'));
+    this.form.markAsDirty();
+  }
   readonly sortedLabels = computed(() => this.pinFirst(this.labelOptions(), (l) => l, 'pinnedLabels', 'favoriteLabels'));
 
   // ---- sharing-section templates ----
@@ -421,7 +482,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       .tree()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((list) => {
-        this.allFolders.set(folderPaths(list));
+        this.allFolders.set(list);
         this.managedFolders.set(managedFolderPaths(list, this.users.userId() ?? ''));
       });
 
@@ -508,7 +569,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     for (const e of extraFields) this.addExtraRow(e.field, e.value);
     this.labelOptions.update((l) => this.withSelected(l, rest.labels));
     this.userOptions.update((u) => mergeById(d.users, u));
-    this.notesOpen.set(!!rest.notes);
     this.form.markAsDirty();
     this.restorable.set(null);
     this.message.success('העבודה שוחזרה');
@@ -573,7 +633,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.currentFolders.set(s.folders);
     this.userOptions.set(s.taggedUsers);
     this.existingFiles.set([...s.files]);
-    this.notesOpen.set(!!s.notes);
     this.form.markAsPristine();
   }
 
@@ -801,7 +860,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
       this.form.reset();
       this.form.controls.extraFields.clear();
       this.fileList.set([]);
-      this.notesOpen.set(false);
     }
     this.submitted.set(false);
     this.duplicates.set([]);

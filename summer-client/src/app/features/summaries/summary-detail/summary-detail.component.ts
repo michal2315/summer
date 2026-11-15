@@ -8,7 +8,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
-import { Subscription } from 'rxjs';
+import { Subscription, filter, merge } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
 import { CapsuleCatchComponent } from '../../../shared/components/capsules/capsule-catch/capsule-catch.component';
@@ -18,15 +18,13 @@ import { ColorPickerComponent } from '../../../shared/components/color-picker/co
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
 import { FieldsType, ISummary, ISummaryField, ISummarySearch, SUMMARY_KIND_LABEL, SearchType, SummaryKind } from '../../../shared/models';
 import { DateFormatPipe, HighlightPipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
-import { hierarchyParams } from '../../../shared/services/folder.service';
-import { SummaryService } from '../../../shared/services/summary.service';
+import { FolderService, hierarchyParams } from '../../../shared/services/folder.service';
+import { SUMMARY_SNAPSHOT_KEY as SNAPSHOT_KEY, SummaryService } from '../../../shared/services/summary.service';
 import { FolderInfoComponent } from '../folder-info/folder-info.component';
 import { MatchNavComponent } from '../match-nav/match-nav.component';
 import { SummaryActionsService } from '../summary-actions.service';
 import { SumaroonListComponent } from '../running/sumaroon-list/sumaroon-list.component';
 import { CommentsComponent } from './comments/comments.component';
-
-const SNAPSHOT_KEY = 'currSummary';
 
 @Component({
   selector: 'app-summary-detail',
@@ -58,6 +56,7 @@ const SNAPSHOT_KEY = 'currSummary';
 })
 export class SummaryDetailComponent {
   private readonly service = inject(SummaryService);
+  private readonly folders = inject(FolderService);
   private readonly storage = inject(StorageService);
   private readonly users = inject(UserService);
   private readonly router = inject(Router);
@@ -96,6 +95,10 @@ export class SummaryDetailComponent {
     this.service.changed$.pipe(takeUntilDestroyed(destroyRef)).subscribe((s) => {
       if (s._id === this.summary()?._id) this.set({ ...this.summary()!, ...s });
     });
+    // Folder placements / names and bulk edits change this summary on the server: refetch it.
+    merge(this.folders.changed$, this.service.stale$.pipe(filter((ids) => ids.includes(this.summary()?._id ?? ''))))
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => this.refresh());
     this.service.removed$.pipe(takeUntilDestroyed(destroyRef)).subscribe((id) => {
       if (id !== this.summary()?._id) return;
       this.storage.remove(SNAPSHOT_KEY, 'session');
@@ -109,6 +112,16 @@ export class SummaryDetailComponent {
     const snapshot = this.storage.get<ISummary>(SNAPSHOT_KEY, 'session');
     this.summary.set(snapshot?._id === id ? snapshot : null);
     this.notFound.set(false);
+    this.fetch(id);
+  }
+
+  /** Quietly re-read the open summary (it stays on screen meanwhile). */
+  private refresh() {
+    const id = this.summary()?._id;
+    if (id) this.fetch(id);
+  }
+
+  private fetch(id: string) {
     this.loading.set(true);
     this.inflight?.unsubscribe();
     this.inflight = this.service.get(id).subscribe({

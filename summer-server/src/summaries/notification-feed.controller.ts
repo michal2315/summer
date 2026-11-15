@@ -7,7 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SummariesService } from './summaries.service';
 
 /**
- * GET /notifications/feed?ruleId=&offset= — the notifications page: each notification with its summary.
+ * GET /notifications/feed?queryId=&kinds=&unread=&offset= — the notifications page: each notification with its summary.
  * Lives here, not in NotificationsController, because hydrating summaries needs SummariesService
  * (and SummariesModule already depends on NotificationsModule).
  */

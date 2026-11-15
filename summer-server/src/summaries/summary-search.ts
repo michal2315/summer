@@ -14,28 +14,46 @@ export const MAX_PAGE = 100;
 export const TEXT_FIELDS = ['text', 'title', 'content', 'notes', 'comments', 'labels'] as const;
 export const VALUE_FIELDS = ['author', 'contentType', 'folder', 'color'] as const;
 export const DATE_FIELDS = ['eventDate', 'createdDate'] as const;
+/** A content-type catalog field (`fieldId`); which operators apply depends on the field's type. */
+export const CATALOG_FIELD = 'field';
 const OPS_BY_KIND = { text: ['all', 'any', 'none'], value: ['isOneOf', 'isNot'], date: ['after', 'before', 'between'] } as const;
+/**
+ * Operators on a catalog field: text ones (string / hour fields, by words or capsules), number ones (`from` / `to` as
+ * numbers: eq and gt read `from`, lt reads `to`), date ones (`from` / `to` as ISO instants) and list ones (array fields:
+ * includes one of `values` / none of them).
+ */
+export const NUMBER_OPS = ['eq', 'gt', 'lt', 'range'] as const;
+const CATALOG_OPS = [...OPS_BY_KIND.text, ...NUMBER_OPS, ...OPS_BY_KIND.date, ...OPS_BY_KIND.value] as const;
 const MAX_QUERY_DEPTH = 4;
 const MAX_QUERY_CONDITIONS = 30;
 
 export type TextField = (typeof TEXT_FIELDS)[number];
-export type QueryField = TextField | (typeof VALUE_FIELDS)[number] | (typeof DATE_FIELDS)[number];
+export type QueryField = TextField | (typeof VALUE_FIELDS)[number] | (typeof DATE_FIELDS)[number] | typeof CATALOG_FIELD;
 
-const fieldKind = (f: QueryField): keyof typeof OPS_BY_KIND =>
+const fieldKind = (f: Exclude<QueryField, typeof CATALOG_FIELD>): keyof typeof OPS_BY_KIND =>
   (TEXT_FIELDS as readonly string[]).includes(f) ? 'text' : (VALUE_FIELDS as readonly string[]).includes(f) ? 'value' : 'date';
 
 const conditionSchema = z
   .object({
     type: z.literal('cond'),
-    field: z.enum([...TEXT_FIELDS, ...VALUE_FIELDS, ...DATE_FIELDS]),
-    op: z.enum([...OPS_BY_KIND.text, ...OPS_BY_KIND.value, ...OPS_BY_KIND.date]),
+    field: z.enum([...TEXT_FIELDS, ...VALUE_FIELDS, ...DATE_FIELDS, CATALOG_FIELD]),
+    /** the catalog field, for `field: 'field'` */
+    fieldId: zId.optional(),
+    op: z.enum([...OPS_BY_KIND.text, ...OPS_BY_KIND.value, ...OPS_BY_KIND.date, ...NUMBER_OPS]),
     words: z.array(z.string().trim().max(100)).max(20).default([]),
     values: z.array(z.string().max(100)).max(50).default([]),
-    /** ISO instants of the client's local midnight, like `dates` */
+    /** ISO instants of the client's local midnight, like `dates`; numbers for the number operators */
     from: z.string().max(40).optional(),
     to: z.string().max(40).optional(),
   })
   .superRefine((c, ctx) => {
+    if (c.field === CATALOG_FIELD) {
+      if (!c.fieldId) ctx.addIssue({ code: 'custom', message: 'a catalog field condition needs fieldId' });
+      if (!(CATALOG_OPS as readonly string[]).includes(c.op)) ctx.addIssue({ code: 'custom', message: `"${c.op}" does not apply to a catalog field` });
+      if ((NUMBER_OPS as readonly string[]).includes(c.op) && ![c.from, c.to].every((v) => v === undefined || v === '' || Number.isFinite(Number(v))))
+        ctx.addIssue({ code: 'custom', message: 'number bounds must be numbers' });
+      return;
+    }
     if (!(OPS_BY_KIND[fieldKind(c.field)] as readonly string[]).includes(c.op)) ctx.addIssue({ code: 'custom', message: `"${c.op}" does not apply to ${c.field}` });
     if ((c.field === 'author' || c.field === 'folder') && !c.values.every((v) => zId.safeParse(v).success))
       ctx.addIssue({ code: 'custom', message: `${c.field} values must be ids` });
@@ -211,15 +229,72 @@ const TOKEN_RE = /(?<!\S)\u2063:[^\u2064]*\u2064?|"([^"]*)"?|\S+/g;
 
 const strip = (s: string) => s.replace(/[\u2063\u2064]/g, '');
 
-/** A :field:value token's text (without MARK / END) → its term; undefined while unfinished (ignored). */
-function fieldTerm(body: string): Omit<QueryTerm, 'neg'> | undefined {
-  const m = /^:([^:\s]+):([\s\S]*)$/.exec(body);
-  const field = m ? FIELD_NAMES[m[1].toLowerCase()] : undefined;
-  if (!field) return undefined;
-  const raw = m![2].trim();
-  const quoted = /^"(.*)"?$/.exec(raw);
-  const value = (quoted ? quoted[1].replace(/"$/, '') : raw).trim();
-  return value ? { term: value, exact: !!quoted, field } : undefined;
+/** OR of AND-groups. */
+type Terms = QueryTerm[][];
+
+const andTerms = (a: Terms, b: Terms): Terms => a.flatMap((x) => b.map((y) => [...x, ...y]));
+/** ¬(g1 ∨ g2 …) = ¬g1 ∧ ¬g2 …, and each ¬(t1 ∧ t2 …) = ¬t1 ∨ ¬t2 … */
+const notTerms = (d: Terms): Terms => d.reduce<Terms>((acc, g) => andTerms(acc, g.map((t) => [{ ...t, neg: !t.neg }])), [[]]);
+
+type Op = 'and' | 'or' | 'not';
+/** An operator, or something that matches (a term, or a :field:value with its own and / or / not). */
+type Item = { op: Op } | { terms?: Terms };
+
+/** Items joined: adjacent ones are ANDed, AND binds tighter than OR, `not` negates the next item; operators that join nothing are dropped. */
+function combine(items: Item[]): Terms {
+  const out: Terms = [];
+  let current: Terms | null = null;
+  let pendingOr = false;
+  let neg = false;
+  for (const item of items) {
+    if ('op' in item) {
+      if (item.op === 'or') pendingOr = current !== null;
+      else if (item.op === 'not') neg = true;
+      continue;
+    }
+    if (!item.terms?.length) continue;
+    const terms = neg ? notTerms(item.terms) : item.terms;
+    if (pendingOr && current) {
+      out.push(...current);
+      current = null;
+    }
+    current = current ? andTerms(current, terms) : terms;
+    pendingOr = neg = false;
+  }
+  if (current) out.push(...current);
+  return out;
+}
+
+/** A "phrase" or a word, inside a :field:value. */
+const VALUE_RE = /"([^"]*)"?|\S+/g;
+
+/**
+ * A :field:value token's text (without its leading MARK and END) → its field's terms; none while unfinished. The value
+ * has its own "phrases" and marked and / or / not; plain words between them, spaces included, are one term.
+ */
+function fieldTerms(body: string, leaf: (t: Omit<QueryTerm, 'neg'>) => Terms | undefined): Terms {
+  const head = /^:([^:\s]+):/.exec(body);
+  const field = head ? FIELD_NAMES[head[1].toLowerCase()] : undefined;
+  if (!field) return [];
+  const value = body.slice(head![0].length);
+  const items: Item[] = [];
+  let run: [number, number] | null = null;
+  const flush = () => {
+    if (run) items.push({ terms: leaf({ term: strip(value.slice(run[0], run[1])).trim(), field }) });
+    run = null;
+  };
+  for (const m of value.matchAll(VALUE_RE)) {
+    const a = m.index!;
+    const op = m[0].startsWith(MARK) ? OPERATORS[strip(m[0]).toLowerCase()] : undefined;
+    if (m[1] === undefined && !op) {
+      run = run ? [run[0], a + m[0].length] : [a, a + m[0].length];
+      continue;
+    }
+    flush();
+    items.push(op ? { op } : { terms: leaf({ term: strip(m[1]).trim(), exact: true, field }) });
+  }
+  flush();
+  return combine(items);
 }
 
 /** A marked word (without its mark) → operator or term; undefined for a bare `@` / `#` (ignored). */
@@ -235,37 +310,30 @@ function markedWord(word: string): { op: 'and' | 'or' | 'not' } | { term: Omit<Q
  * Query text, kept in sync with the client's search-syntax.ts: "quoted phrases" stay whole and match whole words, other
  * words split on whitespace and match anywhere, adjacent terms are ANDed. Only words that start with MARK are syntax
  * (see MARK). Operators that don't sit between terms (leading `or`, trailing `not`) are dropped. Case-insensitive.
+ * A :field:value has the same "phrases" and operators inside it (`:title:"intro" or graphs`), expanded into the groups.
+ * At most MAX_TERMS terms are read, which also bounds that expansion.
  */
 export function parseQuery(text: string): ParsedQuery {
-  const groups: QueryTerm[][] = [[]];
-  let pendingOr = false;
-  let neg = false;
+  const items: Item[] = [];
   let count = 0;
+  const leaf = (t: Omit<QueryTerm, 'neg'> | undefined): Terms | undefined => {
+    if (!t?.term || count >= MAX_TERMS) return undefined;
+    count++;
+    return [[{ ...t, neg: false }]];
+  };
 
   for (const m of text.matchAll(TOKEN_RE)) {
     const raw = m[0];
-    let term: Omit<QueryTerm, 'neg'> | undefined;
-    if (raw.startsWith(MARK + ':')) term = fieldTerm(strip(raw));
-    else if (m[1] !== undefined) term = { term: strip(m[1]).trim(), exact: true };
+    if (raw.startsWith(MARK + ':')) items.push({ terms: fieldTerms(raw.slice(1).replace(/⁤$/, ''), leaf) });
+    else if (m[1] !== undefined) items.push({ terms: leaf({ term: strip(m[1]).trim(), exact: true }) });
     else if (raw.startsWith(MARK)) {
       const parsed = markedWord(strip(raw));
-      if ('op' in parsed) {
-        if (parsed.op === 'or') pendingOr = groups[groups.length - 1].length > 0;
-        else if (parsed.op === 'not') neg = true;
-        continue;
-      }
-      term = parsed.term;
-    } else term = { term: strip(raw) };
-
-    if (!term?.term || count >= MAX_TERMS) continue;
-    if (pendingOr) groups.push([]);
-    groups[groups.length - 1].push({ ...term, neg });
-    pendingOr = neg = false;
-    count++;
+      items.push('op' in parsed ? { op: parsed.op } : { terms: leaf(parsed.term) });
+    } else items.push({ terms: leaf({ term: strip(raw) }) });
   }
-  const live = groups.filter((g) => g.length);
-  const capsules = live.flat().flatMap((t) => (t.capsule ? [t.term] : []));
-  return { groups: live, capsules: [...new Set(capsules)] };
+  const groups = combine(items);
+  const capsules = groups.flat().flatMap((t) => (t.capsule ? [t.term] : []));
+  return { groups, capsules: [...new Set(capsules)] };
 }
 
 /** Capsules a search refers to: `#name` in the text and `#cap:<id>` words in the advanced tree. */

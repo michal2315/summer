@@ -158,6 +158,8 @@ export class SummaryActionsBarComponent {
       if (result.skipped.length) this.message.warning(msg);
       else this.message.success(msg);
     }
+    // An open detail panel showing one of them re-reads it (the list reloads below).
+    this.summaries.stale(result?.applied ?? [...this.store.selected()]);
     this.store.setSelectMode(false);
     this.store.reload();
   }

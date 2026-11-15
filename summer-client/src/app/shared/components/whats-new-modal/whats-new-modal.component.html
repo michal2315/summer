@@ -1,12 +1,56 @@
-@if (releases(); as list) {
-  <nz-collapse [nzBordered]="false">
-    @for (r of list; track r.version; let first = $first) {
-      <nz-collapse-panel [nzHeader]="'גרסה ' + r.version + (r.isAcknowledged ? '' : ' · חדש')" [nzActive]="first">
-        <div class="ql-container ql-snow read-only"><div class="ql-editor" [innerHTML]="r.html | richHtml"></div></div>
-      </nz-collapse-panel>
+<div class="whats-new">
+  <div class="hero">
+    <div class="sun"><app-summy mood="empty" [size]="76" /></div>
+    <div class="hero-text">
+      <div class="hero-title" role="heading" aria-level="1">מה חדש ב-Summer</div>
+      @if (latest(); as r) {
+        <div class="hero-meta">
+          <span class="version">גרסה {{ r.version }}</span>
+          <span class="dot">·</span>
+          <span>{{ day(r.date) }}</span>
+          @if (!r.isAcknowledged) {
+            <span class="new-pill">חדש</span>
+          }
+        </div>
+      }
+    </div>
+    <button type="button" class="close" (click)="close()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+  </div>
+
+  <div class="body">
+    @if (releases(); as list) {
+      @if (latest(); as r) {
+        <div class="notes" [innerHTML]="r.html | richHtml"></div>
+      } @else {
+        <div class="empty">אין עדיין עדכונים להצגה.</div>
+      }
+
+      @if (older().length) {
+        <div class="older">
+          <div class="older-title">גרסאות קודמות</div>
+          @for (r of older(); track r.version) {
+            <div class="older-item" [class.open]="opened() === r.version">
+              <button type="button" class="older-head" (click)="toggle(r.version)" [attr.aria-expanded]="opened() === r.version">
+                <span class="older-version">גרסה {{ r.version }}</span>
+                <span class="older-date">{{ day(r.date) }}</span>
+                @if (!r.isAcknowledged) {
+                  <span class="new-pill small">חדש</span>
+                }
+                <span class="chevron" nz-icon nzType="down"></span>
+              </button>
+              @if (opened() === r.version) {
+                <div class="notes compact" [innerHTML]="r.html | richHtml"></div>
+              }
+            </div>
+          }
+        </div>
+      }
+    } @else {
+      <app-skeleton variant="text" [count]="6" />
     }
-  </nz-collapse>
-} @else {
-  <app-skeleton variant="text" [count]="6" />
-}
-<div class="footer"><button nz-button nzType="primary" type="button" (click)="close()">הבנתי</button></div>
+  </div>
+
+  <div class="footer">
+    <button nz-button nzType="primary" type="button" class="got-it" (click)="close()">הבנתי, תודה</button>
+  </div>
+</div>

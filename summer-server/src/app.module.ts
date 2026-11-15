@@ -13,6 +13,7 @@ import { HealthController } from './health.controller';
 import { LabelsModule } from './labels/labels.module';
 import { MilestonesModule } from './milestones/milestones.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { QueriesModule } from './queries/queries.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { SummariesModule } from './summaries/summaries.module';
 import { UsersModule } from './users/users.module';
@@ -33,6 +34,7 @@ import { WhatsNewModule } from './whats-new/whats-new.module';
     CommentsModule,
     FoldersModule,
     NotificationsModule,
+    QueriesModule,
     WhatsNewModule,
     ExtensionModule,
   ],

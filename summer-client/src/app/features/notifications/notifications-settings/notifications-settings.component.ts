@@ -7,24 +7,29 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
+import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import { Observable } from 'rxjs';
 import { StorageService } from '../../../core/storage/storage.service';
 import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
-import { INotificationSettings } from '../../../shared/models';
+import { IQuery } from '../../../shared/models';
+import { QueryService } from '../../../shared/services/query.service';
 import { renderPages } from '../../../shared/utils/render-pages';
+import { QUERY_KIND_LABEL, describeSearch } from '../../summaries/search-query';
 import { SummaryDetailComponent } from '../../summaries/summary-detail/summary-detail.component';
 import { NotificationFeedComponent } from '../notification-feed/notification-feed.component';
-import { NotificationNamePipe, NotificationsSettingsService, describeRule, ruleHighlight } from '../notification-rules';
+import { NotificationsSettingsService } from '../notification-rules';
 
 const PANEL_KEY = 'notificationsPanelCollapsed';
 
 /**
  * /notifications — a feed of every notification about a summary (with the summary), beside a management panel:
- * the user's e-mail switches and notification rules (list, filter, edit, delete). Picking a rule narrows the feed to it.
+ * the user's e-mail switches and their alerts. An alert is on a saved search (a query): the panel lists the queries
+ * that alert, finds any saved search to start alerting on, pauses, edits and cancels. Picking one narrows the feed.
  */
 @Component({
   selector: 'app-notifications-settings',
@@ -36,6 +41,7 @@ const PANEL_KEY = 'notificationsPanelCollapsed';
     NzIconModule,
     NzInputModule,
     NzPopconfirmModule,
+    NzSelectModule,
     NzSwitchModule,
     NzTagModule,
     NzToolTipModule,
@@ -44,7 +50,6 @@ const PANEL_KEY = 'notificationsPanelCollapsed';
     NotificationFeedComponent,
     SummaryDetailComponent,
     SkeletonComponent,
-    NotificationNamePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './notifications-settings.component.html',
@@ -52,44 +57,54 @@ const PANEL_KEY = 'notificationsPanelCollapsed';
 })
 export class NotificationsSettingsComponent {
   readonly service = inject(NotificationsSettingsService);
+  readonly queries = inject(QueryService);
   private readonly message = inject(NzMessageService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly injector = inject(Injector);
   private readonly storage = inject(StorageService);
 
+  readonly describe = describeSearch;
+  readonly kindLabel = QUERY_KIND_LABEL;
+
   /** The management panel folded to a slim strip, giving the feed the room. */
   readonly panelCollapsed = signal(this.storage.get<boolean>(PANEL_KEY) === true);
 
+  readonly filter = signal('');
   readonly filtered = computed(() => {
-    const q = this.service.filter().trim();
-    const rules = this.service.rules() ?? [];
-    return q ? rules.filter((r) => r.name.includes(q) || describeRule(r).includes(q)) : rules;
+    const q = this.filter().trim();
+    const list = this.queries.alerting();
+    return q ? list.filter((r) => r.name.includes(q) || describeSearch(r.search).includes(q)) : list;
   });
   /** Rendered a page at a time; a new filter starts over. */
-  readonly page = renderPages(this.filtered, 30, this.service.filter);
+  readonly page = renderPages(this.filtered, 30, this.filter);
 
-  /** The rule the feed is narrowed to; null shows every notification. */
-  readonly ruleId = signal<string | null>(null);
-  readonly ruleName = computed(() => {
-    const id = this.ruleId();
-    return id ? (this.service.rules()?.find((r) => r._id === id)?.name ?? null) : null;
-  });
+  /** "Alert on a saved search": the saved searches that don't alert yet, by name. */
+  readonly addText = signal('');
+  readonly addOptions = computed(() =>
+    this.queries.search(
+      this.addText(),
+      12,
+      this.queries.queries().filter((q) => !q.alert),
+    ),
+  );
+  readonly busy = signal(new Set<string>());
+
+  /** The query the feed is narrowed to; null shows every notification. */
+  readonly queryId = signal<string | null>(null);
+  readonly queryName = computed(() => this.queries.byId(this.queryId())?.name ?? null);
 
   /** ?summaryId= — the summary opened from the feed, shown in its place (browser back works too). */
   readonly summaryId = input<string>();
-  /** ?alertRule= — the rule whose alert opened it: what the summary highlights. */
-  readonly alertRule = input<string>();
-  readonly highlight = computed(() => {
-    const rule = this.alertRule() ? this.service.rules()?.find((r) => r._id === this.alertRule()) : undefined;
-    return rule ? ruleHighlight(rule) : null;
-  });
+  /** ?alertQuery= — the query whose alert opened it: what the summary highlights. */
+  readonly alertQuery = input<string>();
+  readonly highlight = computed(() => this.queries.byId(this.alertQuery())?.search ?? null);
   private readonly mainEl = viewChild<ElementRef<HTMLElement>>('main');
   /** The feed's scroll position when a summary was opened, restored on the way back. */
   private feedScroll = 0;
 
   constructor() {
-    this.service.load();
+    this.queries.ensureLoaded();
     this.service.loadPreferences();
     // Opening shows the summary from its top; closing puts the feed back where it was.
     effect(() => {
@@ -99,9 +114,9 @@ export class NotificationsSettingsComponent {
     });
   }
 
-  open(opened: { summaryId: string; ruleId?: string }, main: HTMLElement) {
+  open(opened: { summaryId: string; queryId?: string }, main: HTMLElement) {
     this.feedScroll = main.scrollTop;
-    this.router.navigate([], { relativeTo: this.route, queryParams: { summaryId: opened.summaryId, alertRule: opened.ruleId ?? null }, queryParamsHandling: 'merge' });
+    this.router.navigate([], { relativeTo: this.route, queryParams: { summaryId: opened.summaryId, alertQuery: opened.queryId ?? null }, queryParamsHandling: 'merge' });
   }
 
   togglePanel() {
@@ -110,18 +125,48 @@ export class NotificationsSettingsComponent {
   }
 
   back() {
-    this.router.navigate([], { relativeTo: this.route, queryParams: { summaryId: null, alertRule: null }, queryParamsHandling: 'merge' });
+    this.router.navigate([], { relativeTo: this.route, queryParams: { summaryId: null, alertQuery: null }, queryParamsHandling: 'merge' });
   }
 
-  /** Picking the picked rule again goes back to all notifications. */
-  pick(r: INotificationSettings) {
-    this.ruleId.update((id) => (id === r._id ? null : r._id!));
+  /** Picking the picked query again goes back to all notifications. */
+  pick(q: IQuery) {
+    this.queryId.update((id) => (id === q._id ? null : q._id));
   }
 
-  remove(r: INotificationSettings) {
-    this.service.delete(r._id!).subscribe(() => {
-      if (this.ruleId() === r._id) this.ruleId.set(null);
-      this.message.success('הכלל נמחק');
+  /** Start alerting on a saved search picked from the list. */
+  activate(id: string | null) {
+    const q = this.queries.byId(id);
+    if (!q) return;
+    this.addText.set('');
+    this.track(q, this.queries.setAlert(q._id, { isActive: true }), () => this.message.success(`תתקבל התראה על תמציות חדשות שמתאימות ל"${q.name}"`));
+  }
+
+  /** Pause or resume. */
+  setActive(q: IQuery, isActive: boolean) {
+    this.track(q, this.queries.setAlert(q._id, { isActive }), () => {});
+  }
+
+  /** Stop alerting; the saved search stays. */
+  cancel(q: IQuery) {
+    this.track(q, this.queries.removeAlert(q._id), () => {
+      if (this.queryId() === q._id) this.queryId.set(null);
+      this.message.success('ההתראה בוטלה — החיפוש נשאר בחיפושים השמורים');
     });
+  }
+
+  isBusy(q: IQuery) {
+    return this.busy().has(q._id);
+  }
+
+  private track(q: IQuery, req: Observable<unknown>, next: () => void) {
+    const set = (on: boolean) =>
+      this.busy.update((b) => {
+        const copy = new Set(b);
+        if (on) copy.add(q._id);
+        else copy.delete(q._id);
+        return copy;
+      });
+    set(true);
+    req.subscribe({ next, error: () => set(false), complete: () => set(false) });
   }
 }
