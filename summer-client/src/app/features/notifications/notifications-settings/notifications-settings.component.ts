@@ -2,11 +2,13 @@ import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRend
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzTagModule } from 'ng-zorro-antd/tag';
@@ -14,6 +16,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Observable } from 'rxjs';
 import { StorageService } from '../../../core/storage/storage.service';
 import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
+import { PreferencesButtonComponent } from '../../../shared/components/preferences/preferences-button.component';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { IQuery } from '../../../shared/models';
@@ -21,14 +24,24 @@ import { QueryService } from '../../../shared/services/query.service';
 import { renderPages } from '../../../shared/utils/render-pages';
 import { QUERY_KIND_LABEL, describeSearch } from '../../summaries/search-query';
 import { SummaryDetailComponent } from '../../summaries/summary-detail/summary-detail.component';
+import { MyQueriesComponent } from '../my-queries/my-queries.component';
 import { NotificationFeedComponent } from '../notification-feed/notification-feed.component';
+import { SharedQueriesComponent } from '../shared-queries/shared-queries.component';
 import { NotificationsSettingsService } from '../notification-rules';
 
 const PANEL_KEY = 'notificationsPanelCollapsed';
+const TAB_KEY = 'notificationsPanelTab';
+
+type PanelTab = 'alerts' | 'mine' | 'shared';
+const TABS: { key: PanelTab; label: string; icon: string }[] = [
+  { key: 'alerts', label: 'התראות', icon: 'bell' },
+  { key: 'mine', label: 'החיפושים שלי', icon: 'save' },
+  { key: 'shared', label: 'משותפים', icon: 'team' },
+];
 
 /**
- * /notifications — a feed of every notification about a summary (with the summary), beside a management panel:
- * the user's e-mail switches and their alerts. An alert is on a saved search (a query): the panel lists the queries
+ * /notifications — a feed of every notification about a summary (with the summary), beside a panel of searches and
+ * alerts in tabs: the alerts (with the e-mail switches), the user's own saved searches, and others' shared ones. An alert is on a saved search (a query): the panel lists the queries
  * that alert, finds any saved search to start alerting on, pauses, edits and cancels. Picking one narrows the feed.
  */
 @Component({
@@ -37,17 +50,22 @@ const PANEL_KEY = 'notificationsPanelCollapsed';
     FormsModule,
     RouterLink,
     NzButtonModule,
+    NzCheckboxModule,
     NzEmptyModule,
     NzIconModule,
     NzInputModule,
     NzPopconfirmModule,
+    NzPopoverModule,
     NzSelectModule,
     NzSwitchModule,
     NzTagModule,
     NzToolTipModule,
     InViewDirective,
     NotificationBellComponent,
+    PreferencesButtonComponent,
+    MyQueriesComponent,
     NotificationFeedComponent,
+    SharedQueriesComponent,
     SummaryDetailComponent,
     SkeletonComponent,
   ],
@@ -69,6 +87,17 @@ export class NotificationsSettingsComponent {
 
   /** The management panel folded to a slim strip, giving the feed the room. */
   readonly panelCollapsed = signal(this.storage.get<boolean>(PANEL_KEY) === true);
+
+  readonly tabs = TABS;
+  readonly tab = signal<PanelTab>(TABS.some((t) => t.key === this.storage.get<string>(TAB_KEY)) ? this.storage.get<PanelTab>(TAB_KEY)! : 'alerts');
+  tabCount(tab: PanelTab): number {
+    return tab === 'alerts' ? this.queries.alerting().length : tab === 'mine' ? this.queries.queries().length : 0;
+  }
+
+  setTab(tab: PanelTab) {
+    this.tab.set(tab);
+    this.storage.set(TAB_KEY, tab);
+  }
 
   readonly filter = signal('');
   readonly filtered = computed(() => {
@@ -94,6 +123,9 @@ export class NotificationsSettingsComponent {
   readonly queryId = signal<string | null>(null);
   readonly queryName = computed(() => this.queries.byId(this.queryId())?.name ?? null);
 
+  /** ?tab= — open on a tab (links from elsewhere, e.g. the profile). */
+  readonly tabParam = input<string | undefined>(undefined, { alias: 'tab' });
+
   /** ?summaryId= — the summary opened from the feed, shown in its place (browser back works too). */
   readonly summaryId = input<string>();
   /** ?alertQuery= — the query whose alert opened it: what the summary highlights. */
@@ -106,6 +138,10 @@ export class NotificationsSettingsComponent {
   constructor() {
     this.queries.ensureLoaded();
     this.service.loadPreferences();
+    effect(() => {
+      const t = this.tabParam();
+      if (TABS.some((x) => x.key === t)) untracked(() => this.setTab(t as PanelTab));
+    });
     // Opening shows the summary from its top; closing puts the feed back where it was.
     effect(() => {
       const open = !!this.summaryId();
@@ -146,11 +182,16 @@ export class NotificationsSettingsComponent {
     this.track(q, this.queries.setAlert(q._id, { isActive }), () => {});
   }
 
+  /** Mail settings of an alert on someone else's query (their search can't be edited here). */
+  setChannel(q: IQuery, key: 'isMail' | 'isDigest', on: boolean) {
+    this.track(q, this.queries.setAlert(q._id, { [key]: on }), () => {});
+  }
+
   /** Stop alerting; the saved search stays. */
   cancel(q: IQuery) {
     this.track(q, this.queries.removeAlert(q._id), () => {
       if (this.queryId() === q._id) this.queryId.set(null);
-      this.message.success('ההתראה בוטלה — החיפוש נשאר בחיפושים השמורים');
+      this.message.success(q.isMine ? 'ההתראה בוטלה — החיפוש נשאר בחיפושים השמורים' : 'ההתראה על החיפוש המשותף בוטלה');
     });
   }
 

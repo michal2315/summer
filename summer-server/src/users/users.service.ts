@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CurrentUser } from '../auth/identity-provider';
 import { z } from 'zod';
 import { ApiBulkResult, ApiUser } from '../common/api-types';
+import { preferencesSchema } from '../common/preferences';
 import { isUuid, parse, unique, zId } from '../common/validation';
 import { DatabaseService } from '../database/database.service';
 import { LabelsRepository } from '../labels/labels.repository';
@@ -27,6 +28,13 @@ export class UsersService {
     const user = await this.users.apiUser(me.id);
     if (!user) throw new NotFoundException();
     return user;
+  }
+
+  /** Change some preferences (keys left out stay as they are). */
+  async setPreferences(me: CurrentUser, body: unknown): Promise<ApiUser> {
+    const patch = parse(preferencesSchema, body ?? {});
+    await this.users.setPreferences(me.id, patch);
+    return this.me(me);
   }
 
   async toggleLabel(me: CurrentUser, kind: 'pinned' | 'favorite', name: unknown): Promise<ApiUser> {

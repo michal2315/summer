@@ -1,0 +1,73 @@
+@use 'tokens' as *;
+
+:host {
+  position: fixed;
+  z-index: 1010;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(480px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: $border-radius;
+  background: $background;
+  color: $white;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba($primary-orange-hex, 0.45), 0 2px 6px rgba(0, 0, 0, 0.12);
+  animation: toast-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.icon {
+  flex: none;
+  font-size: 16px;
+}
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+// Undo: a white pill, the toast's one call to action.
+.undo {
+  all: unset;
+  flex: none;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: $white;
+  color: $orange-strong;
+  font-weight: 700;
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    background: $orange-50;
+  }
+}
+.close {
+  all: unset;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: rgba($white, 0.8);
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    color: $white;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :host {
+    animation: none;
+  }
+}

@@ -144,7 +144,7 @@ export class CreateNotificationComponent implements HasPendingChanges {
     if (this.editing?._id === id) return;
     this.loading.set(false);
     const q = this.queries.byId(id);
-    if (!q) {
+    if (!q || !q.isMine) {
       this.router.navigate(['/notifications']);
       return;
     }

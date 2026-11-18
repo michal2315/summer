@@ -1,0 +1,32 @@
+<div class="browser">
+  <input nz-input placeholder="חיפוש לפי שם הקבוצה או מי ששיתף" aria-label="חיפוש קבוצות משותפות" [ngModel]="text()" (ngModelChange)="onText($event)" />
+
+  @if (list(); as groups) {
+    @if (groups.length) {
+      <ul class="rows">
+        @for (g of groups; track g._id) {
+          <li class="row">
+            <div class="info">
+              <div class="name">{{ g.name }}</div>
+              <div class="desc">{{ describe(g) }}</div>
+              <div class="owner">שותפה על ידי {{ g.owner.fullName }}</div>
+            </div>
+            @if (copied().has(g._id)) {
+              <span class="done"><span nz-icon nzType="check"></span> הועתקה</span>
+            } @else {
+              <button nz-button nzSize="small" type="button" [nzLoading]="copying() === g._id" (click)="copy(g)"><span nz-icon nzType="copy"></span> העתקה אליי</button>
+            }
+          </li>
+        }
+      </ul>
+      @if (more()) {
+        <button nz-button nzType="link" type="button" (click)="loadMore()">עוד קבוצות</button>
+      }
+    } @else {
+      <div class="empty">{{ text().trim() ? 'אין קבוצה משותפת שמתאימה לחיפוש.' : 'אף אחד עוד לא שיתף קבוצת משתמשים.' }}</div>
+    }
+  } @else {
+    <div class="empty">טוען…</div>
+  }
+  <div class="hint">אפשר גם לבחור קבוצה משותפת ישירות בשדה התיוג, בלי להעתיק אותה.</div>
+</div>

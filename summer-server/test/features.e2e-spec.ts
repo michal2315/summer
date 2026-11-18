@@ -1,5 +1,6 @@
 import { Harness, createHarness } from './harness';
 import { Lookups, createSummary, lookups, summaryPayload } from './fixtures';
+import { MARK as M } from '../src/summaries/summary-search';
 
 describe('summaries, comments, personal state', () => {
   let h: Harness;
@@ -70,7 +71,7 @@ describe('summaries, comments, personal state', () => {
     expect((await search('mgolan', 'text=jkst&searchTypes=CONTENT')).lengths.summary).toBe(0); // restricted to content
   });
 
-  it('searches with and / or / not, @user and :content-type in the text', async () => {
+  it('searches with marked and / or / not, @user and :type:value in the text', async () => {
     const courseField = (await h.sql<{ id: string }>(`select id from fields where name = 'שם הקורס'`))[0].id;
     await createSummary(h, 'mgolan', summaryPayload(l, { title: 'זברה ג׳ירפה' }));
     await createSummary(
@@ -79,13 +80,14 @@ describe('summaries, comments, personal state', () => {
       summaryPayload(l, { title: 'זברה פיל', contentType: l.type('lecture'), summaryFields: [{ field: courseField, value: 'קורס' }] }),
     );
     const count = async (text: string) => (await search('mgolan', `text=${encodeURIComponent(text)}`)).lengths.summary;
-    expect(await count('ג׳ירפה או פיל')).toBe(2);
-    expect(await count('ג׳ירפה and פיל')).toBe(0);
-    expect(await count('זברה not פיל')).toBe(1);
-    expect(await count('זברה @DLevi')).toBe(1);
-    expect(await count('זברה @nobody')).toBe(0);
-    expect(await count('זברה :lecture')).toBe(1);
-    expect(await count('זברה :כללי')).toBe(1);
+    expect(await count(`ג׳ירפה ${M}או פיל`)).toBe(2);
+    expect(await count('ג׳ירפה או פיל')).toBe(0); // unmarked: the word "או" is searched too
+    expect(await count(`ג׳ירפה ${M}and פיל`)).toBe(0);
+    expect(await count(`זברה ${M}not פיל`)).toBe(1);
+    expect(await count(`זברה ${M}@DLevi`)).toBe(1);
+    expect(await count(`זברה ${M}@nobody`)).toBe(0);
+    expect(await count(`זברה ${M}:type:lecture`)).toBe(1);
+    expect(await count(`זברה ${M}:סוג:כללי`)).toBe(1);
   });
 
   it('advanced search: nested and / or groups over fields, values and dates, plus a live count', async () => {
@@ -260,13 +262,13 @@ describe('summaries, comments, personal state', () => {
     const count = async (text: string, query?: object) =>
       (await h.as('mgolan').get('/summary/count').query({ text, ...(query ? { query: JSON.stringify(query) } : {}) }).expect(200)).body.count as number;
     // A capsule is its words under their conditions: optional → any of, must → all of, mustNot → none of.
-    const trees = await count('#עצים');
+    const trees = await count(`${M}#עצים`);
     expect(trees).toBeGreaterThan(0);
-    expect(trees).toBe(await count('עצי or עץ or AVL or "עצי B" or סיבובים or ערימות'));
-    expect(await count('#חשוב_למבחן')).toBe(await count('מבחן'));
-    expect(await count('#מבני_נתונים_בלי_עצים')).toBe(await count('"מבני נתונים" not עצי not AVL not עץ'));
-    expect(await count('not #עצים')).toBe((await count('')) - trees);
-    expect(await count('#אין_כמוסה_כזו')).toBe(await count('אין_כמוסה_כזו')); // not a capsule: the plain word
+    expect(trees).toBe(await count(`עצי ${M}or עץ ${M}or AVL ${M}or "עצי B" ${M}or סיבובים ${M}or ערימות`));
+    expect(await count(`${M}#חשוב_למבחן`)).toBe(await count('מבחן'));
+    expect(await count(`${M}#מבני_נתונים_בלי_עצים`)).toBe(await count(`"מבני נתונים" ${M}not עצי ${M}not AVL ${M}not עץ`));
+    expect(await count(`${M}not ${M}#עצים`)).toBe((await count('')) - trees);
+    expect(await count(`${M}#אין_כמוסה_כזו`)).toBe(await count('אין_כמוסה_כזו')); // not a capsule: the plain word
 
     const anyOf = (...words: string[]) => ({ type: 'group', op: 'AND', children: [{ type: 'cond', field: 'text', op: 'any', words }] });
     expect(await count('', anyOf('#cap:cap-trees'))).toBe(trees);

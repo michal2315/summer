@@ -1,0 +1,35 @@
+<div class="shelf" [class.collapsed]="collapsed()">
+  <div class="bar">
+    <div class="tabs" role="tablist" aria-label="החיפושים והקבוצות שלי">
+      <button type="button" role="tab" class="tab" [class.active]="tab() === 'searches'" [attr.aria-selected]="tab() === 'searches'" (click)="select('searches')">
+        <span nz-icon nzType="save"></span> חיפושים שמורים <span class="count">{{ searchCount() }}</span>
+      </button>
+      <button type="button" role="tab" class="tab" [class.active]="tab() === 'groups'" [attr.aria-selected]="tab() === 'groups'" (click)="select('groups')">
+        <span nz-icon nzType="usergroup-add"></span> קבוצות משתמשים <span class="count">{{ groupCount() }}</span>
+      </button>
+    </div>
+
+    @if (!collapsed()) {
+      <div class="tools">
+        @if (showFilter()) {
+          <input nz-input nzSize="small" class="filter" placeholder="סינון לפי שם" aria-label="סינון לפי שם" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
+        }
+        @if (tab() === 'searches') {
+          <a class="tool" routerLink="/notifications" [queryParams]="{ tab: 'mine' }" nz-tooltip="כל החיפושים, ההתראות והחיפושים שאחרים שיתפו" aria-label="חיפושים והתראות"><span nz-icon nzType="appstore"></span></a>
+          <a class="tool" routerLink="/notifications/create" nz-tooltip="חיפוש חדש עם תנאים והתראה" aria-label="חיפוש חדש"><span nz-icon nzType="plus"></span></a>
+        } @else {
+          <button type="button" class="tool" (click)="browseSharedGroups()" nz-tooltip="קבוצות שאחרים שיתפו" aria-label="קבוצות משותפות"><span nz-icon nzType="team"></span></button>
+          <button type="button" class="tool" (click)="newGroup()" nz-tooltip="קבוצה חדשה" aria-label="קבוצה חדשה"><span nz-icon nzType="plus"></span></button>
+        }
+      </div>
+    }
+
+    <button type="button" class="tool collapse" (click)="collapsed.set(!collapsed())" [nz-tooltip]="collapsed() ? 'הצגה' : 'הסתרה'" [attr.aria-expanded]="!collapsed()" aria-label="הצגה או הסתרה">
+      <span nz-icon [nzType]="collapsed() ? 'down' : 'up'"></span>
+    </button>
+  </div>
+
+  <!-- Both stay mounted (the groups list owns the create / browse dialogs); only the active one shows. -->
+  <app-saved-searches [hidden]="collapsed() || tab() !== 'searches'" [filter]="tab() === 'searches' ? filter() : ''" />
+  <app-user-groups [hidden]="collapsed() || tab() !== 'groups'" [filter]="tab() === 'groups' ? filter() : ''" />
+</div>

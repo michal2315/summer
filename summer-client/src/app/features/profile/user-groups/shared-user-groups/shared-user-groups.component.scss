@@ -1,0 +1,56 @@
+@use 'tokens' as *;
+
+.browser {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 2px;
+  border-bottom: 1px solid $border-strong;
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  font-weight: 500;
+  color: $dark-blue;
+}
+
+.desc,
+.owner {
+  font-size: 12px;
+  color: $gray;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.done {
+  font-size: 12px;
+  color: $gray;
+}
+
+.empty,
+.hint {
+  font-size: 12px;
+  color: $gray;
+}

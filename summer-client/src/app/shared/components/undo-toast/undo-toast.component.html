@@ -1,0 +1,6 @@
+<span class="icon" nz-icon nzType="check-circle" nzTheme="fill"></span>
+<div class="text">{{ toast().text }}</div>
+@if (toast().undo) {
+  <button type="button" class="undo" (click)="undo.emit()">בטל</button>
+}
+<button type="button" class="close" (click)="closed.emit()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>

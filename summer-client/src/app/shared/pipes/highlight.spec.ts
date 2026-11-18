@@ -1,5 +1,6 @@
 import { SearchType } from '../models';
 import { highlightHtml, highlightText, matchSnippet, regexFor, searchRegex } from './highlight';
+import { MARK as M } from '../utils/search-syntax';
 
 describe('highlight', () => {
   it('wraps each space-separated word', () => {
@@ -30,8 +31,9 @@ describe('highlight', () => {
     expect(regexFor({ text: 'x' }, SearchType.Content)).not.toBeNull();
   });
 
-  it('treats #word that is not a known capsule as the plain word', () => {
-    expect(highlightText('מועד א', searchRegex('#מועד'))).toContain('<span class="highlight">מועד</span>');
+  it('treats a marked #word that is not a known capsule as the plain word, and an unmarked one as typed', () => {
+    expect(highlightText('מועד א', searchRegex(`${M}#מועד`))).toContain('<span class="highlight">מועד</span>');
+    expect(highlightText('מועד א #מועד', searchRegex('#מועד'))).toBe('מועד א <span class="highlight">#מועד</span>');
   });
 
   it('highlights a capsule as its must and optional words, never its mustNot ones', () => {
@@ -46,8 +48,8 @@ describe('highlight', () => {
       ],
     };
     const capsules = { byName: (n: string) => (n === 'עצים' ? capsule : undefined), byId: (id: string) => (id === 'c' ? capsule : undefined) };
-    expect('עץ AVL גרף'.match(searchRegex('#עצים', [], capsules)!)).toEqual(['עץ', 'AVL']);
-    expect('אחר'.match(searchRegex('#אחר', [], capsules)!)).toEqual(['אחר']); // unknown: the plain word
+    expect('עץ AVL גרף'.match(searchRegex(`${M}#עצים`, [], capsules)!)).toEqual(['עץ', 'AVL']);
+    expect('אחר'.match(searchRegex(`${M}#אחר`, [], capsules)!)).toEqual(['אחר']); // unknown: the plain word
     const search = { query: { type: 'group' as const, op: 'AND' as const, children: [{ type: 'cond' as const, field: 'text' as const, op: 'any' as const, words: ['#cap:c'] }] } };
     expect('עץ'.match(regexFor(search, SearchType.Content, capsules)!)).toEqual(['עץ']);
   });

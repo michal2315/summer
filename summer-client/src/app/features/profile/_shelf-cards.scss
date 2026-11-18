@@ -1,0 +1,110 @@
+// Cards on the profile shelf (saved searches, user groups): name, a quiet line under it, status icons, a right-click menu.
+@use 'tokens' as *;
+
+:host {
+  display: block;
+  width: 100%;
+}
+// The shelf hides the inactive tab's list; `display: block` above would otherwise win over [hidden].
+:host([hidden]) {
+  display: none;
+}
+
+// One scrolling row, so many cards don't push the feed down.
+.cards {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0;
+  padding: 2px 0 4px;
+  list-style: none;
+}
+
+.card {
+  flex: 0 0 auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 280px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid $border-strong;
+  border-radius: $radius-sm;
+  background: $white;
+  &:hover,
+  &:focus-within {
+    border-color: $gray;
+  }
+  &.alerting {
+    border-color: rgba($primary-pink, 0.5);
+  }
+}
+
+.open {
+  all: unset;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  &:focus-visible .name,
+  &:hover .name {
+    text-decoration: underline;
+  }
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.name,
+.desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name {
+  font-weight: 500;
+  color: $dark-blue;
+}
+
+.desc {
+  font-size: 12px;
+  color: $gray;
+}
+
+// Small, quiet state markers beside the name (favourite, alert, shared); the actions are in the menu.
+.marks {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+}
+.mark-fav {
+  color: $star;
+}
+.mark-alert {
+  color: $primary-pink;
+}
+.mark-paused {
+  color: $gray;
+}
+.mark-shared {
+  color: #9e1068;
+}
+
+.empty {
+  font-size: 12px;
+  color: $gray;
+  padding: 4px 0;
+}
+
+// Menu items: the danger one in red.
+::ng-deep .shelf-menu .danger {
+  color: $error-color;
+}

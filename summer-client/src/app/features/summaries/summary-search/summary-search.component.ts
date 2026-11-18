@@ -13,6 +13,7 @@ import { Router } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
+import { PreferencesButtonComponent } from '../../../shared/components/preferences/preferences-button.component';
 import { CapsuleChipComponent } from '../../../shared/components/capsules/capsule-chip/capsule-chip.component';
 import { CapsuleSuggestComponent } from '../../../shared/components/capsules/capsule-suggest/capsule-suggest.component';
 import { ICapsule, IContentType, IQuery, IQueryGroup, ISummarySearch, UserRef } from '../../../shared/models';
@@ -23,23 +24,22 @@ import { SearchHistoryService, stripPaging } from '../../../shared/services/sear
 import { capsuleSearchToken, treeCapsuleIds } from '../../../shared/utils/capsules';
 import {
   COLOR_NAMES,
-  END,
   MARK,
   SEARCH_FIELDS,
   SearchField,
   capsuleRanges,
   cleanMarks,
   deleteCapsule,
-  fieldTokenAt,
   guardEdit,
   markHeads,
-  operatorWordAt,
+  markTyped,
   parseQuery,
   querySegments,
   replaceShortcut,
   shortcutAt,
   snapSelection,
   typeBesideCapsule,
+  unmarkBefore,
 } from '../../../shared/utils/search-syntax';
 import { LabelService } from '../../../shared/services/label.service';
 import { EasterEggsService } from '../../../shared/easter-eggs/easter-eggs.service';
@@ -53,31 +53,30 @@ const QUERY_MATCHES = 5;
 /** Typed text as plain words (syntax marks dropped), to find saved searches by name. */
 const plainWords = (text: string) =>
   text
-    .replace(/[⁣⁤]/g, '')
+    .replaceAll(MARK, '')
     .toLowerCase()
     .split(/\s+/)
     .filter(Boolean);
 
 const M = MARK;
-const E = END;
 
 /** Cheat-sheet in the popover over the "/" key. */
 const SHORTCUTS: { example: string; hint: string }[] = [
-  { example: `גרף ${M}וגם עץ`, hint: 'שתי המילים (וגם / and, ואז ←)' },
-  { example: `גרף ${M}או עץ`, hint: 'אחת מהמילים (או / or, ואז ←)' },
-  { example: `גרף ${M}לא מכוון`, hint: 'בלי המילה (לא / ולא / בלי / not, ואז ←)' },
+  { example: `גרף ${M}וגם עץ`, hint: 'שתי המילים (וגם / גם / and)' },
+  { example: `גרף ${M}או עץ`, hint: 'אחת מהמילים (או / or)' },
+  { example: `גרף ${M}לא מכוון`, hint: 'בלי המילה (לא / ולא / בלי / ובלי / not)' },
   { example: 'מבוא', hint: 'כל מקום שהמילה מופיעה בו, גם כחלק ממילה' },
   { example: '"מבוא"', hint: 'התאמה מדויקת: מילה או ביטוי שלמים' },
-  { example: `${M}@משתמש`, hint: 'תמציות של משתמש (@ ואז ←)' },
-  { example: `${M}:כותרת:מבוא לביולוגיה${E}`, hint: 'חיפוש בשדה (: ואז ←; הערך יכול לכלול רווחים, ← לסיום)' },
-  { example: `${M}:סוג:שיעור${E}`, hint: 'גם כותב, תווית, צבע, תוכן, הערות, תגובות' },
-  { example: `${M}:כותרת:"מבוא" ${M}או גרפים${E}`, hint: 'בתוך שדה: "מירכאות" וגם / או / לא (ואז ←)' },
-  { example: `${M}#כמוסה`, hint: 'כמוסה: קבוצת מילים שמורה (# ואז ←)' },
+  { example: `${M}@משתמש`, hint: 'תמציות של משתמש' },
+  { example: `${M}:כותרת:מבוא_לביולוגיה`, hint: 'חיפוש בשדה (_ במקום רווח; רווח מסיים את השדה)' },
+  { example: `${M}:סוג:שיעור`, hint: 'גם כותב, תווית, צבע, תוכן, הערות, תגובות' },
+  { example: `${M}:כותרת:"מבוא לביולוגיה"`, hint: 'בתוך שדה: "מירכאות" להתאמה מדויקת' },
+  { example: `${M}#כמוסה`, hint: 'כמוסה: קבוצת מילים שמורה' },
   { example: `${M}#שם_עם_רווחים`, hint: '_ במקום רווח בשמות כמוסות' },
-  { example: `${M}$חיפוש_שמור`, hint: 'הרצת חיפוש שמור ($ ואז ←, ובחירה מהרשימה) — רק לבד בתיבה' },
-  { example: '←', hint: 'בלי ← המילים והסימנים נחפשים כטקסט רגיל' },
+  { example: `${M}$חיפוש_שמור`, hint: 'הרצת חיפוש שמור (בחירה מהרשימה) — רק לבד בתיבה' },
+  { example: 'Backspace', hint: 'מיד אחרי אופרטור או סימן: מבטל אותו, והוא נחפש כטקסט רגיל' },
   { example: '/', hint: 'מעבר לתיבת החיפוש מכל מקום' },
-  { example: '↑ ↓ Enter', hint: 'בחירה מההצעות (גם Tab או ←)' },
+  { example: '↑ ↓ Enter', hint: 'בחירה מההצעות (גם Tab)' },
   { example: 'Esc', hint: 'סגירת ההצעות' },
 ];
 
@@ -89,20 +88,6 @@ type Suggestion =
   | { kind: 'color'; name: string; hex: string }
   | { kind: 'label'; label: string }
   | { kind: 'saved'; saved: IQuery };
-
-/** What ← turns the word at the caret into, for the hint under the box. */
-const OPERATOR_HINTS: Record<'and' | 'or' | 'not', string> = {
-  and: 'שתי המילים',
-  or: 'אחת מהמילים',
-  not: 'בלי המילה שאחריו',
-};
-const SIGIL_HINTS: Record<'user' | 'field' | 'value' | 'capsule' | 'saved', string> = {
-  user: 'חיפוש לפי משתמש',
-  field: 'חיפוש בשדה',
-  value: 'חיפוש בשדה',
-  capsule: 'כמוסה',
-  saved: 'חיפוש שמור',
-};
 
 /** Capsule names in the search text (`#name` terms). */
 const capsuleNames = (text: string | undefined) => (text ? parseQuery(text).groups.flat().flatMap((t) => (t.capsule ? [t.term] : [])) : []);
@@ -118,7 +103,7 @@ const capsuleNames = (text: string | undefined) => (text ? parseQuery(text).grou
     NzPopoverModule,
     NzTagModule,
     NzToolTipModule,
-    AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent, NotificationBellComponent],
+    AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent, NotificationBellComponent, PreferencesButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-search.component.html',
   styleUrl: './summary-search.component.scss',
@@ -172,9 +157,9 @@ export class SummarySearchComponent {
 
   private readonly isCapsule = (name: string) => !!this.capsules.byName(name);
   readonly segments = computed(() => querySegments(this.text(), this.isCapsule));
-  /** Known capsules and marked operators in the box: they behave as one unit for the caret, Backspace and Delete. */
+  /** Known capsules in the box: they behave as one unit for the caret, Backspace and Delete. */
   private readonly ranges = computed(() => capsuleRanges(this.text(), this.isCapsule));
-  /** Plus the invisible mark before each @ / : / #, which the caret skips. */
+  /** Plus the invisible mark before each marked token, which the caret skips. */
   private readonly snapRanges = computed(() => [...this.ranges(), ...markHeads(this.text())]);
   /** Capsules in the box, for the chips under it. */
   readonly textCapsules = computed(() => [...new Set(capsuleNames(this.text()))].flatMap((n) => this.capsules.byName(n) ?? []));
@@ -188,14 +173,6 @@ export class SummarySearchComponent {
   readonly live = computed(() => {
     const ctx = this.context();
     return ctx?.marked ? ctx : null;
-  });
-  /** What ← would do here, shown as a hint: mark an operator word (also inside a :field:value), or the @ / : / # being typed. */
-  readonly arrowHint = computed(() => {
-    const ctx = this.context();
-    if (ctx && !ctx.marked) return ctx.blocked ? null : SIGIL_HINTS[ctx.kind];
-    if (ctx && ctx.kind !== 'value') return null;
-    const op = operatorWordAt(this.text(), this.caret(), ctx?.segment?.start);
-    return op ? `"${op.word}" כאופרטור: ${OPERATOR_HINTS[op.op]}` : null;
   });
   readonly saved = this.queries.queries;
   readonly recent = computed(() => this.history.recent().slice(0, 5));
@@ -273,14 +250,12 @@ export class SummarySearchComponent {
   /** The highlighted match (↓ / ↑); -1: none, so Enter searches the typed text. */
   readonly queryActive = signal(-1);
 
-  /** What the popup under the box shows, if anything ('hint': what ← does; 'capsules': the capsules in the text, to look inside). */
-  readonly popup = computed<'hint' | 'blocked' | 'user' | 'field' | 'value' | 'capsule' | 'saved' | 'queries' | 'capsules' | 'home' | null>(() => {
+  /** What the popup under the box shows, if anything ('capsules': the capsules in the text, to look inside). */
+  readonly popup = computed<'blocked' | 'user' | 'field' | 'value' | 'capsule' | 'saved' | 'queries' | 'capsules' | 'home' | null>(() => {
     if (!this.focused() || this.dismissed() || this.advancedOpen()) return null;
     if (this.context()?.blocked) return 'blocked';
     const ctx = this.live();
-    // In a :field:value, an operator word at the caret shows what ← does instead of the value list.
-    if (ctx && !(ctx.kind === 'value' && this.arrowHint())) return ctx.kind;
-    if (this.arrowHint()) return 'hint';
+    if (ctx) return ctx.kind;
     if (!this.text().trim()) return this.saved().length || this.recent().length ? 'home' : null;
     if (this.queryMatches().length) return 'queries';
     return this.textCapsules().length ? 'capsules' : null;
@@ -329,13 +304,19 @@ export class SummarySearchComponent {
     });
   }
 
-  onInput() {
+  /**
+   * `typed`: a character was typed at the caret, so an operator word or sigil it makes becomes one right away.
+   * `ours`: the box made this edit itself (it is already what it should be, so it isn't guarded).
+   */
+  onInput(typed = false, ours = false) {
     const el = this.input().nativeElement;
     // Editing part of a capsule removes all of it; typing inside one is ignored.
-    const guarded = guardEdit(this.text(), el.value, this.snapRanges());
+    const guarded = ours ? { text: el.value } : guardEdit(this.text(), el.value, this.snapRanges());
     if (guarded.caret !== undefined) this.setValue(guarded.text, guarded.caret);
     const cleaned = cleanMarks(el.value, el.selectionStart ?? el.value.length);
     if (cleaned) this.setValue(cleaned.text, cleaned.caret);
+    const marked = typed && el.selectionStart === el.selectionEnd ? markTyped(el.value, el.selectionStart ?? el.value.length) : null;
+    if (marked) this.setValue(marked.text, marked.caret);
     this.text.set(el.value);
     this.textInput.emit(el.value);
     this.dismissed.set(false);
@@ -363,91 +344,33 @@ export class SummarySearchComponent {
     this.prevCaret = caret;
   }
 
-  /** Capsules are one unit: Backspace / Delete at their edge removes all of it, a letter typed against one gets a space. */
-  private capsuleKey(e: KeyboardEvent): boolean {
+  /**
+   * Backspace right after an operator word or sigil takes its mark off (it stays as plain text). Capsules are one unit:
+   * Backspace / Delete at their edge removes all of it, a letter typed against one gets a space.
+   */
+  private editKey(e: KeyboardEvent): boolean {
     const el = this.input().nativeElement;
     const caret = el.selectionStart ?? 0;
     if (caret !== el.selectionEnd || e.ctrlKey || e.metaKey || e.altKey) return false;
-    const field = e.key === 'Backspace' ? this.closedFieldBefore(el.value, caret) : undefined;
-    const edit = field
-      ? this.backspaceField(el.value, field)
-      : e.key === 'Backspace' || e.key === 'Delete'
-        ? deleteCapsule(el.value, caret, e.key, this.ranges())
-        : e.key.length === 1 && e.key !== ' '
-          ? typeBesideCapsule(el.value, caret, e.key, this.ranges())
-          : null;
+    const text = el.value;
+    const typed = e.key.length === 1 && e.key !== ' ';
+    const edit =
+      e.key === 'Backspace'
+        ? (unmarkBefore(text, caret) ?? deleteCapsule(text, caret, e.key, this.ranges()))
+        : e.key === 'Delete'
+          ? deleteCapsule(text, caret, e.key, this.ranges())
+          : typed
+            ? typeBesideCapsule(text, caret, e.key, this.ranges())
+            : null;
     if (!edit) return false;
     e.preventDefault();
     this.setValue(edit.text, edit.caret);
-    this.onInput();
+    this.onInput(typed, true);
     return true;
   }
 
-  /** The closed :field:value token that ends right at the caret. */
-  private closedFieldBefore(text: string, caret: number) {
-    const t = caret > 0 && text[caret - 1] === END ? fieldTokenAt(text, caret - 1) : undefined;
-    return t?.closed && t.end === caret ? t : undefined;
-  }
-
-  /** Deletes the value's last character (keeping the token closed); an emptied value takes the whole token with it. */
-  private backspaceField(text: string, t: { start: number; end: number }) {
-    const value = /^\u2063:[^:]*:([\s\S]*)\u2064$/.exec(text.slice(t.start, t.end));
-    if (!value || value[1].length <= 1) return { text: text.slice(0, t.start) + text.slice(t.end), caret: t.start };
-    return { text: text.slice(0, t.end - 2) + text.slice(t.end - 1), caret: t.end - 1 };
-  }
-
-  /**
-   * ← at the end of a word: marks an operator word or the @ / : / # being typed (until then they are plain text), or
-   * picks the highlighted suggestion. Elsewhere it moves the caret as usual.
-   */
-  private arrowKey(e: KeyboardEvent): boolean {
-    const el = this.input().nativeElement;
-    const caret = el.selectionStart ?? 0;
-    if (e.key !== 'ArrowLeft' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || caret !== el.selectionEnd || this.dismissed()) return false;
-    const text = el.value;
-    const ctx = this.context();
-    const mark = (at: number) => {
-      e.preventDefault();
-      this.setValue(text.slice(0, at) + MARK + text.slice(at), caret + 1);
-      this.onInput();
-      return true;
-    };
-    // Inside a :field:value, ← marks an operator word there, or leaves it: picks the highlighted value, or closes what was typed.
-    if (ctx?.marked && (ctx.kind === 'field' || ctx.kind === 'value')) {
-      const op = ctx.kind === 'value' ? operatorWordAt(text, caret, ctx.segment!.start) : null;
-      if (op) return mark(op.start);
-      e.preventDefault();
-      const list = this.suggestions();
-      if (list.length && ctx.query.trim()) this.pick(list[Math.min(this.active(), list.length - 1)]);
-      else if (ctx.kind === 'value' && ctx.query.trim()) this.closeField(text, ctx);
-      return true;
-    }
-    if (caret < text.length && !/\s/.test(text[caret])) return false;
-    if (ctx?.blocked) return false;
-    if (ctx && !ctx.marked) return mark(ctx.start);
-    if (ctx) {
-      // Marked already: ← picks what's highlighted once something is typed (an empty value just opens its list).
-      e.preventDefault();
-      const list = this.suggestions();
-      if (list.length && ctx.query) this.pick(list[Math.min(this.active(), list.length - 1)]);
-      return true;
-    }
-    const op = operatorWordAt(text, caret);
-    return op ? mark(op.start) : false;
-  }
-
-  /** Ends the :field:value at the caret (or after its END when already closed) and moves on past a space. */
-  private closeField(text: string, ctx: { end: number; closed?: boolean }) {
-    const at = ctx.end;
-    const head = text.slice(0, at) + (ctx.closed ? '' : END);
-    const rest = text.slice(at);
-    const next = head + ' ' + rest.replace(/^ /, '');
-    this.setValue(next, head.length + 1);
-    this.onInput();
-  }
-
   onKey(e: KeyboardEvent) {
-    if (this.capsuleKey(e) || this.arrowKey(e)) return;
+    if (this.editKey(e)) return;
     const list = this.suggestions();
     const open = !!this.live();
     if (e.key === 'Escape') {
@@ -481,9 +404,9 @@ export class SummarySearchComponent {
     const ctx = this.live();
     if (!ctx) return;
     if (s.kind === 'saved') return this.runSaved(s.saved);
-    // A value replaces only the part being typed (after the value's last "phrase" / operator); the last part closes the field.
+    // A picked value replaces what was typed, `_` for its spaces (a space ends the field).
     const seg = ctx.kind === 'value' ? ctx.segment! : undefined;
-    const value = (v: string) => v.trim() + (seg!.last ? END : '');
+    const value = (v: string) => v.trim().replace(/\s+/g, '_');
     const token =
       s.kind === 'user'
         ? ctx.kind === 'value'
@@ -506,7 +429,7 @@ export class SummarySearchComponent {
     el.value = next.text;
     el.focus();
     el.setSelectionRange(next.caret, next.caret);
-    this.onInput();
+    this.onInput(false, true);
   }
 
   /** A picked $saved search replaces the whole search with it (its own sort, if it has one). */

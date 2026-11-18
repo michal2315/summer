@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { boolean, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import type { UserPreferences } from '../../common/preferences';
 import { createdAt, id, updatedAt } from './columns';
 
 /** One row per verified identity. Groups are NOT stored here: they are resolved from the identity provider per request. */
@@ -25,6 +26,8 @@ export const users = pgTable(
      * notifications for other users; every read re-authorizes with fresh groups.
      */
     lastGroupKeys: text().array().notNull().default(sql`'{}'::text[]`),
+    /** Personal preferences (see common/preferences.ts); missing keys mean the default. */
+    preferences: jsonb().$type<UserPreferences>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

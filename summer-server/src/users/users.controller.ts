@@ -35,12 +35,18 @@ export class UsersController {
 
   @Get('query/:prefix')
   query(@Param('prefix') prefix: string): Promise<UserRef[]> {
-    return this.repo.search(prefix.slice(0, 100), true);
+    return this.repo.search(prefix.slice(0, 100), 'prefix');
   }
 
   @Get('name/:text')
   byName(@Param('text') text: string): Promise<UserRef[]> {
-    return this.repo.search(text.slice(0, 100), false);
+    return this.repo.search(text.slice(0, 100), 'contains');
+  }
+
+  /** `{ key: value }` (any subset) → the updated IUser. */
+  @Put('preferences')
+  setPreferences(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiUser> {
+    return this.users.setPreferences(me, body);
   }
 
   @Post('pinned-label')

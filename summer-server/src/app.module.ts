@@ -16,6 +16,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { QueriesModule } from './queries/queries.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { SummariesModule } from './summaries/summaries.module';
+import { UserGroupsModule } from './user-groups/user-groups.module';
 import { UsersModule } from './users/users.module';
 import { WhatsNewModule } from './whats-new/whats-new.module';
 
@@ -35,6 +36,7 @@ import { WhatsNewModule } from './whats-new/whats-new.module';
     FoldersModule,
     NotificationsModule,
     QueriesModule,
+    UserGroupsModule,
     WhatsNewModule,
     ExtensionModule,
   ],

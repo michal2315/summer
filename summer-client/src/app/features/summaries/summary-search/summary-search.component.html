@@ -13,19 +13,18 @@
       <!-- The input's own text is transparent; this mirror draws the same text with operators, @users, :fields and #capsules colored. -->
       <div class="field">
         <div class="mirror" #mirror aria-hidden="true">
-          @for (s of segments(); track $index) {
-            @if (s.kind === 'capsule') {
-              <!-- Underscores stay (same width as the input) but are invisible, so the name reads with spaces. -->
-              <!-- prettier-ignore -->
-              <span class="tok tok-capsule">@for (part of s.text.split('_'); track $index; let first = $first) {@if (!first) {<span class="us">_</span>}{{ part }}}</span>
-            } @else if (s.parts) {
-              <!-- A :field:value with "phrases" / operators inside: they are marked within the field's pill. -->
-              <!-- prettier-ignore -->
-              <span class="tok tok-field">@for (p of s.parts; track $index) {<span [class]="p.kind ? 'tok tok-' + p.kind : null">{{ p.text }}</span>}</span>
-            } @else {
-              <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
+          <!-- One line of inline spans, so the bidi order (English inside Hebrew) comes out as the input's own text. -->
+          <span class="mirror-line">
+            @for (s of segments(); track $index) {
+              @if (s.kind === 'capsule' || s.kind === 'field') {
+                <!-- Underscores stay (same width as the input) but are invisible, so the name / value reads with spaces. -->
+                <!-- prettier-ignore -->
+                <span [class]="'tok tok-' + s.kind">@for (part of s.text.split('_'); track $index; let first = $first) {@if (!first) {<span class="us">_</span>}{{ part }}}</span>
+              } @else {
+                <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
+              }
             }
-          }
+          </span>
         </div>
         <input
           #searchInput
@@ -33,7 +32,7 @@
           class="input"
           [value]="text()"
           [placeholder]="placeholder()"
-          (input)="onInput()"
+          (input)="onInput($any($event).inputType === 'insertText')"
           (keydown)="onKey($event)"
           (keyup)="syncCaret()"
           (click)="syncCaret()"
@@ -135,11 +134,8 @@
               <div class="empty">{{ live()?.query ? 'לא נמצאו משתמשים' : 'הקלידו שם משתמש' }}</div>
             }
           }
-          @case ('hint') {
-            <div class="arrow-hint"><span class="kbd-key">←</span> {{ arrowHint() }} · בלי ← זה טקסט רגיל</div>
-          }
           @case ('blocked') {
-            <div class="arrow-hint"><span class="sigil tok-saved">$</span> חיפוש שמור מחליף את כל החיפוש, ולכן אפשר להשתמש בו רק לבד בתיבה · כאן זה טקסט רגיל</div>
+            <div class="blocked-hint"><span class="sigil tok-saved">$</span> חיפוש שמור מחליף את כל החיפוש, ולכן אפשר להשתמש בו רק לבד בתיבה · כאן זה טקסט רגיל</div>
           }
           @case ('field') {
             <div class="popup-title"><span class="sigil tok-field">:</span> חיפוש בשדה</div>
@@ -180,7 +176,7 @@
               <div class="empty">
                 @switch (live()?.field?.values) {
                   @case ('text') {
-                    הקלידו טקסט לחיפוש ב{{ live()?.field?.label }} (גם עם רווחים, "מירכאות" ו־וגם / או / לא ואז ←) · ← לסיום · Enter לחיפוש
+                    הקלידו טקסט לחיפוש ב{{ live()?.field?.label }} (_ במקום רווח, או "מירכאות" להתאמה מדויקת) · רווח לסיום · Enter לחיפוש
                   }
                   @case ('users') {
                     {{ live()?.query ? 'לא נמצאו משתמשים' : 'הקלידו שם משתמש' }}
@@ -257,7 +253,7 @@
           }
           @case ('home') {
             @if (saved().length) {
-              <div class="popup-title"><span nz-icon nzType="save"></span> חיפושים שמורים <span class="popup-title-hint">· גם $ ואז ←</span></div>
+              <div class="popup-title"><span nz-icon nzType="save"></span> חיפושים שמורים <span class="popup-title-hint">· גם $</span></div>
               <div class="chips">
                 @for (p of saved(); track p._id) {
                   <nz-tag class="chip" nzMode="closeable" (click)="runSaved(p)" (nzOnClose)="unsave(p, $event)" [nz-tooltip]="kindLabel[p.kind]">
@@ -290,12 +286,7 @@
         <div class="cheat">
           <span class="cheat-example" dir="auto">
             @for (s of segmentsOf(c.example); track $index) {
-              @if (s.parts) {
-                <!-- prettier-ignore -->
-                <span class="tok tok-field">@for (p of s.parts; track $index) {<span [class]="p.kind ? 'tok tok-' + p.kind : null">{{ p.text }}</span>}</span>
-              } @else {
-                <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
-              }
+              <span [class]="s.kind ? 'tok tok-' + s.kind : null">{{ s.text }}</span>
             }
           </span>
           <span class="cheat-hint">{{ c.hint }}</span>
@@ -330,5 +321,6 @@
 
   @if (showBell()) {
     <app-notification-bell />
+    <app-preferences-button />
   }
 </div>

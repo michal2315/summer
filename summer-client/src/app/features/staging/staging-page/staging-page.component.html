@@ -1,0 +1,193 @@
+<div class="page">
+  <!-- Title, what this page is for, and how much is left. -->
+  <div class="top">
+    <div class="title-row">
+      <div class="page-title" role="heading" aria-level="1"><span nz-icon nzType="partition"></span> מיון לקטים מ-Summer הישן</div>
+      <span class="spacer"></span>
+      @if (overview()?.demo) {
+        <button nz-button nzSize="small" type="button" (click)="resetDemo()" nz-tooltip="לסביבת פיתוח בלבד: מחזיר את הלקטים לדוגמה להתחלה">
+          <span nz-icon nzType="reload"></span> איפוס הדמו
+        </button>
+      }
+      <a nz-button nzType="link" nzSize="small" routerLink="/summaries">חזרה לתמציות <span nz-icon nzType="left"></span></a>
+    </div>
+    <div class="intro">
+      כל לקט מ-Summer הישן הגיע כתיקייה. העבירו את התמציות שבו לתיקיות החדשות (בחירה ואז "העברה", או גרירה אל העץ), או לקט שלם כמו שהוא.
+      המיון משותף: מה שמנהל/ת אחד/ת מעביר/ה, זז לכולם. כאן מופיעים רק לקטים שאתם מנהלים.
+    </div>
+    @if (overview()) {
+      @let p = progress();
+      @if (p.total) {
+        <!-- A summer day: sunrise when sorting starts, sunset when it's done. -->
+        <app-sun-progress [total]="p.total" [left]="p.left" [collections]="p.collections" [collectionsDone]="p.done" />
+      }
+    }
+  </div>
+
+  @if (!overview()) {
+    <app-skeleton class="loader" variant="tree" [count]="6" />
+  } @else if (!progress().collections) {
+    <div class="empty-state">
+      <span class="empty-icon" nz-icon nzType="smile"></span>
+      <div class="empty-title" role="heading" aria-level="2">אין לקטים למיין</div>
+      <div class="muted">אין לקטים מ-Summer הישן שאתם מנהלים.</div>
+    </div>
+  } @else {
+    <div class="columns">
+      <!-- RTL: the collections come first (right), the tree beside them (left). -->
+      <div class="col collections-col" role="region" aria-label="לקטים מ-Summer הישן">
+        <div class="collections-scroll">
+          @if (!collections().length) {
+            <div class="empty-state small">
+              <span class="empty-icon" nz-icon nzType="trophy"></span>
+              <div class="empty-title" role="heading" aria-level="2">סיימתם! כל הלקטים שלכם מוינו 🎉</div>
+              <div class="muted">אפשר לחזור לכאן בכל זמן, אבל אין כאן יותר מה לעשות.</div>
+            </div>
+          }
+          @for (c of collections(); track c.folder._id) {
+            @let id = c.folder._id;
+            @let open = expanded().has(id);
+            @let list = items().get(id);
+            @let visibleLeft = c.left - c.folder.hiddenCount;
+            <div class="collection" [class.open]="open" [class.done]="c.left === 0">
+              <div class="collection-head" draggable="true" (dragstart)="onCollectionDragStart($event, c)" (dragend)="endDrag()">
+                <button type="button" class="twisty" (click)="toggle(id)" [attr.aria-expanded]="open" [attr.aria-label]="(open ? 'כיווץ ' : 'פתיחת ') + c.folder.name">
+                  <span nz-icon [nzType]="open ? 'down' : 'left'"></span>
+                </button>
+                @if (open && list?.length) {
+                  <label nz-checkbox [nzChecked]="allPicked(id)" [nzIndeterminate]="somePicked(id)" (nzCheckedChange)="pickAll(id, $event)" [attr.aria-label]="'בחירת כל התמציות ב' + c.folder.name"></label>
+                }
+                <button type="button" class="collection-name" (click)="toggle(id)">
+                  <span class="icon" nz-icon [nzType]="open ? 'folder-open' : 'folder'"></span>
+                  <span class="name">{{ c.folder.name }}</span>
+                </button>
+                <div class="mini" [nz-tooltip]="sortedOf(c) + ' מתוך ' + c.total + ' מוינו'">
+                  <div class="mini-bar"><div class="mini-fill" [style.width.%]="collectionPercent(c)"></div></div>
+                  <span class="mini-text">{{ c.left === 0 ? 'ריק' : 'נותרו ' + c.left }}</span>
+                </div>
+                @if (c.left === 0) {
+                  <button nz-button nzType="primary" nzDanger nzSize="small" type="button" (click)="deleteCollection(c)">מחיקה</button>
+                } @else {
+                  <button nz-button nzSize="small" type="button" [disabled]="busy()" (click)="keepAsIs(c)" nz-tooltip="הלקט יהפוך לתיקייה רגילה ברמה העליונה, עם כל מה שבו">
+                    להשאיר כמו שהוא
+                  </button>
+                }
+                <button nz-button nzType="text" nzSize="small" type="button" nz-dropdown [nzDropdownMenu]="menu" nzTrigger="click" aria-label="עוד פעולות על הלקט">
+                  <span nz-icon nzType="more"></span>
+                </button>
+                <nz-dropdown-menu #menu="nzDropdownMenu">
+                  <ul nz-menu>
+                    <li nz-menu-item [nzDisabled]="!targetFolder()" (click)="moveCollection(c)">
+                      <span nz-icon nzType="folder-add"></span>
+                      {{ targetFolder() ? 'כתיקיית משנה של "' + targetFolder()!.name + '"' : 'כתיקיית משנה (בחרו יעד בעץ)' }}
+                    </li>
+                    <li nz-menu-item [nzDisabled]="!targetFolder() || !visibleLeft" (click)="mergeCollection(c)">
+                      <span nz-icon nzType="merge-cells"></span>
+                      {{ targetFolder() ? 'כל התמציות אל "' + targetFolder()!.name + '"' : 'כל התמציות אל היעד (בחרו יעד בעץ)' }}
+                    </li>
+                    <li nz-menu-item [nzDisabled]="!visibleLeft" (click)="pickCollection(c)"><span nz-icon nzType="check-square"></span> בחירת כל התמציות</li>
+                    @if (alreadySorted(id).length) {
+                      <li nz-menu-item (click)="releaseSorted(c)">
+                        <span nz-icon nzType="check-circle"></span> הוצאת {{ alreadySorted(id).length }} שכבר בתיקיות
+                      </li>
+                    }
+                    <li nz-menu-divider></li>
+                    <li nz-menu-item nzDanger (click)="deleteCollection(c)"><span nz-icon nzType="delete"></span> מחיקת הלקט</li>
+                  </ul>
+                </nz-dropdown-menu>
+              </div>
+
+              @if (open) {
+                <div class="collection-body">
+                  @if (!list) {
+                    <app-skeleton variant="tree" [count]="3" />
+                  } @else {
+                    @if (list.length > FILTER_FROM) {
+                      <div class="filter">
+                        <span nz-icon nzType="search" aria-hidden="true"></span>
+                        <input type="search" placeholder="סינון לפי שם" [attr.aria-label]="'סינון התמציות ב' + c.folder.name" [value]="filterOf(id)" (input)="setFilter(id, $any($event.target).value)" />
+                      </div>
+                    }
+                    @if (alreadySorted(id).length; as n) {
+                      <div class="sorted-strip">
+                        <span nz-icon nzType="info-circle"></span>
+                        <span class="strip-text">{{ n === 1 ? 'תמצית אחת כאן כבר נמצאת' : n + ' תמציות כאן כבר נמצאות' }} בתיקיות החדשות.</span>
+                        <button nz-button nzType="link" nzSize="small" type="button" [disabled]="busy()" (click)="releaseSorted(c)">סיום כאן לכולן</button>
+                      </div>
+                    }
+                    <ul class="items">
+                      @for (item of shown(id); track item._id) {
+                        @let picked = isPicked(id, item._id);
+                        <li class="item" [class.picked]="picked" [class.sorted]="item.alsoIn.length" draggable="true" (dragstart)="onItemDragStart($event, id, item)" (dragend)="endDrag()">
+                          <label nz-checkbox [nzChecked]="picked" (nzCheckedChange)="pick(id, item._id, $event)" [attr.aria-label]="'בחירת ' + item.name"></label>
+                          <span class="item-icon" [class.running]="item.kind === 'running'" nz-icon [nzType]="itemIcon(item)"></span>
+                          <div class="item-text">
+                            <a class="item-name" [routerLink]="['/summaries']" [queryParams]="{ folderId: id, summaryId: item.kind === 'running' ? null : item._id, runningId: item.kind === 'running' ? item._id : null }" target="_blank">{{ item.name }}</a>
+                            @if (item.alsoIn.length) {
+                              <div class="hint moved">
+                                <span nz-icon nzType="check-circle"></span> כבר הועברה אל {{ names(item.alsoIn) }}
+                              </div>
+                            }
+                            @if (item.alsoLegacy.length) {
+                              <div class="hint waiting">
+                                <span nz-icon nzType="copy"></span> ממתינה גם ב{{ names(item.alsoLegacy) }}
+                              </div>
+                            }
+                          </div>
+                          @if (item.alsoIn.length) {
+                            <button nz-button nzType="link" nzSize="small" type="button" [disabled]="busy()" (click)="releaseOne(id, item)" nz-tooltip="היא כבר בתיקייה חדשה: רק להוציא אותה מהלקט">
+                              סיום כאן
+                            </button>
+                          }
+                        </li>
+                      } @empty {
+                        @if (list.length) {
+                          <li class="none">אין תמציות בשם הזה</li>
+                        }
+                      }
+                    </ul>
+                    @if (c.folder.hiddenCount) {
+                      <div class="hidden-note">
+                        <span nz-icon nzType="lock"></span>
+                        עוד {{ c.folder.hiddenCount }} תמציות בלקט מוסתרות ממך (חסרות לך הרשאות). מנהל/ת אחר/ת יכול/ה למיין אותן, או "להשאיר כמו שהוא" כדי שיעברו עם הלקט.
+                      </div>
+                    }
+                    @if (c.left === 0) {
+                      <div class="none">הלקט ריק. אפשר למחוק אותו.</div>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="col tree-col" role="region" aria-label="התיקיות החדשות">
+        <div class="tree-title" role="heading" aria-level="2"><span nz-icon nzType="apartment"></span> התיקיות החדשות</div>
+        @if (selectedCount(); as n) {
+          <div class="tree-hint picked-hint">
+            <span class="picked-text">{{ n === 1 ? 'נבחרה תמצית אחת' : 'נבחרו ' + n + ' תמציות' }}. לחצו על תיקייה כדי להעביר לשם.</span>
+            <button nz-button nzType="link" nzSize="small" type="button" (click)="clearSelection()">ניקוי</button>
+          </div>
+        } @else {
+          <div class="muted tree-hint">בחרו תמציות מהלקטים ואז לחצו על תיקייה, או גררו אליה תמציות ולקטים.</div>
+        }
+        <app-staging-tree
+          class="tree"
+          [(target)]="target"
+          [pending]="selectedCount()"
+          [dragging]="drag()?.kind ?? null"
+          [landed]="landed()"
+          (chosen)="onChosen($event)"
+          (dropped)="onDropped($event)"
+        />
+      </div>
+    </div>
+  }
+</div>
+
+<!-- The "moved" toast (with its undo), floating at the bottom of the page like the side-nav tree's. -->
+@if (toast(); as t) {
+  <app-undo-toast [toast]="t" (undo)="undo()" (closed)="toast.set(null)" />
+}

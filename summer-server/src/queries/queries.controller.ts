@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
 import { ApiQuery } from '../common/api-types';
@@ -6,8 +6,8 @@ import { IdPipe } from '../common/validation';
 import { QueriesService } from './queries.service';
 
 /**
- * The caller's queries (saved searches) and their alerts.
- * GET/POST /queries · PUT/DELETE /queries/:id · PUT/DELETE /queries/:id/alert
+ * Queries (saved searches) and the caller's alerts on them.
+ * GET/POST /queries · GET /queries/shared · POST /queries/:id/copy · PUT/DELETE /queries/:id · PUT/DELETE /queries/:id/alert
  */
 @Controller('queries')
 export class QueriesController {
@@ -18,9 +18,19 @@ export class QueriesController {
     return this.queries.list(me);
   }
 
+  @Get('shared')
+  shared(@Me() me: CurrentUser, @Query() query: unknown): Promise<ApiQuery[]> {
+    return this.queries.shared(me, query);
+  }
+
   @Post()
   create(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiQuery> {
     return this.queries.create(me, body);
+  }
+
+  @Post(':id/copy')
+  copy(@Me() me: CurrentUser, @Param('id', IdPipe) id: string, @Body() body: unknown): Promise<ApiQuery> {
+    return this.queries.copy(me, id, body);
   }
 
   @Put(':id')

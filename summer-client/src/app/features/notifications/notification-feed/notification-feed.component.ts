@@ -79,7 +79,7 @@ export class NotificationFeedComponent {
 
   /** Per query: what its alerts highlight in the summary (its search), and why it matched (in words). */
   readonly queryInfo = computed(
-    () => new Map(this.queries.queries().map((q) => [q._id, { highlight: q.search, why: describeSearch(q.search) }])),
+    () => new Map(this.queries.all().map((q) => [q._id, { highlight: q.search, why: describeSearch(q.search) }])),
   );
 
   constructor() {
@@ -92,7 +92,7 @@ export class NotificationFeedComponent {
     });
     // Queries with capsules highlight the capsules' words, so the capsules must be known.
     effect(() => {
-      const ids = this.queries.queries().flatMap((q) => treeCapsuleIds(q.search.query));
+      const ids = this.queries.all().flatMap((q) => treeCapsuleIds(q.search.query));
       if (ids.length) untracked(() => this.capsules.ensure({ ids }));
     });
     inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());

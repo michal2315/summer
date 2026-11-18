@@ -353,6 +353,50 @@ $type-row-height: 86px;
   color: $white;
   font-size: 13px;
 }
+// A saved user group (picking it tags all its members).
+.group-icon.user-group {
+  background: $accent;
+}
+.opt-count {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: $gray;
+  background: $gray-tag;
+}
+// The tag field with its "save as a user group" button at the end.
+.tag-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  nz-select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+.save-tags-btn {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-sm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  color: $white;
+  background: $primary-pink;
+  &:hover,
+  &:focus-visible {
+    filter: brightness(0.92);
+  }
+}
+.opt-username {
+  font-size: 12px;
+  color: $gray;
+  direction: ltr;
+}
 // The selected tag says whether it's a user or a group.
 .tag-kind {
   flex-shrink: 0;

@@ -39,6 +39,16 @@ export interface IUser {
   pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
+  /** Missing keys mean the default (PreferencesService). */
+  preferences?: UserPreferences;
+}
+
+/** Personal preferences, set in the preferences dialog. Every key is optional; PreferencesService has the defaults. */
+export interface UserPreferences {
+  /** Moving to another folder: keep the current search there, or start without one. */
+  folderSearch?: 'keep' | 'reset';
+  /** Times shown as "3 hours ago", or as the date and hour. */
+  dates?: 'relative' | 'exact';
 }
 
 /** How a query is edited: the search box text only (simple), or with the condition builder too (advanced). */
@@ -62,9 +72,17 @@ export interface IQuery {
   name: string;
   kind: QueryKind;
   search: ISummarySearch;
+  /** The owner's own flag (false on others' queries). */
   isFavorite: boolean;
+  /** Others can find, run, copy and alert on it. */
+  isShared: boolean;
+  isMine: boolean;
+  owner: UserRef;
+  /** How many people other than the owner alert on it. */
+  followers: number;
   creationDate: string;
   updateDate: string;
+  /** The current user's alert on it. */
   alert: IQueryAlert | null;
 }
 
@@ -72,6 +90,26 @@ export interface IQuery {
 export type QueryAlertSettings = Pick<IQueryAlert, 'isActive' | 'isMail' | 'isDigest'>;
 
 export type UserRef = Pick<IUser, '_id' | 'username' | 'fullName' | 'department' | 'isSystem'>;
+
+/** A user group: users and permission groups tagged together. Picking it in a tag field tags all of them. */
+export interface IUserGroup {
+  _id: string;
+  name: string;
+  /** Active users only, in the order they were added. */
+  users: UserRef[];
+  /** Permission (group) ids. */
+  permissions: string[];
+  /** The owner's own flag (false on others' groups). */
+  isFavorite: boolean;
+  /** Others can find, use and copy it. */
+  isShared: boolean;
+  isMine: boolean;
+  owner: UserRef;
+  creationDate: string;
+  updateDate: string;
+}
+
+export type UserGroupPayload = Pick<IUserGroup, 'name' | 'isFavorite' | 'isShared'> & { users: string[]; permissions: string[] };
 
 export enum FieldsType {
   String = 'string',
@@ -354,9 +392,50 @@ export interface IFolder {
   permissions: IPermission[];
   /** user ids */
   managers: string[];
+  /** The legacy root (collections from the old Summer), a collection in it, or neither. Nothing can be added to either. */
+  legacy: 'root' | 'collection' | null;
   createdBy: UserRef;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A collection from the old Summer, waiting in the legacy root (GET /legacy). */
+export interface ILegacyCollection {
+  folder: IFolder;
+  /** placements when it was imported */
+  total: number;
+  /** placements still in it, including folder.hiddenCount the user cannot see */
+  left: number;
+}
+
+export interface ILegacyOverview {
+  /** null: nothing was imported */
+  rootId: string | null;
+  /** dev only: the staging page may offer "reset the demo" */
+  demo?: boolean;
+  /** collections still waiting that the user manages */
+  collections: ILegacyCollection[];
+  /** over every collection the user manages or managed, including ones already moved out or deleted */
+  progress: { total: number; left: number; collections: number; done: number };
+}
+
+export interface ILegacyItem extends IFolderItem {
+  /** folders outside the legacy root it is already in */
+  alsoIn: { _id: string; name: string }[];
+  /** other legacy collections it also waits in */
+  alsoLegacy: { _id: string; name: string }[];
+}
+
+export interface ILegacyResult {
+  applied: string[];
+  /** placements left in the collection */
+  left: number;
+}
+
+export interface ILegacyMoveResult extends IBulkResult {
+  /** of applied, the ones that were not in the target before */
+  added: string[];
+  left: number;
 }
 
 /** A summary placed in a folder (each sits in at most one; sumaroons never do). */

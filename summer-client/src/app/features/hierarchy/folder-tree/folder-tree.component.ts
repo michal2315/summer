@@ -1,13 +1,13 @@
-import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, output, signal, untracked } from '@angular/core';
+import { Location, NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, output, signal, untracked, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Params, Router, RouterLink } from '@angular/router';
-import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
+import { NzContextMenuService, NzDropDownModule, NzDropdownMenuComponent } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
-import { filter, map } from 'rxjs';
+import { filter, map, Observable, of, switchMap, tap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { ScrollRailComponent } from '../../../shared/components/scroll-rail/scroll-rail.component';
@@ -19,16 +19,23 @@ import type { AddToFolderData } from '../add-to-folder-modal/add-to-folder-modal
 import type { FolderEditorData } from '../folder-editor-modal/folder-editor-modal.component';
 import { FolderTreeStore, NO_FOLDER } from '../folder-tree.store';
 import { searchParamsOf } from '../../summaries/search-query';
+import { PreferencesService } from '../../../core/preferences/preferences.service';
 
 /** A folder's summaries render this many at a time as the tree scrolls. */
 const ITEMS_PAGE = 50;
-/** Hovering a collapsed folder this long while dragging opens it. */
+/** Hovering a collapsed folder this long while dragging a card opens it. */
 const DRAG_EXPAND_MS = 700;
-/** Drag mode (moving folders and summaries by dragging) is switched off for now: its button is hidden. */
-const DRAG_ENABLED = false;
+/** How long the "moved" toast (with its undo) stays. */
+const UNDO_MS = 6000;
+/** How long the "undone" toast stays. */
+const UNDONE_MS = 2500;
+/** How long a row that just moved stays highlighted. */
+const LANDED_MS = 1200;
 
-/** What is being dragged: a folder, or a summary together with the folder it is in (null = no folder). */
-type Dragged = { type: 'folder'; folder: IFolder } | { type: 'summary'; item: IFolderItem; from: string | null };
+/** What is being moved: a folder, or a summary together with the folder it is in (null = no folder). */
+type Moving = { type: 'folder'; folder: IFolder } | { type: 'summary'; item: IFolderItem; from: string | null };
+/** The tree's toast; `undo` puts a move back. */
+type Toast = { text: string; undo?: () => Observable<unknown> };
 
 /**
  * The folder tree in the side nav. Its rows link to the home page (/summaries) with the selection in the query params;
@@ -40,7 +47,7 @@ type Dragged = { type: 'folder'; folder: IFolder } | { type: 'summary'; item: IF
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './folder-tree.component.html',
   styleUrl: './folder-tree.component.scss',
-  host: { '(click)': 'onClick($event)' },
+  host: { '(click)': 'onClick($event)', '(document:keydown.escape)': 'cancelMove()' },
 })
 export class FolderTreeComponent {
   private readonly service = inject(FolderService);
@@ -48,9 +55,12 @@ export class FolderTreeComponent {
   private readonly router = inject(Router);
   private readonly modal = inject(NzModalService);
   private readonly message = inject(NzMessageService);
+  private readonly contextMenu = inject(NzContextMenuService);
+  private readonly location = inject(Location);
+  private readonly host = inject(ElementRef);
   readonly store = inject(FolderTreeStore);
+  private readonly prefs = inject(PreferencesService);
   readonly NO_FOLDER = NO_FOLDER;
-  readonly DRAG_ENABLED = DRAG_ENABLED;
   /** A link in the tree was followed (the layout closes the overlaid nav on narrow screens). */
   readonly navigate = output<void>();
 
@@ -69,9 +79,14 @@ export class FolderTreeComponent {
   /** The home page's search, kept when moving to another folder. */
   private readonly searchParams = computed(() => searchParamsOf(this.params()));
 
-  /** Query params for a link from the tree: `p` plus the current search. */
+  /**
+   * Query params for a link from the tree: `p` plus the current search. Moving to another folder drops the search when
+   * the user prefers that (preferences); staying in the folder (e.g. opening one of its summaries) always keeps it.
+   */
   withSearch(p: Params = {}): Params {
-    return { ...this.searchParams(), ...p };
+    const sameFolder = (p['folderId'] ?? null) === this.folderId();
+    const keep = sameFolder || this.prefs.keepSearchAcrossFolders();
+    return { ...(keep ? this.searchParams() : {}), ...p };
   }
 
   readonly expanded = signal(new Set<string>());
@@ -94,10 +109,23 @@ export class FolderTreeComponent {
     return show;
   });
 
-  // ---- drag mode: move folders and summaries by dragging them onto a folder, the root or "no folder" ----
-  readonly dragMode = signal(false);
-  readonly dragging = signal<Dragged | null>(null);
-  /** Folder id, 'root' or NO_FOLDER currently under the pointer as a valid drop target. */
+  // ---- moving (see "moving" below) ----
+  /** The folder or summary picked up to move; while set, clicking a row puts it there instead of opening it. */
+  readonly moving = signal<Moving | null>(null);
+  /** The row that just landed somewhere (briefly highlighted). */
+  readonly landed = signal<string | null>(null);
+  private landTimer?: ReturnType<typeof setTimeout>;
+  /** The toast on screen ("moved x to y" with its undo, or "undone"), and where it sits (over the side nav's top). */
+  readonly toast = signal<Toast | null>(null);
+  readonly toastBox = signal({ top: 0, left: 0, width: 0 });
+  private toastTimer?: ReturnType<typeof setTimeout>;
+  private toastMs = UNDO_MS;
+  /** The row the right-click menu is open for. */
+  readonly menuFor = signal<Moving | null>(null);
+  private readonly rowMenu = viewChild.required<NzDropdownMenuComponent>('rowMenu');
+
+  // ---- a summary card dragged from the feed onto a folder ----
+  /** Folder id currently under the pointer as a valid drop target. */
   readonly dropTarget = signal<string | null>(null);
   private hoverTimer?: ReturnType<typeof setTimeout>;
   private hoverId: string | null = null;
@@ -130,7 +158,8 @@ export class FolderTreeComponent {
 
   /** The folders under `parent` (null = root) to show: all of them, or while searching only the ones leading to matches. */
   childFolders(parent: string | null): IFolder[] {
-    const list = this.store.children().get(parent) ?? [];
+    // The legacy root shows only while it holds collections you can see.
+    const list = (this.store.children().get(parent) ?? []).filter((f) => f.legacy !== 'root' || !!this.store.children().get(f._id)?.length);
     const visible = this.visible();
     return visible ? list.filter((f) => visible.has(f._id)) : list;
   }
@@ -211,36 +240,34 @@ export class FolderTreeComponent {
     this.expanded.set(new Set());
   }
 
-  // ---- drag mode ----
-  toggleDragMode() {
-    this.dragMode.update((on) => !on);
-    this.endDrag();
-  }
-
-  /** Only a folder's managers may move it, and taking it out of its parent needs that parent's managers too. */
+  // ---- moving: pick a folder or summary up from its right-click menu, then click where it goes ----
+  /**
+   * Only a folder's managers may move it, and taking it out of its parent needs that parent's managers too. The legacy
+   * collections move on the staging page (where moving one out can be undone).
+   */
   canMove(f: IFolder): boolean {
     const parent = f.parentId ? this.store.byId().get(f.parentId) : null;
-    return this.isManager(f) && (!parent || this.isManager(parent));
+    return this.isManager(f) && !f.legacy && (!parent || this.isManager(parent));
   }
 
   /**
-   * Only your own summaries can be dragged in the tree (always, not just in drag mode), and taking one out of its
-   * folder needs that folder's managers.
+   * Only your own summaries can be moved in the tree, and taking one out of its folder needs that folder's managers.
+   * Summaries in a legacy collection are sorted on the staging page instead.
    */
   canMoveSummary(item: IFolderItem, from: string | null): boolean {
     const folder = from ? this.store.byId().get(from) : null;
-    return item.mine && (!from || (!!folder && this.isManager(folder)));
+    return item.mine && (!from || (!!folder && this.canAddTo(folder)));
   }
 
-  /** The current drag being the dragged summary row (for the dimmed look). */
-  isDraggingItem(id: string) {
-    const d = this.dragging();
-    return d?.type === 'summary' && d.item._id === id;
+  /** A folder you manage that things can be added to (not the legacy root or a collection in it). */
+  canAddTo(f: IFolder): boolean {
+    return this.isManager(f) && !f.legacy;
   }
 
-  isDraggingFolder(id: string) {
-    const d = this.dragging();
-    return d?.type === 'folder' && d.folder._id === id;
+  /** The row is the one picked up (lifted). A summary row is the lifted one only in the folder it was picked from. */
+  isLifted(id: string, from?: string | null) {
+    const m = this.moving();
+    return m?.type === 'folder' ? m.folder._id === id && from === undefined : m?.type === 'summary' && m.item._id === id && m.from === from;
   }
 
   /** `id` is the folder `ancestorId` or one of its subfolders. */
@@ -251,46 +278,180 @@ export class FolderTreeComponent {
   }
 
   /**
-   * Where the drag may land (target: a folder id, null = root, NO_FOLDER). A folder goes into a folder you manage (not
-   * itself, its subtree or its current parent) or the root. A summary goes into another folder you manage, or out of
-   * its folder by dropping it on the root or "no folder".
+   * Where the picked-up row may go (target: a folder id, null = root, NO_FOLDER). A folder goes into a folder you
+   * manage (not itself, its subtree or its current parent) or the root. A summary goes into another folder you manage,
+   * or out of its folder via the root or "no folder".
    */
-  private canDrop(target: string | null): boolean {
-    const d = this.dragging();
-    if (!d) return false;
+  canPlace(target: string | null): boolean {
+    const m = this.moving();
+    if (!m) return false;
     const folder = target && target !== NO_FOLDER ? this.store.byId().get(target) : null;
-    if (folder && !this.isManager(folder)) return false;
-    if (d.type === 'summary') return folder ? folder._id !== d.from : !!d.from;
-    if (target === NO_FOLDER || d.folder.parentId === target) return false;
-    return !folder || !this.within(folder._id, d.folder._id);
+    if (folder && !this.canAddTo(folder)) return false;
+    if (m.type === 'summary') return folder ? folder._id !== m.from : !!m.from;
+    if (target === NO_FOLDER || m.folder.parentId === target) return false;
+    return !folder || !this.within(folder._id, m.folder._id);
   }
 
-  onDragStart(e: DragEvent, dragged: Dragged) {
-    e.stopPropagation();
-    e.dataTransfer?.setData('text/plain', dragged.type === 'folder' ? dragged.folder.name : dragged.item.name);
-    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-    this.dragging.set(dragged);
+  startMove(moving: Moving) {
+    this.contextMenu.close();
+    this.moving.set(moving);
   }
 
-  /** A summary card dragged from the feed (not a row of the tree): it can be added to any folder you manage. */
-  private isCardDrag(e: DragEvent): boolean {
-    return !this.dragging() && !!e.dataTransfer?.types.includes(SUMMARY_DRAG_TYPE);
+  cancelMove() {
+    this.moving.set(null);
   }
 
-  private canDropCard(target: string | null): boolean {
-    const folder = target && target !== NO_FOLDER ? this.store.byId().get(target) : null;
-    return !!folder && this.isManager(folder);
-  }
-
-  onDragOver(e: DragEvent, target: string | null) {
-    const card = this.isCardDrag(e);
-    if (card ? !this.canDropCard(target) : !this.canDrop(target)) return;
+  /**
+   * A click on a row's link while moving: put the lifted row there (a valid target), or put it back (itself).
+   * `target` undefined: the row is never a target (a summary row).
+   */
+  onPlaceClick(e: MouseEvent, target: string | null | undefined, self = false) {
+    if (!this.moving()) return;
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = card ? 'copy' : 'move';
-    this.dropTarget.set(target ?? 'root');
+    if (self) this.cancelMove();
+    else if (target !== undefined && this.canPlace(target)) this.place(target);
+  }
+
+  private place(target: string | null) {
+    const m = this.moving()!;
+    this.moving.set(null);
+    const folder = target && target !== NO_FOLDER ? this.store.byId().get(target)! : null;
+    if (m.type === 'folder') {
+      const back = m.folder.parentId;
+      this.service.move(m.folder._id, folder?._id ?? null).subscribe(() => {
+        if (folder) this.expand(folder._id);
+        this.land(m.folder._id);
+        this.toastMoved(`"${m.folder.name}" הועברה אל "${folder?.name ?? 'כל התמציות'}"`, () =>
+          this.service.move(m.folder._id, back).pipe(tap(() => back && this.expand(back))),
+        );
+      });
+      return;
+    }
+    const { item, from } = m;
+    if (!folder) {
+      this.service.removeItems(from!, [item._id]).subscribe(() => {
+        if (this.isOpen(item)) this.select(from);
+        this.toastMoved(`"${item.name}" הוצאה מהתיקייה`, () => this.service.addItems(from!, [item._id], true));
+      });
+      return;
+    }
+    // A move: place it in the target, then take it out of the folder it came from. Undo reverses both (but leaves it
+    // in the target when it was there already).
+    const wasThere = !!this.store.items().get(folder._id)?.some((i) => i._id === item._id);
+    this.service.addItems(folder._id, [item._id], true).subscribe((r) => {
+      if (r.skipped.length) return void this.message.warning(`לא ניתן להעביר את "${item.name}"`);
+      const done = () => {
+        this.expand(folder._id);
+        this.land(item._id);
+        this.toastMoved(`"${item.name}" הועברה אל "${folder.name}"`, () => {
+          const restore: Observable<unknown> = from ? this.service.addItems(from, [item._id], true) : of(null);
+          return restore.pipe(switchMap(() => (wasThere ? of(null) : this.service.removeItems(folder._id, [item._id]))));
+        });
+      };
+      if (from) this.service.removeItems(from, [item._id]).subscribe(done);
+      else done();
+    });
+  }
+
+  /** Briefly mark the row that just landed. */
+  private land(id: string) {
+    clearTimeout(this.landTimer);
+    this.landed.set(id);
+    this.landTimer = setTimeout(() => this.landed.set(null), LANDED_MS);
+  }
+
+  /** "Moved x to y" with an undo button, for UNDO_MS. */
+  private toastMoved(text: string, undo: () => Observable<unknown>) {
+    this.showToast({ text, undo }, UNDO_MS);
+  }
+
+  /**
+   * Show the toast over the top of the side nav (the tree's nav; the tree itself if it has none). It is fixed so it
+   * floats above the nav's logo and profile card, placed from the nav's box when shown.
+   */
+  private showToast(toast: Toast, ms: number) {
+    const host = this.host.nativeElement as HTMLElement;
+    const r = (host.closest('[role="navigation"]') ?? host).getBoundingClientRect();
+    this.toastBox.set({ top: r.top + 8, left: r.left + 8, width: r.width - 16 });
+    this.toast.set(toast);
+    this.toastMs = ms;
+    this.resumeToast();
+  }
+
+  /** Hovering the toast keeps it up; leaving it gives it its full time again. */
+  pauseToast() {
+    clearTimeout(this.toastTimer);
+  }
+
+  resumeToast() {
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => this.toast.set(null), this.toastMs);
+  }
+
+  closeToast() {
+    clearTimeout(this.toastTimer);
+    this.toast.set(null);
+  }
+
+  undoMove() {
+    const undo = this.toast()?.undo;
+    if (!undo) return;
+    this.closeToast();
+    undo().subscribe(() => this.showToast({ text: 'ההעברה בוטלה' }, UNDONE_MS));
+  }
+
+  // ---- right-click menu (every folder and summary row; the options depend on what you may do) ----
+  onContextMenu(e: MouseEvent, target: Moving) {
+    e.preventDefault();
+    if (this.moving()) return;
+    this.menuFor.set(target);
+    this.contextMenu.create(e, this.rowMenu());
+  }
+
+  /** Taking a summary out of its folder needs that folder's managers (the summary needn't be yours). */
+  canTakeOut(from: string | null): boolean {
+    const folder = from ? this.store.byId().get(from) : null;
+    return !!folder && this.canAddTo(folder);
+  }
+
+  /** The home-page URL that shows the row (a folder, or a summary inside its folder). */
+  private rowUrl(t: Moving): string {
+    const params = t.type === 'folder' ? this.withSearch({ folderId: t.folder._id }) : this.itemParams(t.from!, t.item);
+    return this.router.serializeUrl(this.router.createUrlTree(['/summaries'], { queryParams: params }));
+  }
+
+  openInNewTab(t: Moving) {
+    window.open(this.location.prepareExternalUrl(this.rowUrl(t)), '_blank', 'noopener');
+  }
+
+  async copyLink(t: Moving) {
+    try {
+      await navigator.clipboard.writeText(new URL(this.location.prepareExternalUrl(this.rowUrl(t)), window.location.origin).href);
+      this.message.success('הקישור הועתק');
+    } catch {
+      this.message.error('לא ניתן להעתיק את הקישור');
+    }
+  }
+
+  /** A card dragged from the feed (see SUMMARY_DRAG_TYPE). */
+  private isCardDrag(e: DragEvent): boolean {
+    return !!e.dataTransfer?.types.includes(SUMMARY_DRAG_TYPE);
+  }
+
+  private canDropCard(target: string): boolean {
+    const folder = this.store.byId().get(target);
+    return !!folder && this.canAddTo(folder);
+  }
+
+  onDragOver(e: DragEvent, target: string) {
+    if (!this.isCardDrag(e) || !this.canDropCard(target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    this.dropTarget.set(target);
     // Hovering a closed folder opens it, so a drop can reach its subfolders.
-    if (target && target !== NO_FOLDER && target !== this.hoverId) {
+    if (target !== this.hoverId) {
       clearTimeout(this.hoverTimer);
       this.hoverId = target;
       this.hoverTimer = setTimeout(() => this.expand(target), DRAG_EXPAND_MS);
@@ -299,44 +460,15 @@ export class FolderTreeComponent {
 
   onDragLeave(e: DragEvent) {
     if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) return;
-    this.dropTarget.set(null);
-    clearTimeout(this.hoverTimer);
-    this.hoverId = null;
+    this.endDrag();
   }
 
-  onDrop(e: DragEvent, target: string | null) {
+  onDrop(e: DragEvent, target: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (this.isCardDrag(e)) {
-      const allowed = this.canDropCard(target);
-      this.endDrag();
-      if (allowed) this.addCard(this.store.byId().get(target!)!, e.dataTransfer!.getData(SUMMARY_DRAG_TYPE));
-      return;
-    }
-    const d = this.dragging();
-    const allowed = this.canDrop(target);
+    const allowed = this.isCardDrag(e) && this.canDropCard(target);
     this.endDrag();
-    if (!d || !allowed) return;
-    const folder = target && target !== NO_FOLDER ? this.store.byId().get(target)! : null;
-    if (d.type === 'folder') {
-      this.service.move(d.folder._id, folder?._id ?? null).subscribe(() => {
-        this.message.success(`"${d.folder.name}" הועברה אל "${folder?.name ?? 'כל התמציות'}"`);
-        if (folder) this.expand(folder._id);
-      });
-    } else if (folder) {
-      // A move: place it in the target, then take it out of the folder it was dragged from.
-      this.service.addItems(folder._id, [d.item._id], true).subscribe((r) => {
-        if (r.skipped.length) return void this.message.warning(`לא ניתן להעביר את "${d.item.name}"`);
-        const done = () => {
-          this.message.success(`"${d.item.name}" הועברה אל "${folder.name}"`);
-          this.expand(folder._id);
-        };
-        if (d.from) this.service.removeItems(d.from, [d.item._id]).subscribe(done);
-        else done();
-      });
-    } else {
-      this.service.removeItems(d.from!, [d.item._id]).subscribe(() => this.message.success(`"${d.item.name}" הוצאה מהתיקייה`));
-    }
+    if (allowed) this.addCard(this.store.byId().get(target)!, e.dataTransfer!.getData(SUMMARY_DRAG_TYPE));
   }
 
   /** Add the dropped card's summary to `folder`, keeping the folders it is already in. */
@@ -360,10 +492,16 @@ export class FolderTreeComponent {
   }
 
   endDrag() {
-    this.dragging.set(null);
     this.dropTarget.set(null);
     clearTimeout(this.hoverTimer);
     this.hoverId = null;
+  }
+
+  /** The staging page, where the legacy collections are sorted into folders. */
+  openStaging() {
+    this.contextMenu.close();
+    this.navigate.emit();
+    this.router.navigate(['/staging']);
   }
 
   private select(folderId: string | null) {
@@ -417,6 +555,11 @@ export class FolderTreeComponent {
       this.message.success(`"${item.name}" הוצא מהתיקייה`);
       if (this.isOpen(item)) this.select(f._id);
     });
+  }
+
+  removeFrom(folderId: string, item: IFolderItem) {
+    const f = this.store.byId().get(folderId);
+    if (f) this.removeItem(f, item);
   }
 
   remove(f: IFolder) {

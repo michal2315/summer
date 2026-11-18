@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, shareReplay, tap } from 'rxjs';
-import { IBulkResult, IUser, UserRef } from '../../shared/models';
+import { IBulkResult, IUser, UserPreferences, UserRef } from '../../shared/models';
 import { SILENT_ERRORS } from '../http/http-context';
 
 const BASE = '/api/user';
@@ -78,6 +78,11 @@ export class UserService {
   }
   unfollow(userId: string) {
     return this.update(this.http.delete<IUser>(`${BASE}/remove-follow/${userId}`));
+  }
+
+  /** Change some preferences; keys left out stay as they are. */
+  setPreferences(patch: UserPreferences) {
+    return this.update(this.http.put<IUser>(`${BASE}/preferences`, patch));
   }
 
   private update(req: Observable<IUser>) {

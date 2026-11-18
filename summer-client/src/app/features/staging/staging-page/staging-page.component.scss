@@ -1,0 +1,358 @@
+@use 'tokens' as *;
+
+// The page fills the shell's content area: the header on top, then the two columns, each scrolling on its own.
+:host {
+  display: block;
+  height: 100%;
+}
+.page {
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+.spacer {
+  flex: 1;
+}
+.top,
+.loader,
+.empty-state,
+.col {
+  background: $white;
+  border-radius: 12px;
+  box-shadow: $card-shadow;
+}
+
+// ---- header and progress ----
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.page-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: $dark-blue;
+}
+.intro {
+  font-size: 13px;
+  color: $dark-gray;
+  max-width: 860px;
+}
+.loader {
+  padding: 14px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 40px 16px;
+  text-align: center;
+  &.small {
+    box-shadow: none;
+    padding: 32px 8px;
+  }
+}
+.empty-icon {
+  font-size: 32px;
+  color: $primary-orange;
+}
+.empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: $dark-blue;
+}
+
+// ---- the two columns (RTL: collections on the right, the tree on the left) ----
+.columns {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: 10px;
+}
+.col {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+
+// ---- collections ----
+.collections-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.collection {
+  border: 1px solid $border-color;
+  border-radius: 10px;
+  &.open {
+    border-color: $border-strong;
+  }
+  &.done {
+    opacity: 0.75;
+  }
+}
+.collection-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: grab;
+  &:active {
+    cursor: grabbing;
+  }
+}
+.twisty {
+  all: unset;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  color: $gray;
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    color: $dark-blue;
+    background: $input-color;
+  }
+}
+.collection-name {
+  all: unset;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border-radius: 6px;
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+  .icon {
+    color: $gray;
+  }
+  .name {
+    font-weight: 700;
+    color: $dark-blue;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+// The collection's own progress: a small bar with what's left beside it.
+.mini {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mini-bar {
+  width: 64px;
+  height: 6px;
+  border-radius: 999px;
+  background: $border-color;
+  overflow: hidden;
+}
+.mini-fill {
+  height: 100%;
+  background: $success-color;
+  transition: width 0.4s ease;
+}
+.mini-text {
+  min-width: 56px;
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.collection-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px 8px;
+  padding-inline-start: 38px;
+}
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 15px;
+  background: $input-color;
+  color: $gray;
+  input {
+    all: unset;
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: $dark-blue;
+  }
+}
+.sorted-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba($success-color, 0.1);
+  font-size: 12px;
+  color: #157a3f;
+}
+.strip-text {
+  flex: 1;
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  cursor: grab;
+  &:hover {
+    background: $surface-subtle;
+  }
+  &.picked {
+    background: $orange-50;
+  }
+  &.sorted .item-name {
+    color: $dark-gray;
+  }
+}
+.item-icon {
+  flex: none;
+  margin-top: 4px;
+  color: $primary-pink;
+  &.running {
+    color: #800080;
+  }
+}
+.item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.item-name {
+  font-size: 13px;
+  color: $dark-blue;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  &:hover {
+    color: $orange-strong;
+    text-decoration: underline;
+  }
+}
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  &.moved {
+    color: #157a3f;
+  }
+  &.waiting {
+    color: $gray;
+  }
+}
+.none {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: $gray;
+}
+.hidden-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: $surface-subtle;
+  font-size: 12px;
+  color: $dark-gray;
+  [nz-icon] {
+    margin-top: 3px;
+  }
+}
+
+// ---- the tree ----
+.tree-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: $dark-blue;
+}
+.tree-hint {
+  margin: 2px 0 8px;
+  font-size: 12px;
+}
+// Summaries are picked: what a click on a folder does now.
+.picked-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: $orange-50;
+  color: $orange-strong;
+  font-weight: 600;
+}
+.picked-text {
+  flex: 1;
+}
+.tree {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-fill {
+    transition: none;
+  }
+}
+
+// Narrow screens: one column, the page scrolls as a whole, the tree under the collections.
+@media (max-width: 900px) {
+  :host,
+  .page {
+    height: auto;
+  }
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .collections-scroll,
+  .tree {
+    overflow: visible;
+  }
+  .tree-col {
+    max-height: 70vh;
+  }
+}

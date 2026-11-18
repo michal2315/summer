@@ -1,78 +1,41 @@
-<div class="saved" role="region" aria-label="חיפושים שמורים">
-  <div class="title-row">
-    <div class="title" role="heading" aria-level="2">
-      <span nz-icon nzType="save"></span> החיפושים השמורים שלי
-      @if (queries.queries().length) {
-        <span class="count">{{ queries.queries().length }}</span>
-      }
-    </div>
-    @if (showFilter()) {
-      <input nz-input nzSize="small" class="filter" placeholder="סינון לפי שם" aria-label="סינון החיפושים השמורים" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
-    }
-    <a class="new-link" routerLink="/notifications/create" nz-tooltip="חיפוש חדש עם תנאים והתראה"><span nz-icon nzType="plus"></span> חיפוש עם התראה</a>
-  </div>
-
-  @if (list().length) {
-    <ul class="cards">
-      @for (s of list(); track s._id) {
-        @let alert = s.alert;
-        <li class="card" [class.alerting]="alert?.isActive">
-          <button type="button" class="open" (click)="open(s)" nz-tooltip="פתיחת החיפוש בפיד">
-            <span class="name-row">
-              <span class="name">{{ s.name }}</span>
-              <span class="kind" [class.advanced]="s.kind === 'advanced'">{{ kindLabel[s.kind] }}</span>
+@if (list().length) {
+  <ul class="cards">
+    @for (s of list(); track s._id) {
+      @let alert = s.alert;
+      <li class="card" (contextmenu)="openMenu($event, menu)" [class.alerting]="alert?.isActive">
+        <button type="button" class="open" (click)="open(s)" [nz-tooltip]="'פתיחה בפיד · ' + kindLabel[s.kind] + ' · קליק ימני לפעולות'">
+          <span class="name-row">
+            <span class="name">{{ s.name }}</span>
+            <span class="marks">
+              @if (s.isFavorite) {
+                <span nz-icon nzType="star" nzTheme="fill" class="mark-fav" aria-label="מועדף"></span>
+              }
+              @if (alert) {
+                <span nz-icon [nzType]="alert.isActive ? 'bell' : 'pause-circle'" [nzTheme]="alert.isActive ? 'fill' : 'outline'" [class]="alert.isActive ? 'mark-alert' : 'mark-paused'" [attr.aria-label]="alert.isActive ? 'יש התראה' : 'התראה מושהית'"></span>
+              }
+              @if (s.isShared) {
+                <span class="mark-shared" aria-label="משותף"><span nz-icon nzType="team"></span>{{ s.followers ? ' ' + s.followers : '' }}</span>
+              }
             </span>
-            <span class="desc">{{ describe(s.search) }}</span>
-          </button>
+          </span>
+          <span class="desc">{{ describe(s.search) }}</span>
+        </button>
 
-          <div class="actions">
-            <button
-              type="button"
-              class="icon-btn"
-              [class.fav-on]="s.isFavorite"
-              [disabled]="isBusy(s)"
-              (click)="toggleFavorite(s)"
-              [nz-tooltip]="s.isFavorite ? 'הסרה מהמועדפים' : 'מועדף: מופיע ראשון ברשימות ובהצעות של $'"
-              aria-label="מועדף"
-              [attr.aria-pressed]="s.isFavorite"
-            >
-              <span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'"></span>
-            </button>
-            <button
-              type="button"
-              class="icon-btn"
-              [class.on]="alert?.isActive"
-              [disabled]="isBusy(s)"
-              (click)="toggleAlert(s)"
-              [nz-tooltip]="alert ? (alert.isActive ? 'ביטול ההתראה' : 'ההתראה מושהית — לחיצה מבטלת אותה') : 'יצירת התראה על תמציות חדשות שמתאימות לחיפוש'"
-              aria-label="התראה על החיפוש"
-              [attr.aria-pressed]="!!alert"
-            >
-              <span nz-icon [nzType]="alert && !alert.isActive ? 'pause-circle' : 'bell'" [nzTheme]="alert?.isActive ? 'fill' : 'outline'"></span>
-            </button>
-            <button type="button" class="icon-btn" (click)="edit(s)" nz-tooltip="עריכת החיפוש והשם" aria-label="עריכה">
-              <span nz-icon nzType="edit"></span>
-            </button>
-            <button
-              type="button"
-              class="icon-btn danger"
-              nz-popconfirm
-              [nzPopconfirmTitle]="alert ? 'להסיר את החיפוש מהשמורים? גם ההתראה עליו תימחק.' : 'להסיר את החיפוש מהשמורים?'"
-              nzOkText="הסרה"
-              nzCancelText="ביטול"
-              (nzOnConfirm)="remove(s)"
-              nz-tooltip="הסרה"
-              aria-label="הסרה"
-            >
-              <span nz-icon nzType="delete"></span>
-            </button>
-          </div>
-        </li>
-      }
-    </ul>
-  } @else if (filter()) {
-    <div class="empty">אין חיפוש שמור בשם הזה.</div>
-  } @else if (queries.list() !== null) {
-    <div class="empty">אין עדיין חיפושים שמורים. אחרי חיפוש, כפתור השמירה שבתיבת החיפוש (או בחיפוש המתקדם) שומר אותו כאן. החיפושים השמורים אישיים, ורק אתם רואים אותם.</div>
-  }
-</div>
+        <nz-dropdown-menu #menu="nzDropdownMenu">
+          <ul nz-menu class="shelf-menu">
+            <li nz-menu-item (click)="toggleFavorite(s)"><span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'"></span> {{ s.isFavorite ? 'הסרה מהמועדפים' : 'סימון כמועדף' }}</li>
+            <li nz-menu-item (click)="toggleAlert(s)"><span nz-icon nzType="bell"></span> {{ alert ? 'ביטול ההתראה' : 'התראה על תמציות חדשות' }}</li>
+            <li nz-menu-item (click)="toggleShared(s)"><span nz-icon nzType="team"></span> {{ s.isShared ? 'הפסקת השיתוף' : 'שיתוף עם כולם' }}</li>
+            <li nz-menu-item (click)="edit(s)"><span nz-icon nzType="edit"></span> עריכה</li>
+            <li nz-menu-divider></li>
+            <li nz-menu-item class="danger" (click)="remove(s)"><span nz-icon nzType="delete"></span> הסרה</li>
+          </ul>
+        </nz-dropdown-menu>
+      </li>
+    }
+  </ul>
+} @else if (filter()) {
+  <div class="empty">אין חיפוש שמור בשם הזה.</div>
+} @else if (queries.list() !== null) {
+  <div class="empty">אין עדיין חיפושים שמורים. אחרי חיפוש, כפתור השמירה שבתיבת החיפוש (או בחיפוש המתקדם) שומר אותו כאן.</div>
+}

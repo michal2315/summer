@@ -23,15 +23,17 @@ export const queries = pgTable(
     kind: text().$type<QueryKind>().notNull().default('simple'),
     search: jsonb().$type<Record<string, unknown>>().notNull(),
     isFavorite: boolean().notNull().default(false),
+    /** Others can find it (the queries page), run it, copy it and alert on it. Private by default. */
+    isShared: boolean().notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index().on(t.ownerId, t.createdAt), check('queries_kind', sql`${t.kind} in ('simple', 'advanced')`)],
+  (t) => [index().on(t.ownerId, t.createdAt), index().on(t.isShared, t.createdAt), check('queries_kind', sql`${t.kind} in ('simple', 'advanced')`)],
 );
 
 /**
- * "Notify this user about summaries the query finds", with how. One per query and user; today only the owner has one,
- * but the table is shaped for sharing a query with others.
+ * "Notify this user about summaries the query finds", with how. One per query and user: the owner, or anyone
+ * else while the query is shared (unsharing it removes the others').
  */
 export const queryAlerts = pgTable(
   'query_alerts',

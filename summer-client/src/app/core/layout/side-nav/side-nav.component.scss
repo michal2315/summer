@@ -57,6 +57,39 @@
   }
 }
 
+// The way to the staging page, while there are collections from the old Summer to sort.
+.to-sort {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: $border-radius;
+  border: 1px dashed rgba($primary-orange-hex, 0.6);
+  background: $orange-50;
+  color: $orange-strong;
+  font-size: 13px;
+  font-weight: 600;
+  &:hover,
+  &.active {
+    background: $orange-100;
+    color: $orange-strong;
+  }
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+}
+.to-sort-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.to-sort-arrow {
+  font-size: 11px;
+}
+
 .footer {
   flex: none;
   display: flex;

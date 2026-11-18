@@ -136,7 +136,7 @@ const MAX_TERMS = 10;
 
 /**
  * Marks a word as syntax: an operator (and / or / not), @user, #capsule or :field:value. The search box puts it there
- * when the user presses ← on such a word; without it the word is plain text ("או", "#1", "a:b" are searched as typed).
+ * as such a word is typed (Backspace takes it off); without it the word is plain text ("או", "#1", "a:b" are searched as typed).
  */
 export const MARK = '\u2063';
 
@@ -144,12 +144,14 @@ export const MARK = '\u2063';
 const OPERATORS: Record<string, 'and' | 'or' | 'not'> = {
   and: 'and',
   וגם: 'and',
+  גם: 'and',
   or: 'or',
   או: 'or',
   not: 'not',
   לא: 'not',
   ולא: 'not',
   בלי: 'not',
+  ובלי: 'not',
 };
 
 export type TermField = TextField | 'author' | 'type' | 'color';
@@ -221,13 +223,10 @@ export interface ParsedQuery {
   capsules: string[];
 }
 
-/** Closes a `:field:value` token, whose value may have spaces. */
-export const END = '\u2064';
+/** A :field:value token (MARK, `:name:`, then a "phrase" or a word), a "phrase", or a word. */
+const TOKEN_RE = /(?<!\S)\u2063:[^\s:]*(?::(?:"[^"]*"?|\S*))?|"([^"]*)"?|\S+/g;
 
-/** A :field:value token (from its MARK up to END, or the end of the text), a "phrase", or a word. */
-const TOKEN_RE = /(?<!\S)\u2063:[^\u2064]*\u2064?|"([^"]*)"?|\S+/g;
-
-const strip = (s: string) => s.replace(/[\u2063\u2064]/g, '');
+const strip = (s: string) => s.replaceAll(MARK, '');
 
 /** OR of AND-groups. */
 type Terms = QueryTerm[][];
@@ -237,7 +236,7 @@ const andTerms = (a: Terms, b: Terms): Terms => a.flatMap((x) => b.map((y) => [.
 const notTerms = (d: Terms): Terms => d.reduce<Terms>((acc, g) => andTerms(acc, g.map((t) => [{ ...t, neg: !t.neg }])), [[]]);
 
 type Op = 'and' | 'or' | 'not';
-/** An operator, or something that matches (a term, or a :field:value with its own and / or / not). */
+/** An operator, or something that matches. */
 type Item = { op: Op } | { terms?: Terms };
 
 /** Items joined: adjacent ones are ANDed, AND binds tighter than OR, `not` negates the next item; operators that join nothing are dropped. */
@@ -265,36 +264,17 @@ function combine(items: Item[]): Terms {
   return out;
 }
 
-/** A "phrase" or a word, inside a :field:value. */
-const VALUE_RE = /"([^"]*)"?|\S+/g;
-
 /**
- * A :field:value token's text (without its leading MARK and END) → its field's terms; none while unfinished. The value
- * has its own "phrases" and marked and / or / not; plain words between them, spaces included, are one term.
+ * A :field:value token's text (without its leading MARK) → its field's term; none while unfinished. The value is a
+ * "phrase" (whole words) or one word with `_` for spaces (`:author:Michal_Golan`).
  */
-function fieldTerms(body: string, leaf: (t: Omit<QueryTerm, 'neg'>) => Terms | undefined): Terms {
+function fieldTerms(body: string, leaf: (t: Omit<QueryTerm, 'neg'>) => Terms | undefined): Terms | undefined {
   const head = /^:([^:\s]+):/.exec(body);
   const field = head ? FIELD_NAMES[head[1].toLowerCase()] : undefined;
-  if (!field) return [];
-  const value = body.slice(head![0].length);
-  const items: Item[] = [];
-  let run: [number, number] | null = null;
-  const flush = () => {
-    if (run) items.push({ terms: leaf({ term: strip(value.slice(run[0], run[1])).trim(), field }) });
-    run = null;
-  };
-  for (const m of value.matchAll(VALUE_RE)) {
-    const a = m.index!;
-    const op = m[0].startsWith(MARK) ? OPERATORS[strip(m[0]).toLowerCase()] : undefined;
-    if (m[1] === undefined && !op) {
-      run = run ? [run[0], a + m[0].length] : [a, a + m[0].length];
-      continue;
-    }
-    flush();
-    items.push(op ? { op } : { terms: leaf({ term: strip(m[1]).trim(), exact: true, field }) });
-  }
-  flush();
-  return combine(items);
+  if (!field) return undefined;
+  const value = strip(body.slice(head![0].length));
+  const phrase = /^"([^"]*)"?$/.exec(value);
+  return leaf(phrase ? { term: phrase[1].trim(), exact: true, field } : { term: value.replace(/_/g, ' ').trim(), field });
 }
 
 /** A marked word (without its mark) → operator or term; undefined for a bare `@` / `#` (ignored). */
@@ -310,8 +290,7 @@ function markedWord(word: string): { op: 'and' | 'or' | 'not' } | { term: Omit<Q
  * Query text, kept in sync with the client's search-syntax.ts: "quoted phrases" stay whole and match whole words, other
  * words split on whitespace and match anywhere, adjacent terms are ANDed. Only words that start with MARK are syntax
  * (see MARK). Operators that don't sit between terms (leading `or`, trailing `not`) are dropped. Case-insensitive.
- * A :field:value has the same "phrases" and operators inside it (`:title:"intro" or graphs`), expanded into the groups.
- * At most MAX_TERMS terms are read, which also bounds that expansion.
+ * A :field:value is one term of its field. At most MAX_TERMS terms are read, which also bounds the expansion of `not`.
  */
 export function parseQuery(text: string): ParsedQuery {
   const items: Item[] = [];
@@ -324,7 +303,7 @@ export function parseQuery(text: string): ParsedQuery {
 
   for (const m of text.matchAll(TOKEN_RE)) {
     const raw = m[0];
-    if (raw.startsWith(MARK + ':')) items.push({ terms: fieldTerms(raw.slice(1).replace(/⁤$/, ''), leaf) });
+    if (raw.startsWith(MARK + ':')) items.push({ terms: fieldTerms(raw.slice(1), leaf) });
     else if (m[1] !== undefined) items.push({ terms: leaf({ term: strip(m[1]).trim(), exact: true }) });
     else if (raw.startsWith(MARK)) {
       const parsed = markedWord(strip(raw));

@@ -9,13 +9,29 @@
     } @else {
     <div class="panel" role="complementary" aria-label="ניהול התראות">
       <div class="panel-header">
-        <div class="panel-title" role="heading" aria-level="2"><span nz-icon nzType="setting"></span> ניהול התראות</div>
+        <div class="panel-title" role="heading" aria-level="2"><span nz-icon nzType="setting"></span> חיפושים והתראות</div>
         <span class="spacer"></span>
-        <a nz-button nzType="primary" nzSize="small" routerLink="create"><span nz-icon nzType="plus"></span> התראה חדשה</a>
+        <a nz-button nzType="primary" nzSize="small" routerLink="create"><span nz-icon nzType="plus"></span> חדש</a>
         <button nz-button nzType="text" nzShape="circle" nzSize="small" type="button" (click)="togglePanel()" nz-tooltip="כיווץ" aria-label="כיווץ ניהול ההתראות" [attr.aria-expanded]="true">
           <span nz-icon nzType="right"></span>
         </button>
       </div>
+      <div class="tabs" role="tablist" aria-label="חיפושים והתראות">
+        @for (t of tabs; track t.key) {
+          <button type="button" class="tab" role="tab" [class.active]="tab() === t.key" [attr.aria-selected]="tab() === t.key" (click)="setTab(t.key)">
+            <span nz-icon [nzType]="t.icon"></span> {{ t.label }}
+            @if (tabCount(t.key); as n) {
+              <span class="tab-count">{{ n }}</span>
+            }
+          </button>
+        }
+      </div>
+
+      @if (tab() === 'mine') {
+        <app-my-queries />
+      } @else if (tab() === 'shared') {
+        <app-shared-queries />
+      } @else {
       <div class="muted intro">
         התראה היא על חיפוש שמור: כשתמצית שמתאימה לחיפוש מתפרסמת או נערכת, תקבלו התראה — פעם אחת על כל תמצית.
         אפשר להפעיל התראה על חיפוש שכבר שמרתם, או ליצור חיפוש חדש עם התראה.
@@ -97,6 +113,9 @@
                   <span class="kind" nz-icon [nzType]="q.kind === 'advanced' ? 'apartment' : 'search'" [attr.aria-label]="kindLabel[q.kind]"></span>
                   {{ q.name }}
                 </span>
+                @if (!q.isMine) {
+                  <span class="owner"><span nz-icon nzType="team"></span> חיפוש משותף של {{ q.owner.fullName }}</span>
+                }
                 <span class="desc">{{ describe(q.search) }}</span>
                 <span class="channels">
                   @if (!a.isActive) {
@@ -121,7 +140,32 @@
                   [nz-tooltip]="a.isActive ? 'השהיית ההתראה' : 'הפעלת ההתראה'"
                   [attr.aria-label]="a.isActive ? 'השהיית ההתראה' : 'הפעלת ההתראה'"
                 />
-                <a nz-button nzType="text" nzShape="circle" nzSize="small" [routerLink]="[q._id, 'edit']" nz-tooltip="עריכת החיפוש וההתראה" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
+                @if (q.isMine) {
+                  <a nz-button nzType="text" nzShape="circle" nzSize="small" [routerLink]="[q._id, 'edit']" nz-tooltip="עריכת החיפוש וההתראה" aria-label="עריכה"><span nz-icon nzType="edit"></span></a>
+                } @else {
+                  <button
+                    nz-button
+                    nzType="text"
+                    nzShape="circle"
+                    nzSize="small"
+                    type="button"
+                    nz-popover
+                    nzPopoverTrigger="click"
+                    nzPopoverPlacement="bottomRight"
+                    nzPopoverTitle="משלוח ההתראה"
+                    [nzPopoverContent]="channelsTpl"
+                    nz-tooltip="מיילים על ההתראה"
+                    aria-label="מיילים על ההתראה"
+                  >
+                    <span nz-icon nzType="mail"></span>
+                  </button>
+                  <ng-template #channelsTpl>
+                    <div class="channel-pop">
+                      <label nz-checkbox [ngModel]="a.isMail" (ngModelChange)="setChannel(q, 'isMail', $event)" [nzDisabled]="isBusy(q)"><span nz-icon nzType="mail"></span> מייל מיידי על כל התאמה</label>
+                      <label nz-checkbox [ngModel]="a.isDigest" (ngModelChange)="setChannel(q, 'isDigest', $event)" [nzDisabled]="isBusy(q)"><span nz-icon nzType="schedule"></span> סיכום יומי במייל</label>
+                    </div>
+                  </ng-template>
+                }
                 <button
                   nz-button
                   nzType="text"
@@ -131,7 +175,7 @@
                   type="button"
                   [disabled]="isBusy(q)"
                   nz-popconfirm
-                  nzPopconfirmTitle="לבטל את ההתראה? החיפוש יישאר בחיפושים השמורים."
+                  [nzPopconfirmTitle]="q.isMine ? 'לבטל את ההתראה? החיפוש יישאר בחיפושים השמורים.' : 'לבטל את ההתראה? החיפוש המשותף יישאר בחיפושים המשותפים.'"
                   nzOkText="ביטול ההתראה"
                   nzCancelText="חזרה"
                   (nzOnConfirm)="cancel(q)"
@@ -150,6 +194,7 @@
           <div class="sentinel" (appInView)="page.more()" [appInViewKey]="page.items().length"></div>
         }
       }
+      }
     </div>
     }
 
@@ -167,6 +212,7 @@
           <div class="page-title" role="heading" aria-level="1"><span nz-icon nzType="notification"></span> התראות</div>
           <span class="spacer"></span>
           <app-notification-bell />
+          <app-preferences-button />
         </div>
         <app-notification-feed
           [queryId]="queryId()"

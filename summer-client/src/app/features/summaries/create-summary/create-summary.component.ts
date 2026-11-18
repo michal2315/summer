@@ -21,7 +21,7 @@ import { NzTreeSelectModule } from 'ng-zorro-antd/tree-select';
 import { NzUploadFile, NzUploadModule } from 'ng-zorro-antd/upload';
 import { QuillEditorComponent } from 'ngx-quill';
 import type Quill from 'quill';
-import { Subject, debounceTime, distinctUntilChanged, filter, forkJoin, map, startWith, switchMap, take } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, filter, forkJoin, map, of, startWith, switchMap, take } from 'rxjs';
 import { HasPendingChanges } from '../../../core/auth/guards';
 import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
@@ -37,6 +37,7 @@ import {
   ISummary,
   ISummaryParent,
   ISummaryTemplate,
+  IUserGroup,
   SUMMARY_KIND_LABEL,
   SearchType,
   SummaryKind,
@@ -49,6 +50,8 @@ import { LabelService } from '../../../shared/services/label.service';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { SummaryTemplateService } from '../../../shared/services/summary-template.service';
+import { UserGroupService } from '../../../shared/services/user-group.service';
+import { UserGroupEditorComponent, UserGroupEditorData } from '../../profile/user-groups/user-group-editor/user-group-editor.component';
 import { FolderPath, FolderService, folderPaths, managedFolderPaths } from '../../../shared/services/folder.service';
 
 type FieldValue = string | number | Date | null;
@@ -92,6 +95,8 @@ type ParentInfo = ISummaryParent & { contentTypeId: string };
 /** The sharing-section values a template fills in. */
 type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'folders'>;
 const LABELS_PAGE = 20;
+/** Users suggested in the tag field before anything is typed. */
+const USER_SUGGESTIONS = 15;
 
 @Component({
   selector: 'app-create-summary',
@@ -132,6 +137,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly permissionGroups = inject(PermissionService);
   private readonly labels = inject(LabelService);
   readonly users = inject(UserService);
+  private readonly userGroups = inject(UserGroupService);
   private readonly summaries = inject(SummaryService);
   private readonly router = inject(Router);
   private readonly message = inject(NzMessageService);
@@ -309,19 +315,25 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly userOptions = signal<UserRef[]>([]);
   private readonly userQuery = signal('');
   private readonly userSearch$ = new Subject<string>();
-  /** Pinned users (those matching the typed text) come first, so they can be tagged without searching. */
+  /** The server's matches for the text typed now (cleared as the text changes, until the next answer). */
+  private readonly userResults = signal<UserRef[]>([]);
   private readonly taggedUserIds = toSignal(this.form.controls.taggedUsers.valueChanges.pipe(startWith(this.form.controls.taggedUsers.value)), {
     requireSync: true,
   });
+  /**
+   * The users offered: with nothing typed, suggestions (pinned users, then members of the user's own user groups);
+   * while typing, the users already known that match (at once), then the server's matches. Tagged users always stay
+   * listed, so their tags keep their names.
+   */
   readonly sortedUsers = computed(() => {
     const q = this.userQuery().toLowerCase();
     const tagged = new Set(this.taggedUserIds());
-    const pinned = (this.users.user()?.pinnedUsers ?? []).filter((u) => !q || matchesUser(u, q));
-    // Pinned and tagged, then pinned, then the rest.
-    return mergeById(
-      pinned.filter((u) => tagged.has(u._id)),
-      mergeById(pinned, this.userOptions()),
-    );
+    const pinned = this.users.user()?.pinnedUsers ?? [];
+    const members = (this.userGroups.list() ?? []).flatMap((g) => g.users);
+    const known = mergeById(mergeById(pinned, members), this.userOptions());
+    const taggedKnown = known.filter((u) => tagged.has(u._id));
+    if (!q) return mergeById(mergeById(pinned, members).slice(0, USER_SUGGESTIONS), taggedKnown);
+    return mergeById(mergeById(known.filter((u) => matchesUser(u, q)), this.userResults()), taggedKnown);
   });
 
   readonly sortedPermissions = computed(() => {
@@ -348,11 +360,37 @@ export class CreateSummaryComponent implements HasPendingChanges {
     return this.taggablePermissions().filter((p) => tagged.has(p._id) || !q || p.name.toLowerCase().includes(q));
   });
 
+  // ---- user groups in the tag field: picking one (`t:<id>`) tags all its members ----
+  /** Others' shared groups matching the typed text (the user's own are cached). */
+  private readonly sharedUserGroups = signal<IUserGroup[]>([]);
+  readonly tagUserGroups = computed(() => {
+    const q = this.userQuery();
+    const mine = this.userGroups.search(q);
+    return [...mine, ...(q ? this.sharedUserGroups().filter((g) => !mine.some((m) => m._id === g._id)) : [])];
+  });
+
   tagsChange(values: string[]) {
     const ids = (prefix: string) => values.filter((v) => v.startsWith(prefix)).map((v) => v.slice(prefix.length));
-    this.form.controls.taggedUsers.setValue(ids('u:'));
-    this.form.controls.taggedPermissions.setValue(ids('g:'));
+    const picked = ids('t:').flatMap((id) => this.tagUserGroups().find((g) => g._id === id) ?? []);
+    const users = [...new Set([...ids('u:'), ...picked.flatMap((g) => g.users.map((u) => u._id))])];
+    const groups = [...new Set([...ids('g:'), ...picked.flatMap((g) => g.permissions)])];
+    if (picked.length) this.userOptions.update((cur) => mergeById(cur, picked.flatMap((g) => g.users)));
+    this.form.controls.taggedUsers.setValue(users);
+    this.form.controls.taggedPermissions.setValue(groups);
     this.form.markAsDirty();
+  }
+
+  /** Save what the tag field holds as a new user group. */
+  saveTagsAsGroup() {
+    const v = this.form.getRawValue();
+    const known = mergeById(this.users.user()?.pinnedUsers ?? [], this.userOptions());
+    this.modal.create<UserGroupEditorComponent, UserGroupEditorData, IUserGroup>({
+      nzTitle: 'שמירת התיוג כקבוצת משתמשים',
+      nzContent: UserGroupEditorComponent,
+      nzData: { users: v.taggedUsers.flatMap((id) => known.find((u) => u._id === id) ?? []), permissions: v.taggedPermissions },
+      nzFooter: null,
+      nzWidth: 560,
+    });
   }
   readonly sortedLabels = computed(() => this.pinFirst(this.labelOptions(), (l) => l, 'pinnedLabels', 'favoriteLabels'));
 
@@ -515,10 +553,23 @@ export class CreateSummaryComponent implements HasPendingChanges {
       .pipe(
         debounceTime(250),
         distinctUntilChanged(),
-        switchMap((t) => this.users.byName(t)),
+        switchMap((t) => (t ? this.users.byName(t) : of([]))),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((list) => this.userOptions.update((cur) => mergeById(cur.filter((u) => this.form.controls.taggedUsers.value.includes(u._id)), list)));
+      .subscribe((list) => {
+        this.userResults.set(list);
+        this.userOptions.update((cur) => mergeById(cur.filter((u) => this.form.controls.taggedUsers.value.includes(u._id)), list));
+      });
+
+    this.userGroups.ensureLoaded();
+    this.userSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((t) => (t ? this.userGroups.shared(t) : of([]))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((list) => this.sharedUserGroups.set(list));
 
     this.labelSearch$.next('');
     this.templates.load();
@@ -809,8 +860,10 @@ export class CreateSummaryComponent implements HasPendingChanges {
   }
 
   onUserSearch(text: string) {
+    if (text.trim() !== this.userQuery()) this.userResults.set([]);
     this.userQuery.set(text.trim());
-    if (text.trim()) this.userSearch$.next(text.trim());
+    this.userSearch$.next(text.trim());
+    if (!text.trim()) this.sharedUserGroups.set([]);
   }
 
   isPinned(kind: 'pinnedLabels' | 'pinnedPermissions', id: string) {
@@ -988,7 +1041,7 @@ function reviveDates<T>(value: T): T {
 }
 
 function matchesUser(u: UserRef, lowerText: string): boolean {
-  return u.fullName.toLowerCase().includes(lowerText) || u.username.toLowerCase().startsWith(lowerText);
+  return u.fullName.toLowerCase().includes(lowerText) || u.username.toLowerCase().includes(lowerText);
 }
 
 function mergeById<T extends { _id: string }>(a: T[], b: T[]): T[] {

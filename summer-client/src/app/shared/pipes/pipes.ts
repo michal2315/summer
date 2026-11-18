@@ -5,6 +5,7 @@ import { he } from 'date-fns/locale';
 import DOMPurify from 'dompurify';
 import { ISummarySearch, SearchType } from '../models';
 import { CapsuleService } from '../services/capsule.service';
+import { PreferencesService } from '../../core/preferences/preferences.service';
 import { highlightHtml, highlightText, regexFor } from './highlight';
 
 /**
@@ -60,10 +61,23 @@ export class RichHtmlPipe implements PipeTransform {
   }
 }
 
-@Pipe({ name: 'relativeTime' })
+/**
+ * "3 hours ago", or the date and hour when the user prefers exact dates (preferences). Impure so a change of that
+ * preference shows at once; the result is memoized per date and mode.
+ */
+@Pipe({ name: 'relativeTime', pure: false })
 export class RelativeTimePipe implements PipeTransform {
+  private readonly prefs = inject(PreferencesService);
+  private last?: { date: unknown; exact: boolean; out: string };
+
   transform(date: string | Date | null | undefined): string {
-    return date ? formatDistanceToNow(new Date(date), { addSuffix: true, locale: he }) : '';
+    const exact = this.prefs.exactDates();
+    const l = this.last;
+    if (l && l.date === date && l.exact === exact) return l.out;
+    const d = date ? new Date(date) : null;
+    const out = !d || isNaN(d.getTime()) ? '' : exact ? format(d, 'dd/MM/yyyy HH:mm') : formatDistanceToNow(d, { addSuffix: true, locale: he });
+    this.last = { date, exact, out };
+    return out;
   }
 }
 

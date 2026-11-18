@@ -145,6 +145,12 @@ $tok-saved-bg: #ffe6f2;
   color: $dark-blue;
 }
 
+// The mirror's only flex item: its spans flow inline, so the bidi algorithm orders them together, like the input's
+// text (separate flex items would each be laid out right-to-left as blocks).
+.mirror-line {
+  flex: none;
+}
+
 .input {
   position: relative;
   width: 100%;
@@ -197,7 +203,10 @@ $tok-saved-bg: #ffe6f2;
 }
 .tok-capsule {
   @include pill($capsule, $capsule-bg);
-  // The name's underscores keep their width but read as spaces.
+}
+// A capsule name's / field value's underscores keep their width but read as spaces.
+.tok-capsule,
+.tok-field {
   .us {
     color: transparent;
   }
@@ -443,23 +452,14 @@ $tok-saved-bg: #ffe6f2;
   }
 }
 
-// What ← does with the word at the caret.
-.arrow-hint {
+// Why a $saved search can't be used here.
+.blocked-hint {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 2px 6px;
   font-size: 12px;
   color: $dark-gray;
-}
-
-.kbd-key {
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  padding: 0 6px;
-  font-size: 12px;
-  color: $dark-blue;
-  background: $input-color;
 }
 
 .swatch {

@@ -279,7 +279,7 @@ export class NotificationsRepository {
       })
       .from(queryAlerts)
       .innerJoin(queries, eq(queries.id, queryAlerts.queryId))
-      .where(eq(queryAlerts.isActive, true))
+      .where(and(eq(queryAlerts.isActive, true), or(eq(queries.ownerId, queryAlerts.userId), eq(queries.isShared, true))))
       .orderBy(asc(queryAlerts.createdAt), asc(queryAlerts.id));
   }
 

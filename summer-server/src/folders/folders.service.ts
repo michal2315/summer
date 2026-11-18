@@ -11,6 +11,7 @@ import { validUserSet } from '../users/user-set';
 import { UsersRepository } from '../users/users.repository';
 import { folderVisible } from './folder.access';
 import { FoldersRepository } from './folders.repository';
+import { LegacyPlace, LegacyRepository } from './legacy.repository';
 
 export interface ApiFolder {
   _id: string;
@@ -23,6 +24,8 @@ export interface ApiFolder {
   hiddenCount: number;
   permissions: ReturnType<typeof toApiPermission>[];
   managers: string[];
+  /** The legacy root, a collection in it (imported from the old Summer; things only leave), or neither. */
+  legacy: LegacyPlace;
   createdBy: ReturnType<typeof toRef>;
   createdAt: string;
   updatedAt: string;
@@ -66,6 +69,7 @@ export class FoldersService {
     private readonly permissions: PermissionsRepository,
     private readonly users: UsersRepository,
     private readonly summaries: SummariesRepository,
+    private readonly legacy: LegacyRepository,
   ) {}
 
   /** Every folder the caller may see, flat (the client builds the tree from parentId). */
@@ -84,6 +88,7 @@ export class FoldersService {
     const parentId = p.parentId ?? null;
     // Anyone may create a root folder; a subfolder needs a manager of the parent.
     if (parentId) await this.assertEditable(me, parentId);
+    if (parentId) await this.assertNotLegacy(parentId);
     const permissionIds = await validPermissionSet(this.permissions, me, p.permissions, { required: true, what: 'a folder' });
     const managers = await validUserSet(this.users, [me.id, ...p.managers], 'manager');
     const id = await this.database.transaction(async () => {
@@ -124,6 +129,7 @@ export class FoldersService {
     const input = parse(itemsSchema, body);
     const summaryIds = unique(input.summaryIds);
     await this.assertEditable(me, id);
+    await this.assertNotLegacy(id);
 
     const visibleSummaries = await this.summaries.visibleIds(me, summaryIds);
     const skipped: ApiBulkResult['skipped'] = summaryIds.filter((i) => !visibleSummaries.has(i)).map((i) => ({ id: i, reason: 'not-found' }));
@@ -158,18 +164,20 @@ export class FoldersService {
 
   /**
    * Move a folder (with its subtree) under `parentId`, or to the root with null. Needs management of the folder, of the
-   * parent it leaves and of the one it enters. A folder cannot go inside itself.
+   * parent it leaves and of the one it enters. A folder cannot go inside itself. Nothing goes into the legacy root or
+   * its collections; a collection leaving the legacy root needs only its own managers (the root has none).
    */
   async move(me: CurrentUser, id: string, body: unknown): Promise<ApiFolder | object> {
     const { parentId } = parse(moveSchema, body);
     await this.assertEditable(me, id);
     if (parentId) await this.assertEditable(me, parentId);
+    if (parentId) await this.assertNotLegacy(parentId);
     await this.database.transaction(async () => {
       await this.repo.lockMoves();
       const folder = await this.repo.findById(id);
       if (!folder) throw new NotFoundException();
       if (folder.parentId === parentId) return;
-      if (folder.parentId) await this.assertEditable(me, folder.parentId);
+      if (folder.parentId && (await this.legacy.placeOf(folder.parentId)) !== 'root') await this.assertEditable(me, folder.parentId);
       if (parentId && (await this.repo.isWithin(parentId, id))) throw new BadRequestException('a folder cannot move inside itself');
       await this.repo.setParent(id, parentId);
     });
@@ -181,14 +189,18 @@ export class FoldersService {
   /** Deletes the folder and its subfolders; the summaries inside are only taken out of the hierarchy. */
   async delete(me: CurrentUser, id: string): Promise<void> {
     await this.assertEditable(me, id);
-    await this.repo.delete(id);
+    await this.database.transaction(async () => {
+      await this.legacy.keepOnDelete(id);
+      await this.repo.delete(id);
+    });
   }
 
-  private async hydrate(me: CurrentUser, ids: string[]): Promise<ApiFolder[]> {
-    const [rows, counts, subtree] = await Promise.all([
+  async hydrate(me: CurrentUser, ids: string[]): Promise<ApiFolder[]> {
+    const [rows, counts, subtree, legacyRoot] = await Promise.all([
       this.repo.loadFull(ids),
       this.repo.itemCounts(ids, this.summaries.visible(me)),
       this.repo.subtreeCounts(ids, this.summaries.visible(me)),
+      this.legacy.rootId(),
     ]);
     return rows.map((f) => ({
       _id: f.id,
@@ -199,17 +211,23 @@ export class FoldersService {
       hiddenCount: counts.get(f.id)?.hidden ?? 0,
       permissions: f.permissions.map((p) => toApiPermission(p.permission)).sort((a, b) => a.name.localeCompare(b.name, 'he')),
       managers: f.editors.map((e) => e.userId),
+      legacy: f.isLegacyRoot ? 'root' : legacyRoot && f.parentId === legacyRoot ? 'collection' : null,
       createdBy: toRef(f.author),
       createdAt: f.createdAt.toISOString(),
       updatedAt: f.updatedAt.toISOString(),
     }));
   }
 
-  private async assertVisible(me: CurrentUser, id: string): Promise<void> {
+  /** Nothing can be added to the legacy root or its collections (folders or summaries): things only leave. */
+  private async assertNotLegacy(id: string): Promise<void> {
+    if (await this.legacy.placeOf(id)) throw new BadRequestException('nothing can be added to the legacy collections');
+  }
+
+  async assertVisible(me: CurrentUser, id: string): Promise<void> {
     if (!(await this.repo.visibleIds(me, [id])).has(id)) throw new NotFoundException();
   }
 
-  private async assertEditable(me: CurrentUser, id: string): Promise<void> {
+  async assertEditable(me: CurrentUser, id: string): Promise<void> {
     await this.assertVisible(me, id);
     if (!(await this.repo.visibleIds(me, [id], 'edit')).has(id)) throw new ForbiddenException();
   }

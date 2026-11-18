@@ -1,0 +1,38 @@
+<div class="prefs">
+  <div class="section">
+    <div class="section-title" role="heading" aria-level="3"><span nz-icon nzType="folder-open"></span> תיקיות וחיפוש</div>
+
+    <div class="pref">
+      <div class="pref-text">
+        <div class="pref-label" id="pref-folder-search">מעבר לתיקייה אחרת בזמן חיפוש</div>
+        <div class="pref-hint">מה קורה לחיפוש (טקסט ומסננים) כשבוחרים תיקייה אחרת בעץ או בכרטיסי התיקיות</div>
+      </div>
+      <nz-radio-group
+        aria-labelledby="pref-folder-search"
+        [ngModel]="prefs.all().folderSearch"
+        (ngModelChange)="change('folderSearch', $event)"
+        [nzDisabled]="saving() === 'folderSearch'"
+      >
+        <label nz-radio nzValue="keep">החיפוש נשאר, והתוצאות מתעדכנות לתיקייה החדשה</label>
+        <label nz-radio nzValue="reset">החיפוש מתאפס, ומוצגת כל התיקייה</label>
+      </nz-radio-group>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title" role="heading" aria-level="3"><span nz-icon nzType="calendar"></span> תצוגה</div>
+
+    <div class="pref">
+      <div class="pref-text">
+        <div class="pref-label" id="pref-dates">הצגת זמנים</div>
+        <div class="pref-hint">מתי נכתבו תמציות, תגובות והתראות</div>
+      </div>
+      <nz-radio-group aria-labelledby="pref-dates" [ngModel]="prefs.all().dates" (ngModelChange)="change('dates', $event)" [nzDisabled]="saving() === 'dates'">
+        <label nz-radio nzValue="relative">יחסית, למשל "לפני 3 שעות"</label>
+        <label nz-radio nzValue="exact">תאריך ושעה, למשל "{{ example }}"</label>
+      </nz-radio-group>
+    </div>
+  </div>
+
+  <div class="footnote">ההעדפות נשמרות בחשבון שלך, ומופיעות בכל מחשב ודפדפן.</div>
+</div>

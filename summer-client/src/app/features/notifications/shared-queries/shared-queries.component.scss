@@ -1,0 +1,32 @@
+@use 'tokens' as *;
+@use '../queries-list' as *;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.owner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.dot {
+  color: $gray;
+}
+
+.own {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: $tok-saved;
+}
+
+.item.following {
+  box-shadow: inset -3px 0 0 $primary-orange;
+}

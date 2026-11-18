@@ -275,47 +275,74 @@
       <nz-form-item>
         <nz-form-label nzFor="tags">תיוג</nz-form-label>
         <nz-form-control nzExtra="מתויגים מקבלים התראה; בקבוצה — רק מי שיכול לצפות בתמצית">
-          <nz-select
-            nzId="tags"
-            nzMode="multiple"
-            nzShowSearch
-            nzServerSearch
-            nzPlaceHolder="חיפוש משתמש או קבוצה"
-            nzDropdownClassName="no-check"
-            [nzCustomTemplate]="tagTag"
-            [ngModel]="tagValue()"
-            (ngModelChange)="tagsChange($event)"
-            [ngModelOptions]="{ standalone: true }"
-            (nzOnSearch)="onUserSearch($event)"
-          >
-            @if (sortedUsers().length) {
-              <nz-option-group nzLabel="משתמשים">
-                @for (u of sortedUsers(); track u._id) {
-                  <nz-option nzCustomContent [nzValue]="'u:' + u._id" [nzLabel]="u.fullName">
-                    <span class="opt">
-                      <app-avatar [user]="u" [size]="24" />
-                      <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
-                      <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinUser.bind(this, u._id))" [attr.aria-label]="'נעיצה ' + u.fullName">
-                        <span nz-icon nzType="pushpin" [nzTheme]="users.isPinnedUser(u._id) ? 'fill' : 'outline'"></span>
-                      </button>
-                    </span>
-                  </nz-option>
-                }
-              </nz-option-group>
+          <div class="tag-row">
+            <nz-select
+              nzId="tags"
+              nzMode="multiple"
+              nzShowSearch
+              nzServerSearch
+              nzPlaceHolder="חיפוש משתמש או קבוצה"
+              nzDropdownClassName="no-check"
+              [nzCustomTemplate]="tagTag"
+              [ngModel]="tagValue()"
+              (ngModelChange)="tagsChange($event)"
+              [ngModelOptions]="{ standalone: true }"
+              (nzOnSearch)="onUserSearch($event)"
+            >
+              @if (sortedUsers().length) {
+                <nz-option-group nzLabel="משתמשים">
+                  @for (u of sortedUsers(); track u._id) {
+                    <nz-option nzCustomContent [nzValue]="'u:' + u._id" [nzLabel]="u.fullName">
+                      <span class="opt">
+                        <app-avatar [user]="u" [size]="24" />
+                        <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
+                        <span class="opt-username">{{ u.username }}</span>
+                        <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinUser.bind(this, u._id))" [attr.aria-label]="'נעיצה ' + u.fullName">
+                          <span nz-icon nzType="pushpin" [nzTheme]="users.isPinnedUser(u._id) ? 'fill' : 'outline'"></span>
+                        </button>
+                      </span>
+                    </nz-option>
+                  }
+                </nz-option-group>
+              }
+              @if (tagUserGroups().length) {
+                <nz-option-group nzLabel="קבוצות משתמשים שמורות (מתייגות את כל החברים)">
+                  @for (t of tagUserGroups(); track t._id) {
+                    <nz-option nzCustomContent [nzValue]="'t:' + t._id" [nzLabel]="t.name">
+                      <span class="opt">
+                        <span class="group-icon user-group"><span nz-icon nzType="usergroup-add"></span></span>
+                        <span class="opt-label">{{ t.name }}{{ t.isMine ? '' : ' - ' + t.owner.fullName }}</span>
+                        <span class="opt-count">{{ t.users.length + t.permissions.length }}</span>
+                      </span>
+                    </nz-option>
+                  }
+                </nz-option-group>
+              }
+              @if (tagGroups().length) {
+                <nz-option-group nzLabel="קבוצות">
+                  @for (p of tagGroups(); track p._id) {
+                    <nz-option nzCustomContent [nzValue]="'g:' + p._id" [nzLabel]="p.name">
+                      <span class="opt">
+                        <span class="group-icon" [style.background]="p.color"><span nz-icon nzType="team"></span></span>
+                        <span class="opt-label">{{ p.name }}</span>
+                      </span>
+                    </nz-option>
+                  }
+                </nz-option-group>
+              }
+            </nz-select>
+            @if (tagValue().length > 1) {
+              <button
+                type="button"
+                class="save-tags-btn"
+                (click)="saveTagsAsGroup()"
+                nz-tooltip="שמירת התיוג כקבוצת משתמשים"
+                aria-label="שמירת התיוג כקבוצת משתמשים"
+              >
+                <span nz-icon nzType="usergroup-add"></span>
+              </button>
             }
-            @if (tagGroups().length) {
-              <nz-option-group nzLabel="קבוצות">
-                @for (p of tagGroups(); track p._id) {
-                  <nz-option nzCustomContent [nzValue]="'g:' + p._id" [nzLabel]="p.name">
-                    <span class="opt">
-                      <span class="group-icon" [style.background]="p.color"><span nz-icon nzType="team"></span></span>
-                      <span class="opt-label">{{ p.name }}</span>
-                    </span>
-                  </nz-option>
-                }
-              </nz-option-group>
-            }
-          </nz-select>
+          </div>
           <ng-template #tagTag let-selected>
             <span class="perm-tag">
               @if (selected.nzValue.startsWith('g:')) {

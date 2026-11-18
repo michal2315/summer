@@ -13,6 +13,14 @@
     </a>
   }
 
+  @if (toSort(); as n) {
+    <a class="to-sort" routerLink="/staging" routerLinkActive="active" (click)="navigate.emit()">
+      <span nz-icon nzType="partition"></span>
+      <span class="to-sort-text">{{ n === 1 ? 'לקט אחד' : n + ' לקטים' }} מ-Summer הישן למיון</span>
+      <span nz-icon nzType="left" class="to-sort-arrow"></span>
+    </a>
+  }
+
   <app-folder-tree class="tree" (navigate)="navigate.emit()" />
 
   <div class="footer">

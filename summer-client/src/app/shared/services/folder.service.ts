@@ -88,7 +88,10 @@ export function folderPaths(folders: IFolder[]): FolderPath[] {
   return folders.map((f) => ({ _id: f._id, name: f.name, path: path(f) })).sort((a, b) => a.path.localeCompare(b.path, 'he'));
 }
 
-/** Folders `userId` manages (only managers may add to a folder), labelled and sorted like folderPaths. */
+/**
+ * Folders `userId` manages (only managers may add to a folder), labelled and sorted like folderPaths. Never the legacy
+ * root or its collections: nothing can be added to them.
+ */
 export function managedFolderPaths(folders: IFolder[], userId: string): FolderPath[] {
-  return folderPaths(folders.filter((f) => f.managers.includes(userId)));
+  return folderPaths(folders.filter((f) => f.managers.includes(userId) && !f.legacy));
 }
