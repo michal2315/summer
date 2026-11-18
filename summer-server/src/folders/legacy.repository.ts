@@ -178,10 +178,10 @@ export class LegacyRepository {
   }
 
   /** The caller's own published summaries taken out of each of `folderIds` (their release rows), by name. */
-  async ownReleased(folderIds: string[], userId: string): Promise<{ folderId: string; summaryId: string; name: string }[]> {
+  async ownReleased(folderIds: string[], userId: string) {
     if (!folderIds.length) return [];
     return this.db
-      .select({ folderId: legacyReleases.folderId, summaryId: summaries.id, name: summaries.title })
+      .select({ folderId: legacyReleases.folderId, summaryId: summaries.id, name: summaries.title, kind: summaries.kind })
       .from(legacyReleases)
       .innerJoin(summaries, eq(summaries.id, legacyReleases.summaryId))
       .where(and(inArray(legacyReleases.folderId, folderIds), eq(summaries.createdBy, userId), eq(summaries.isDraft, false)))

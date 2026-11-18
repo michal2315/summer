@@ -14,6 +14,7 @@ import { ScrollRailComponent } from '../../../shared/components/scroll-rail/scro
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { IFolder, IFolderItem, SummaryKind } from '../../../shared/models';
 import { highlightText, searchRegex } from '../../../shared/pipes/highlight';
+import { summaryPageLink } from '../../../shared/utils/summary-links';
 import { FolderService, SUMMARY_DRAG_TYPE } from '../../../shared/services/folder.service';
 import type { AddToFolderData } from '../add-to-folder-modal/add-to-folder-modal.component';
 import type { FolderEditorData } from '../folder-editor-modal/folder-editor-modal.component';
@@ -421,8 +422,28 @@ export class FolderTreeComponent {
     return this.router.serializeUrl(this.router.createUrlTree(['/summaries'], { queryParams: params }));
   }
 
+  /** A folder opens on the home page; a summary on its own full page (not in the home page's drawer). */
   openInNewTab(t: Moving) {
+    if (t.type === 'summary') return this.openPageInNewTab(t.item);
     window.open(this.location.prepareExternalUrl(this.rowUrl(t)), '_blank', 'noopener');
+  }
+
+  private openPageInNewTab(item: IFolderItem) {
+    const url = this.router.serializeUrl(this.router.createUrlTree(summaryPageLink(item)));
+    window.open(this.location.prepareExternalUrl(url), '_blank', 'noopener');
+  }
+
+  /**
+   * A summary row: a plain click opens it in the home page's drawer (the link); ctrl/cmd/shift-click or a middle click,
+   * which would open that link in a new tab or window, opens its full page there instead.
+   */
+  onItemClick(e: MouseEvent, item: IFolderItem, lifted: boolean) {
+    if (this.moving()) return this.onPlaceClick(e, undefined, lifted);
+    const newTab = e.type === 'auxclick' ? e.button === 1 : e.ctrlKey || e.metaKey || e.shiftKey;
+    if (!newTab) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.openPageInNewTab(item);
   }
 
   async copyLink(t: Moving) {

@@ -435,6 +435,7 @@ export interface ILegacyAuthored extends ILegacyCollection {
 export interface ILegacySorted {
   _id: string;
   name: string;
+  kind: SummaryKind;
   /** folders outside the legacy root it is in now (that the user can see) */
   folders: { _id: string; name: string }[];
   /** folders it is in that the user can't see; none of either = in no folder */

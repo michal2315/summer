@@ -16,6 +16,7 @@ import { IFolder, ILegacyCollection, ILegacyItem, ILegacyOverview, ILegacySorted
 import { FolderService } from '../../../shared/services/folder.service';
 import { LegacyService } from '../../../shared/services/legacy.service';
 import { FolderTreeStore } from '../../hierarchy/folder-tree.store';
+import { summaryPageLink } from '../../../shared/utils/summary-links';
 import { alertSearch } from '../../summaries/search-query';
 import { SummarySearchComponent } from '../../summaries/summary-search/summary-search.component';
 import { NO_FOLDER_TARGET, StagingTreeComponent } from '../staging-tree/staging-tree.component';
@@ -260,6 +261,9 @@ export class StagingPageComponent {
   collectionPercent(c: ILegacyCollection): number {
     return c.total ? Math.round((this.sortedOf(c) / c.total) * 100) : 100;
   }
+
+  /** The summary's own full page, which its link opens in a new tab. */
+  readonly pageLink = summaryPageLink;
 
   itemIcon(item: ILegacyItem): string {
     if (item.alsoIn.length) return 'check-circle';

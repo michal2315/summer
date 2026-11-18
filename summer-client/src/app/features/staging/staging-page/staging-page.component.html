@@ -255,7 +255,7 @@
                               <span class="item-icon" nz-icon nzType="check-circle"></span>
                               <div class="item-text">
                                 <div class="item-line">
-                                  <a class="item-name" [routerLink]="['/summaries']" [queryParams]="{ summaryId: s._id }" target="_blank">{{ s.name }}</a>
+                                  <a class="item-name" [routerLink]="pageLink(s)" target="_blank">{{ s.name }}</a>
                                 </div>
                                 <div class="hint moved">
                                   @for (f of s.folders; track f._id) {
@@ -322,7 +322,7 @@
     <span class="item-icon" [class.running]="item.kind === 'running'" nz-icon [nzType]="itemIcon(item)"></span>
     <div class="item-text">
       <div class="item-line">
-        <a class="item-name" [routerLink]="['/summaries']" [queryParams]="{ folderId: isOwnOnly(id) ? null : id, summaryId: item.kind === 'running' ? null : item._id, runningId: item.kind === 'running' ? item._id : null }" target="_blank">{{ item.name }}</a>
+        <a class="item-name" [routerLink]="pageLink(item)" target="_blank">{{ item.name }}</a>
         @if (isMoved) {
           <span class="moved-badge"><span nz-icon nzType="check" aria-hidden="true"></span> הועברה</span>
         }

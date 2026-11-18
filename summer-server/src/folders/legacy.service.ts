@@ -52,6 +52,7 @@ export interface ApiLegacyAuthored extends ApiLegacyCollection {
 export interface ApiLegacySorted {
   _id: string;
   name: string;
+  kind: ApiFolderItem['kind'];
   /** Folders outside the legacy root it is in now that the caller can see; none and no hiddenFolders = in no folder. */
   folders: ApiFolderRefLite[];
   /** Folders outside the legacy root it is in that the caller can't see. */
@@ -312,6 +313,7 @@ export class LegacyService {
       const entry = {
         _id: r.summaryId,
         name: r.name,
+        kind: r.kind,
         folders: where.filter((p) => visible.has(p.id)).map((p) => ({ _id: p.id, name: p.name })),
         hiddenFolders: where.filter((p) => !visible.has(p.id)).length,
       };

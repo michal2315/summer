@@ -242,7 +242,13 @@
       (contextmenu)="onContextMenu($event, { type: 'summary', item, from: folderId })"
     >
       <span class="twisty"></span>
-      <a class="link" [routerLink]="moving() ? null : '/summaries'" [queryParams]="itemParams(folderId, item)" (click)="onPlaceClick($event, undefined, lifted)">
+      <a
+        class="link"
+        [routerLink]="moving() ? null : '/summaries'"
+        [queryParams]="itemParams(folderId, item)"
+        (click)="onItemClick($event, item, lifted)"
+        (auxclick)="onItemClick($event, item, lifted)"
+      >
         <span class="icon" [class]="item.kind === 'running' ? 'running' : 'summary'" nz-icon [nzType]="itemIcon(item)" [nz-tooltip]="item.kind === 'running' ? 'תמצית רצף' : null"></span>
         <span class="label">{{ item.name }}</span>
       </a>
