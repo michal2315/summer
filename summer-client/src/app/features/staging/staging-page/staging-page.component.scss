@@ -164,8 +164,10 @@ $moved-text: #157a3f;
   &.done {
     opacity: 0.75;
   }
-  // The user's summaries that were in no collection: not a folder, so it looks set apart.
-  &.unfiled {
+  // The user's summaries that were in no collection, or that wait in collections of others: only theirs, sorted one
+  // by one, so these look set apart.
+  &.unfiled,
+  &.authored {
     border-style: dashed;
     background: $surface-subtle;
     .collection-head {
@@ -175,6 +177,34 @@ $moved-text: #157a3f;
       color: $orange-strong;
     }
   }
+}
+// Above the collections of others.
+.section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 8px;
+  padding: 0 4px;
+  font-weight: 700;
+  color: $dark-blue;
+}
+.section-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: $dark-gray;
+}
+.name-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.managed-by {
+  font-size: 11px;
+  color: $dark-gray;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .unfiled-note {
   flex: none;
@@ -341,6 +371,10 @@ $moved-text: #157a3f;
   }
   &.sorted.picked {
     background: $orange-50;
+  }
+  // Only shown (already out of the collection): nothing to pick or drag.
+  &.static {
+    cursor: default;
   }
 }
 .item-icon {

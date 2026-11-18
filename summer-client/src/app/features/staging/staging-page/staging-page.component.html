@@ -90,8 +90,19 @@
             @let visibleLeft = c.left - c.folder.hiddenCount;
             @let movedHere = alreadySorted(id).length;
             @let unfiled = isUnfiled(id);
-            <div class="collection" [class.open]="open" [class.done]="c.left === 0" [class.unfiled]="unfiled">
-              <div class="collection-head" [attr.draggable]="unfiled ? null : 'true'" (dragstart)="onCollectionDragStart($event, c)" (dragend)="endDrag()">
+            @let authored = isAuthored(id);
+            @let ownOnly = unfiled || authored;
+            @let sortedMine = authored ? sortedOut(id) : [];
+            <!-- A collection of others with nothing of mine left: only to show that it was sorted. -->
+            @let allSorted = authored && c.left === 0;
+            @if (id === firstAuthored()) {
+              <div class="section-title" role="heading" aria-level="2">
+                <span nz-icon nzType="team"></span> התמציות שלי בלקטים של אחרים
+                <span class="section-hint">את הלקטים עצמם ממיינים המנהלים שלהם; כאן מופיעות רק התמציות שכתבת, ואותן אפשר למיין בעצמך.</span>
+              </div>
+            }
+            <div class="collection" [class.open]="open" [class.done]="c.left === 0" [class.unfiled]="unfiled" [class.authored]="authored">
+              <div class="collection-head" [attr.draggable]="ownOnly ? null : 'true'" (dragstart)="onCollectionDragStart($event, c)" (dragend)="endDrag()">
                 <button type="button" class="twisty" (click)="toggle(id)" [attr.aria-expanded]="open" [attr.aria-label]="(open ? 'כיווץ ' : 'פתיחת ') + c.folder.name">
                   <span nz-icon [nzType]="open ? 'down' : 'left'"></span>
                 </button>
@@ -100,9 +111,17 @@
                 }
                 <button type="button" class="collection-name" (click)="toggle(id)">
                   <span class="icon" nz-icon [nzType]="unfiled ? 'inbox' : open ? 'folder-open' : 'folder'"></span>
-                  <span class="name">{{ c.folder.name }}</span>
+                  <span class="name-block">
+                    <span class="name">{{ c.folder.name }}</span>
+                    @if (authored && managersOf(id); as managers) {
+                      <span class="managed-by">בניהול {{ managers }}</span>
+                    }
+                  </span>
                   @if (unfiled) {
                     <span class="unfiled-note" nz-tooltip="תמציות שכתבת ושלא היו באף לקט ב-Summer הישן. רק את/ה רואה אותן כאן.">לא היו בלקט</span>
+                  }
+                  @if (authored) {
+                    <span class="unfiled-note" nz-tooltip="רק התמציות שכתבת בלקט הזה. מה שתמיינו כאן יוצא מהלקט גם אצל המנהלים.">רק שלי</span>
                   }
                 </button>
                 @if (matches()) {
@@ -113,12 +132,26 @@
                     <span nz-icon nzType="check-circle" nzTheme="fill"></span> {{ movedHere }} הועברו
                   </span>
                 }
+                @if (sortedMine.length) {
+                  <span class="pill moved" nz-tooltip="תמציות שלך שכבר יצאו מהלקט (מיינת אותן, או מנהלי הלקט). פתחו את הלקט כדי לראות איפה הן עכשיו.">
+                    <span nz-icon nzType="check-circle" nzTheme="fill"></span> {{ sortedMine.length }} מהתמציות שלך כבר מוינו
+                  </span>
+                }
                 <div class="mini" [nz-tooltip]="sortedOf(c) + ' מתוך ' + c.total + ' מוינו'">
                   <div class="mini-bar"><div class="mini-fill" [style.width.%]="collectionPercent(c)"></div></div>
-                  <span class="mini-text">{{ c.left === 0 ? 'ריק' : 'נותרו ' + c.left }}</span>
+                  <span class="mini-text">{{ allSorted ? 'הכול מוין' : c.left === 0 ? 'ריק' : 'נותרו ' + c.left }}</span>
                 </div>
-                @if (unfiled) {
-                  <button nz-button nzSize="small" type="button" [disabled]="busy() || !visibleLeft" (click)="keepAsIs(c)" nz-tooltip="כל התמציות כאן יישארו כמו שהן, בלי תיקייה: בהיררכיה הן יופיעו תחת 'תמציות ללא שיוך'. לחלק מהן: בחרו ולחצו על 'ללא תיקייה' בעץ.">
+                @if (allSorted) {
+                  <!-- Nothing of mine left to sort: no actions on it. -->
+                } @else if (ownOnly) {
+                  <button
+                    nz-button
+                    nzSize="small"
+                    type="button"
+                    [disabled]="busy() || !visibleLeft"
+                    (click)="keepAsIs(c)"
+                    [nz-tooltip]="(unfiled ? 'כל התמציות כאן' : 'התמציות שלך בלקט') + ' יישארו כמו שהן: מי שכבר בתיקייה חדשה נשארת בה, והשאר יופיעו בהיררכיה תחת \'תמציות ללא שיוך\'. לחלק מהן: בחרו ולחצו על \'ללא תיקייה\' בעץ.'"
+                  >
                     להשאיר כמו שהן
                   </button>
                 } @else if (c.left === 0) {
@@ -128,12 +161,14 @@
                     להשאיר כמו שהוא
                   </button>
                 }
-                <button nz-button nzType="text" nzSize="small" type="button" nz-dropdown [nzDropdownMenu]="menu" nzTrigger="click" aria-label="עוד פעולות על הלקט">
-                  <span nz-icon nzType="more"></span>
-                </button>
+                @if (!allSorted) {
+                  <button nz-button nzType="text" nzSize="small" type="button" nz-dropdown [nzDropdownMenu]="menu" nzTrigger="click" aria-label="עוד פעולות על הלקט">
+                    <span nz-icon nzType="more"></span>
+                  </button>
+                }
                 <nz-dropdown-menu #menu="nzDropdownMenu">
                   <ul nz-menu>
-                    @if (!unfiled) {
+                    @if (!ownOnly) {
                       <li nz-menu-item [nzDisabled]="!targetFolder()" (click)="moveCollection(c)">
                         <span nz-icon nzType="folder-add"></span>
                         {{ targetFolder() ? 'כתיקיית משנה של "' + targetFolder()!.name + '"' : 'כתיקיית משנה (בחרו יעד בעץ)' }}
@@ -149,7 +184,7 @@
                         <span nz-icon nzType="check-circle"></span> הוצאת {{ alreadySorted(id).length }} שכבר בתיקיות
                       </li>
                     }
-                    @if (!unfiled) {
+                    @if (!ownOnly) {
                       <li nz-menu-divider></li>
                       <li nz-menu-item nzDanger (click)="deleteCollection(c)"><span nz-icon nzType="delete"></span> מחיקת הלקט</li>
                     }
@@ -205,7 +240,45 @@
                         עוד {{ c.folder.hiddenCount }} תמציות בלקט מוסתרות ממך (חסרות לך הרשאות). מנהל/ת אחר/ת יכול/ה למיין אותן, או "להשאיר כמו שהוא" כדי שיעברו עם הלקט.
                       </div>
                     }
-                    @if (c.left === 0) {
+                    @if (sortedMine.length) {
+                      <!-- Mine, already out of the collection (sorted by me or its managers): where each one is now. -->
+                      <div class="moved-group">
+                        <div class="moved-head">
+                          <span nz-icon nzType="check-circle" nzTheme="fill"></span>
+                          <span class="moved-title">
+                            {{ sortedMine.length === 1 ? 'תמצית אחת שלך כבר מוינה' : sortedMine.length + ' מהתמציות שלך כבר מוינו' }}
+                          </span>
+                        </div>
+                        <ul class="items">
+                          @for (s of sortedMine; track s._id) {
+                            <li class="item sorted static">
+                              <span class="item-icon" nz-icon nzType="check-circle"></span>
+                              <div class="item-text">
+                                <div class="item-line">
+                                  <a class="item-name" [routerLink]="['/summaries']" [queryParams]="{ summaryId: s._id }" target="_blank">{{ s.name }}</a>
+                                </div>
+                                <div class="hint moved">
+                                  @for (f of s.folders; track f._id) {
+                                    <a class="folder-chip" [routerLink]="['/summaries']" [queryParams]="{ folderId: f._id }" target="_blank" [attr.aria-label]="'פתיחת התיקייה ' + f.name">
+                                      <span nz-icon nzType="folder" aria-hidden="true"></span> {{ f.name }}
+                                    </a>
+                                  }
+                                  @if (s.hiddenFolders) {
+                                    <span class="folder-chip" nz-tooltip="תיקייה שאין לך הרשאות לראות">
+                                      <span nz-icon nzType="lock" aria-hidden="true"></span> {{ s.hiddenFolders === 1 ? 'תיקייה מוסתרת' : s.hiddenFolders + ' תיקיות מוסתרות' }}
+                                    </span>
+                                  }
+                                  @if (!s.folders.length && !s.hiddenFolders) {
+                                    <span class="folder-chip"><span nz-icon nzType="inbox" aria-hidden="true"></span> ללא תיקייה</span>
+                                  }
+                                </div>
+                              </div>
+                            </li>
+                          }
+                        </ul>
+                      </div>
+                    }
+                    @if (c.left === 0 && !ownOnly) {
                       <div class="none">הלקט ריק. אפשר למחוק אותו.</div>
                     }
                   }
@@ -249,7 +322,7 @@
     <span class="item-icon" [class.running]="item.kind === 'running'" nz-icon [nzType]="itemIcon(item)"></span>
     <div class="item-text">
       <div class="item-line">
-        <a class="item-name" [routerLink]="['/summaries']" [queryParams]="{ folderId: isUnfiled(id) ? null : id, summaryId: item.kind === 'running' ? null : item._id, runningId: item.kind === 'running' ? item._id : null }" target="_blank">{{ item.name }}</a>
+        <a class="item-name" [routerLink]="['/summaries']" [queryParams]="{ folderId: isOwnOnly(id) ? null : id, summaryId: item.kind === 'running' ? null : item._id, runningId: item.kind === 'running' ? item._id : null }" target="_blank">{{ item.name }}</a>
         @if (isMoved) {
           <span class="moved-badge"><span nz-icon nzType="check" aria-hidden="true"></span> הועברה</span>
         }

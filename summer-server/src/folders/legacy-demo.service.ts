@@ -47,6 +47,9 @@ const SUMMARIES: [string, string, string[], string[], string?][] = [
   ['תוכנית עבודה לסמסטר', 'mgolan', ['cs-faculty'], ['lab']],
   ['נהלי בחינות לסגל', 'yavraham', ['staff'], ['staff']],
   ['פרוטוקול ישיבת סגל', 'yavraham', ['staff'], ['staff']],
+  // Mine, in a collection yavraham manages: I sort it myself (and the other copy, in one I manage, stays on its own).
+  ['מצגת לכנס הסגל', 'mgolan', ['staff'], ['staff']],
+  ['נהלי מעבדה לסגל ולסטודנטים', 'mgolan', ['staff', 'cs-faculty'], ['staff', 'lab']],
   // In no collection in the old Summer: waiting directly in the legacy root, each sorted by its author.
   ['רשימות מהכנס השנתי', 'mgolan', ['cs-faculty'], [ROOT]],
   ['סיכום פגישה עם המנחה', 'mgolan', ['research'], [ROOT]],

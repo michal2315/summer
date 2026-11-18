@@ -1,5 +1,6 @@
 import { ApiSummary } from './api-types';
 import { config } from './config';
+import type { SummaryBrief, SummaryFull } from './schemas';
 
 // ---------------------------------------------------------------- dates (Summer's calendar days are in its time zone)
 
@@ -64,7 +65,7 @@ const snippet = (html: string, max = 280): string => {
 // ---------------------------------------------------------------- summaries
 
 /** A search hit: enough to pick which ones to open. */
-export function summaryBrief(s: ApiSummary) {
+export function summaryBrief(s: ApiSummary): SummaryBrief {
   return {
     id: s._id,
     title: s.title,
@@ -84,7 +85,7 @@ export function summaryBrief(s: ApiSummary) {
 }
 
 /** One summary in full, rich text as plain text. */
-export function summaryFull(s: ApiSummary) {
+export function summaryFull(s: ApiSummary): SummaryFull {
   return {
     id: s._id,
     title: s.title,

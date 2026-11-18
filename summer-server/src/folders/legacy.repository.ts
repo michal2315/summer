@@ -3,7 +3,7 @@ import { SQL, and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { CurrentUser } from '../auth/identity-provider';
 import { DatabaseService } from '../database/database.service';
-import { folderEditors, folderSummaries, folders, legacyCollections, legacyReleases, summaries } from '../database/schema';
+import { folderEditors, folderSummaries, folders, legacyCollections, legacyReleases, permissions, summaries, summaryPermissions } from '../database/schema';
 import { folderEditable } from './folder.access';
 
 /** Where a folder sits relative to the legacy root: the root itself, a collection directly in it, or neither. */
@@ -149,6 +149,53 @@ export class LegacyRepository {
       .innerJoin(summaries, eq(summaries.id, legacyReleases.summaryId))
       .where(and(eq(legacyReleases.folderId, rootId), eq(summaries.createdBy, userId), eq(summaries.isDraft, false)));
     return { left: left.n, released: released.n };
+  }
+
+  /** The caller's own published summaries still placed in `folderId`. */
+  async ownLeft(folderId: string, userId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(folderSummaries)
+      .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
+      .where(and(eq(folderSummaries.folderId, folderId), eq(summaries.createdBy, userId), eq(summaries.isDraft, false)));
+    return row.n;
+  }
+
+  /**
+   * Collections in the legacy root the caller does not manage, with how many of the caller's own published summaries
+   * wait in each (`left`) and were sorted out of each already (`released`). Only collections with either.
+   */
+  async authoredCollections(me: CurrentUser, rootId: string): Promise<{ id: string; left: number; released: number }[]> {
+    const own = (table: typeof folderSummaries | typeof legacyReleases) => sql<number>`(
+      select count(*)::int from ${table} x join ${summaries} s on s.id = x.summary_id
+      where x.folder_id = "folders"."id" and s.created_by = ${me.id} and s.is_draft = false)`;
+    const rows = await this.db
+      .select({ id: folders.id, left: own(folderSummaries), released: own(legacyReleases) })
+      .from(folders)
+      .where(and(eq(folders.parentId, rootId), sql`not ${folderEditable(me)}`))
+      .orderBy(folders.name, folders.id);
+    return rows.filter((r) => r.left || r.released);
+  }
+
+  /** The caller's own published summaries taken out of each of `folderIds` (their release rows), by name. */
+  async ownReleased(folderIds: string[], userId: string): Promise<{ folderId: string; summaryId: string; name: string }[]> {
+    if (!folderIds.length) return [];
+    return this.db
+      .select({ folderId: legacyReleases.folderId, summaryId: summaries.id, name: summaries.title })
+      .from(legacyReleases)
+      .innerJoin(summaries, eq(summaries.id, legacyReleases.summaryId))
+      .where(and(inArray(legacyReleases.folderId, folderIds), eq(summaries.createdBy, userId), eq(summaries.isDraft, false)))
+      .orderBy(summaries.title);
+  }
+
+  /** Each summary's own permissions (viewing needs all of them). */
+  async summaryPermissions(summaryIds: string[]) {
+    if (!summaryIds.length) return [];
+    return this.db
+      .select({ summaryId: summaryPermissions.summaryId, id: permissions.id, name: permissions.name, groupName: permissions.groupName, color: permissions.color })
+      .from(summaryPermissions)
+      .innerJoin(permissions, eq(permissions.id, summaryPermissions.permissionId))
+      .where(inArray(summaryPermissions.summaryId, summaryIds));
   }
 
   /** Of `summaryIds`, the ones `userId` wrote. */

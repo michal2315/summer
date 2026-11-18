@@ -420,8 +420,25 @@ export interface ILegacyOverview {
    * collection (folder = the root); null when none are left
    */
   unfiled: ILegacyCollection | null;
+  /** collections others manage that hold the user's own summaries: left / total count only those, which the user sorts */
+  authored: ILegacyAuthored[];
   /** over every collection the user manages or managed, including ones already moved out or deleted */
   progress: { total: number; left: number; collections: number; done: number };
+}
+
+export interface ILegacyAuthored extends ILegacyCollection {
+  managers: UserRef[];
+  /** the user's own summaries already taken out of it (by its managers or the user), and where they are now */
+  sorted: ILegacySorted[];
+}
+
+export interface ILegacySorted {
+  _id: string;
+  name: string;
+  /** folders outside the legacy root it is in now (that the user can see) */
+  folders: { _id: string; name: string }[];
+  /** folders it is in that the user can't see; none of either = in no folder */
+  hiddenFolders: number;
 }
 
 export interface ILegacyItem extends IFolderItem {
@@ -429,6 +446,8 @@ export interface ILegacyItem extends IFolderItem {
   alsoIn: { _id: string; name: string }[];
   /** other legacy collections it also waits in */
   alsoLegacy: { _id: string; name: string }[];
+  /** its own permissions (viewing needs all of them) */
+  permissions: IPermission[];
 }
 
 /** POST /legacy/search: which summaries in the user's collections match a search. */

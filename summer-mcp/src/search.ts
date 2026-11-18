@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { dayToInstant } from './format';
-
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'use yyyy-MM-dd');
-const id = z.string().uuid();
+import { day, id } from './schemas';
 
 /** Filters a saved query can keep (Summer stores only these on a query). */
 export const queryFiltersShape = {

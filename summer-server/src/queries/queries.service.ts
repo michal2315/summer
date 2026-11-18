@@ -142,7 +142,8 @@ export class QueriesService {
     return this.get(me, id);
   }
 
-  private async get(me: CurrentUser, id: string): Promise<ApiQuery> {
+  /** One query the caller may see: theirs, or a shared one. */
+  async get(me: CurrentUser, id: string): Promise<ApiQuery> {
     const row = await this.repo.one(me.id, id);
     if (!row) throw new NotFoundException();
     return toApi(me)(row);

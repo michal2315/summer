@@ -12,7 +12,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Observable, forkJoin, map, of, switchMap } from 'rxjs';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { UndoToast, UndoToastComponent } from '../../../shared/components/undo-toast/undo-toast.component';
-import { ILegacyCollection, ILegacyItem, ILegacyOverview, IPermission, ISummarySearch, SummaryKind } from '../../../shared/models';
+import { IFolder, ILegacyCollection, ILegacyItem, ILegacyOverview, ILegacySorted, IPermission, ISummarySearch, SummaryKind } from '../../../shared/models';
 import { FolderService } from '../../../shared/services/folder.service';
 import { LegacyService } from '../../../shared/services/legacy.service';
 import { FolderTreeStore } from '../../hierarchy/folder-tree.store';
@@ -54,11 +54,18 @@ export class StagingPageComponent {
   private readonly modal = inject(NzModalService);
 
   readonly overview = signal<ILegacyOverview | null>(null);
-  /** The user's unfiled summaries (a section like a collection, first), then the collections. */
+  /**
+   * The user's unfiled summaries (a section like a collection, first), the collections they manage, then their own
+   * summaries in collections others manage (one section each).
+   */
   readonly collections = computed(() => {
     const o = this.overview();
-    return o ? [...(o.unfiled ? [o.unfiled] : []), ...o.collections] : [];
+    return o ? [...(o.unfiled ? [o.unfiled] : []), ...o.collections, ...o.authored] : [];
   });
+  /** Collections others manage, by id, with their managers. */
+  private readonly authored = computed(() => new Map((this.overview()?.authored ?? []).map((a) => [a.folder._id, a])));
+  /** The first shown collection of others: the "my summaries in others' collections" heading goes above it. */
+  readonly firstAuthored = computed(() => this.shownCollections().find((c) => this.authored().has(c.folder._id))?.folder._id ?? null);
   /** Nothing to sort here at all (no collections ever, no unfiled summaries). */
   readonly nothing = computed(() => !this.progress().collections && !this.progress().total);
   readonly progress = computed(() => this.overview()?.progress ?? { total: 0, left: 0, collections: 0, done: 0 });
@@ -226,6 +233,26 @@ export class StagingPageComponent {
     return id === this.overview()?.rootId;
   }
 
+  /** A collection someone else manages: only the user's own summaries in it show. */
+  isAuthored(id: string): boolean {
+    return this.authored().has(id);
+  }
+
+  /** Only the user's own summaries, sorted one by one: no actions on the collection as a whole. */
+  isOwnOnly(id: string): boolean {
+    return this.isUnfiled(id) || this.isAuthored(id);
+  }
+
+  /** The user's own summaries already sorted out of a collection of others, and where they are now. */
+  sortedOut(id: string): ILegacySorted[] {
+    return this.authored().get(id)?.sorted ?? [];
+  }
+
+  /** Who manages a collection of others, for its header. */
+  managersOf(id: string): string {
+    return (this.authored().get(id)?.managers ?? []).map((m) => m.fullName || m.username).join(', ');
+  }
+
   sortedOf(c: ILegacyCollection): number {
     return Math.max(0, c.total - c.left);
   }
@@ -339,8 +366,8 @@ export class StagingPageComponent {
   }
 
   onCollectionDragStart(e: DragEvent, collection: ILegacyCollection) {
-    // The unfiled section isn't a folder: it can't go anywhere as a whole.
-    if (this.isUnfiled(collection.folder._id)) return e.preventDefault();
+    // The unfiled section isn't a folder, and a collection of others isn't the user's to move: neither goes as a whole.
+    if (this.isOwnOnly(collection.folder._id)) return e.preventDefault();
     this.startDrag(e, { kind: 'collection', collection }, collection.folder.name);
   }
 
@@ -376,6 +403,32 @@ export class StagingPageComponent {
     const folder = to ? this.store.byId().get(to) : null;
     const groups = [...this.selected()];
     if (!folder || !groups.length || this.busy()) return;
+    // Summaries whose viewers don't all hold the folder's permissions: some who see them won't find them there.
+    const chain = this.chainPermissions(folder._id);
+    const picked = groups.flatMap(([cid, ids]) => (this.items().get(cid) ?? []).filter((i) => ids.has(i._id)));
+    const narrower = picked.filter((i) => chain.some((p) => !i.permissions.some((q) => q._id === p._id)));
+    const extra = [...new Map(narrower.flatMap((i) => chain.filter((p) => !i.permissions.some((q) => q._id === p._id))).map((p) => [p._id, p])).values()];
+    const what = narrower.length === 1 ? `"${narrower[0].name}"` : `${narrower.length} מהתמציות`;
+    this.confirmNarrower(folder.name, extra, `${what} בתיקייה`, `להעביר אל "${folder.name}"?`, () => this.doMoveSelected(folder, groups));
+  }
+
+  /**
+   * Going into `folderName` hides `what` from people who lack `extra` (the folder chain's permissions the thing itself
+   * doesn't require): say so before `go`. Nothing to say: just go.
+   */
+  private confirmNarrower(folderName: string, extra: IPermission[], what: string, title: string, go: () => void) {
+    if (!extra.length) return go();
+    this.modal.confirm({
+      nzTitle: title,
+      nzContent: `בתוך "${folderName}" רק מי שיש לו גם ${extra.map((p) => `"${p.name}"`).join(', ')} יראה את ${what}. התמציות עצמן לא משנות הרשאות, ועדיין יופיעו בחיפוש למי שרשאי לראות אותן.`,
+      nzOkText: 'העברה',
+      nzCancelText: 'ביטול',
+      nzOnOk: go,
+    });
+  }
+
+  private doMoveSelected(folder: IFolder, groups: [string, Set<string>][]) {
+    if (this.busy()) return;
     this.busy.set(true);
     forkJoin(groups.map(([cid, ids]) => this.legacy.moveItems(cid, folder._id, [...ids]).pipe(map((r) => ({ cid, r }))))).subscribe({
       next: (results) => {
@@ -442,8 +495,9 @@ export class StagingPageComponent {
   /** "Keep as is": the collection becomes an ordinary top-level folder, with everything in it. */
   keepAsIs(c: ILegacyCollection) {
     if (this.busy()) return;
-    // The unfiled ones stay as they are: out of the old Summer's root, into "summaries in no folder".
-    if (this.isUnfiled(c.folder._id)) return this.withItems(c, (list) => this.release([[c.folder._id, list.map((i) => i._id)]], 'ונשארו כמו שהן (ללא תיקייה)'));
+    // The user's own ones stay as they are: out of the old Summer, into "summaries in no folder" (or the folders they're
+    // already in). The collection itself is its managers' to keep.
+    if (this.isOwnOnly(c.folder._id)) return this.withItems(c, (list) => this.release([[c.folder._id, list.map((i) => i._id)]], 'ונשארו כמו שהן'));
     this.busy.set(true);
     this.folders.move(c.folder._id, null).subscribe({
       next: () => {
@@ -474,14 +528,7 @@ export class StagingPageComponent {
         error: () => this.busy.set(false),
       });
     };
-    if (!extra.length) return go();
-    this.modal.confirm({
-      nzTitle: `להעביר את "${c.folder.name}" אל "${folder.name}"?`,
-      nzContent: `בתוך "${folder.name}" רק מי שיש לו גם ${extra.map((p) => `"${p.name}"`).join(', ')} יראה את הלקט בעץ. התמציות עצמן לא משנות הרשאות.`,
-      nzOkText: 'העברה',
-      nzCancelText: 'ביטול',
-      nzOnOk: go,
-    });
+    this.confirmNarrower(folder.name, extra, 'הלקט בעץ', `להעביר את "${c.folder.name}" אל "${folder.name}"?`, go);
   }
 
   /** Move the collection's summaries (the ones you can see) into the folder, leaving the collection empty. */
@@ -525,8 +572,9 @@ export class StagingPageComponent {
 
   /** After a move emptied collections: congratulate, and offer to delete them. */
   private offerDelete(ids: string[]) {
-    // The unfiled section is the legacy root itself: nothing to delete, it just goes away when empty.
-    ids = ids.filter((id) => !this.isUnfiled(id));
+    // The unfiled section is the legacy root itself, and a collection of others isn't the user's to delete (it may well
+    // still hold other people's summaries): both just leave this page once the user's own are sorted.
+    ids = ids.filter((id) => !this.isOwnOnly(id));
     if (!ids.length) return;
     const names = ids.map((id) => `"${this.nameOfCollection(id)}"`).join(', ');
     this.modal.confirm({

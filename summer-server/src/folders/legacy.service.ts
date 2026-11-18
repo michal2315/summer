@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { CurrentUser } from '../auth/identity-provider';
-import { ApiBulkResult } from '../common/api-types';
+import { ApiBulkResult, ApiPermission, UserRef, toApiPermission } from '../common/api-types';
 import { parse, unique, zId } from '../common/validation';
 import { DatabaseService } from '../database/database.service';
 import { SummariesRepository } from '../summaries/summaries.repository';
@@ -10,6 +11,7 @@ import { folderVisible } from './folder.access';
 import { ApiFolder, ApiFolderItem, FoldersService } from './folders.service';
 import { FoldersRepository } from './folders.repository';
 import { LegacyRepository } from './legacy.repository';
+import { UsersRepository } from '../users/users.repository';
 
 export interface ApiLegacyCollection {
   folder: ApiFolder;
@@ -29,14 +31,40 @@ export interface ApiLegacyOverview {
    * like a collection (its folder is the root, named UNFILED_NAME). null when none are left.
    */
   unfiled: ApiLegacyCollection | null;
-  /** Over every collection the caller manages or managed (including ones already moved out or deleted), and the unfiled. */
+  /**
+   * Collections in the legacy root the caller does not manage but wrote summaries in: `left` / `total` count only the
+   * caller's own (they sort those themselves), with who manages each collection.
+   */
+  authored: ApiLegacyAuthored[];
+  /**
+   * Over every collection the caller manages or managed (including ones already moved out or deleted), the unfiled, and
+   * the caller's own summaries in collections of others.
+   */
   progress: { total: number; left: number; collections: number; done: number };
 }
 
-/** Where staging acts: a collection, or the legacy root itself for the caller's unfiled summaries. */
+export interface ApiLegacyAuthored extends ApiLegacyCollection {
+  managers: UserRef[];
+  /** The caller's own summaries already taken out of it (by its managers or by the caller), and where they are now. */
+  sorted: ApiLegacySorted[];
+}
+
+export interface ApiLegacySorted {
+  _id: string;
+  name: string;
+  /** Folders outside the legacy root it is in now that the caller can see; none and no hiddenFolders = in no folder. */
+  folders: ApiFolderRefLite[];
+  /** Folders outside the legacy root it is in that the caller can't see. */
+  hiddenFolders: number;
+}
+
+/**
+ * Where staging acts: a collection the caller manages (all its summaries), or, with `own`, the legacy root itself (the
+ * caller's unfiled summaries) or a collection someone else manages: only the summaries the caller wrote.
+ */
 interface Scope {
   rootId: string;
-  unfiled: boolean;
+  own: boolean;
 }
 
 /** What the staging page calls the caller's summaries waiting directly in the legacy root. */
@@ -52,6 +80,8 @@ export interface ApiLegacyItem extends ApiFolderItem {
   alsoIn: ApiFolderRefLite[];
   /** Other legacy collections it is also waiting in. */
   alsoLegacy: ApiFolderRefLite[];
+  /** Its own permissions (viewing needs all of them): the client warns before placing it in a narrower folder. */
+  permissions: ApiPermission[];
 }
 
 export interface ApiLegacyMoveResult extends ApiBulkResult {
@@ -78,7 +108,9 @@ const moveSchema = idsSchema.extend({ to: zId });
 
 /**
  * The staging page (/staging): sorting the collections imported from the old Summer into the hierarchy. Collections
- * are flat folders in the legacy root; their managers sort them, for everyone. Summaries and whole collections only
+ * are flat folders in the legacy root; their managers sort them, for everyone, and authors may sort their own
+ * summaries out of any collection (and out of the root itself, where the unfiled ones wait). Each placement is sorted
+ * on its own: a summary in two collections stays in the other until that one is sorted too. Summaries and whole collections only
  * leave the legacy root; the one way back in is undoing a move (a summary needs its release row, a collection its
  * progress row).
  */
@@ -91,49 +123,67 @@ export class LegacyService {
     private readonly folderRepo: FoldersRepository,
     private readonly summaries: SummariesRepository,
     private readonly summarySearch: SummariesService,
+    private readonly users: UsersRepository,
   ) {}
 
   async overview(me: CurrentUser): Promise<ApiLegacyOverview> {
     const rootId = await this.repo.rootId();
-    if (!rootId) return { rootId: null, collections: [], unfiled: null, progress: { total: 0, left: 0, collections: 0, done: 0 } };
+    if (!rootId) return { rootId: null, collections: [], unfiled: null, authored: [], progress: { total: 0, left: 0, collections: 0, done: 0 } };
     await this.repo.register(rootId);
-    const ids = await this.repo.editableCollections(me, rootId);
+    const [ids, others] = await Promise.all([this.repo.editableCollections(me, rootId), this.repo.authoredCollections(me, rootId)]);
     const [hydrated, left, totals, progress, unfiled] = await Promise.all([
-      this.folders.hydrate(me, [...ids, rootId]),
+      this.folders.hydrate(me, [...ids, rootId, ...others.map((o) => o.id)]),
       this.repo.leftCounts(ids),
       this.repo.totals(ids),
       this.repo.progress(me, rootId),
       this.repo.unfiledCounts(rootId, me.id),
     ]);
-    const root = hydrated.find((f) => f._id === rootId);
-    const collections = hydrated
-      .filter((f) => f._id !== rootId)
-      .map((folder) => ({
-        folder,
-        left: left.get(folder._id) ?? 0,
-        total: Math.max(totals.get(folder._id) ?? 0, left.get(folder._id) ?? 0),
-      }));
-    // Only the caller's own summaries count, so none of the root's are hidden from them here.
+    const byId = new Map(hydrated.map((f) => [f._id, f]));
+    const managers = new Map((await this.users.refsByIds(unique(others.flatMap((o) => byId.get(o.id)?.managers ?? [])))).map((u) => [u._id, u]));
+    const collections = ids.flatMap((id) => {
+      const folder = byId.get(id);
+      return folder ? [{ folder, left: left.get(id) ?? 0, total: Math.max(totals.get(id) ?? 0, left.get(id) ?? 0) }] : [];
+    });
+    // Only the caller's own summaries count in the unfiled and in others' collections, so none are hidden from them there.
+    const root = byId.get(rootId);
     const unfiledTotal = unfiled.left + unfiled.released;
+    const sorted = await this.sortedOut(me, rootId, others.filter((o) => o.released).map((o) => o.id));
+    // Kept while anything of the caller's is left in it, or was sorted out of it (so they see it was done).
+    const authored = others.flatMap((o) => {
+      const folder = byId.get(o.id);
+      if (!folder) return [];
+      return [
+        {
+          folder: { ...folder, hiddenCount: 0 },
+          left: o.left,
+          total: o.left + o.released,
+          managers: folder.managers.flatMap((m) => managers.get(m) ?? []),
+          sorted: sorted.get(o.id) ?? [],
+        },
+      ];
+    });
+    const authoredLeft = others.reduce((n, o) => n + o.left, 0);
+    const authoredTotal = others.reduce((n, o) => n + o.left + o.released, 0);
     const leftAll = collections.reduce((n, c) => n + c.left, 0);
     return {
       rootId,
       collections,
       unfiled: root && unfiled.left ? { folder: { ...root, name: UNFILED_NAME, hiddenCount: 0 }, left: unfiled.left, total: unfiledTotal } : null,
-      progress: { ...progress, total: Math.max(progress.total, leftAll) + unfiledTotal, left: leftAll + unfiled.left },
+      authored,
+      progress: {
+        ...progress,
+        total: Math.max(progress.total, leftAll) + unfiledTotal + authoredTotal,
+        left: leftAll + unfiled.left + authoredLeft,
+      },
     };
   }
 
   async items(me: CurrentUser, id: string): Promise<ApiLegacyItem[]> {
-    const { rootId, unfiled } = await this.assertCollection(me, id);
+    const { rootId, own } = await this.assertCollection(me, id);
     const visible = await this.folderRepo.items(id, this.summaries.visible(me));
-    const rows = unfiled ? visible.filter((r) => r.createdBy === me.id) : visible;
-    const others = await this.repo.otherFolders(
-      rows.map((r) => r.id),
-      id,
-      folderVisible(me),
-      rootId,
-    );
+    const rows = own ? visible.filter((r) => r.createdBy === me.id) : visible;
+    const ids = rows.map((r) => r.id);
+    const [others, perms] = await Promise.all([this.repo.otherFolders(ids, id, folderVisible(me), rootId), this.repo.summaryPermissions(ids)]);
     // Also waiting in the root: among its author's unfiled summaries (not necessarily the caller's).
     const ref = (o: { id: string; name: string }) => ({ _id: o.id, name: o.id === rootId ? 'תמציות ללא לקט' : o.name });
     return rows.map((s) => {
@@ -145,6 +195,7 @@ export class LegacyService {
         mine: s.createdBy === me.id,
         alsoIn: mine.filter((o) => !o.legacy).map(ref),
         alsoLegacy: mine.filter((o) => o.legacy).map(ref),
+        permissions: perms.filter((p) => p.summaryId === s.id).map(toApiPermission),
       };
     });
   }
@@ -157,14 +208,19 @@ export class LegacyService {
     const { search } = parse(searchSchema, body);
     const rootId = await this.repo.rootId();
     if (!rootId) return { matches: {}, capped: false };
-    const ids = await this.repo.editableCollections(me, rootId);
-    const { left: unfiledLeft } = await this.repo.unfiledCounts(rootId, me.id);
-    if (!ids.length && !unfiledLeft) return { matches: {}, capped: false };
-    // Within the collections (or, for the caller's unfiled ones, the whole root), published only; sumaroons are never
-    // placed in a folder themselves (they go with their running summary).
+    const [ids, others, { left: unfiledLeft }] = await Promise.all([
+      this.repo.editableCollections(me, rootId),
+      this.repo.authoredCollections(me, rootId),
+      this.repo.unfiledCounts(rootId, me.id),
+    ]);
+    // Where only the caller's own summaries count: the root itself and collections of others.
+    const ownOnly = new Set([...(unfiledLeft ? [rootId] : []), ...others.filter((o) => o.left).map((o) => o.id)]);
+    if (!ids.length && !ownOnly.size) return { matches: {}, capped: false };
+    // Within the collections (or, with any own-only place, the whole root), published only; sumaroons are never placed
+    // in a folder themselves (they go with their running summary).
     const f = this.summarySearch.parseSearch({
       ...search,
-      folders: unfiledLeft ? [rootId] : ids,
+      folders: ownOnly.size ? [rootId] : ids,
       noFolder: false,
       kinds: ['summary', 'running'],
       parentId: undefined,
@@ -175,9 +231,8 @@ export class LegacyService {
     });
     const found = await this.summarySearch.searchAllIds(me, f, SEARCH_CAP + 1);
     const matches: Record<string, string[]> = {};
-    const scope = unfiledLeft ? [...ids, rootId] : ids;
-    for (const p of await this.repo.placements(scope, found.slice(0, SEARCH_CAP)))
-      if (p.folderId !== rootId || p.createdBy === me.id) (matches[p.folderId] ??= []).push(p.summaryId);
+    for (const p of await this.repo.placements([...ids, ...ownOnly], found.slice(0, SEARCH_CAP)))
+      if (!ownOnly.has(p.folderId) || p.createdBy === me.id) (matches[p.folderId] ??= []).push(p.summaryId);
     return { matches, capped: found.length > SEARCH_CAP };
   }
 
@@ -218,7 +273,7 @@ export class LegacyService {
     const { summaryIds } = parse(idsSchema, body);
     const scope = await this.assertCollection(me, id);
     return this.database.transaction(async () => {
-      const ids = scope.unfiled ? await this.repo.writtenBy(me.id, unique(summaryIds)) : unique(summaryIds);
+      const ids = scope.own ? await this.repo.writtenBy(me.id, unique(summaryIds)) : unique(summaryIds);
       const applied = await this.repo.restore(id, ids);
       return { applied, left: await this.leftOf(me, scope, id) };
     });
@@ -244,27 +299,50 @@ export class LegacyService {
     return {};
   }
 
-  /** Of `summaryIds`, the ones waiting in the collection (in the unfiled: and written by the caller). */
-  private async waitingIn(me: CurrentUser, scope: Scope, id: string, summaryIds: string[]): Promise<string[]> {
-    const ids = [...(await this.repo.placedIn(id, unique(summaryIds)))];
-    return scope.unfiled ? this.repo.writtenBy(me.id, ids) : ids;
+  /** Per collection: the caller's own summaries taken out of it, with the folders outside the legacy root they are in now. */
+  private async sortedOut(me: CurrentUser, rootId: string, collectionIds: string[]): Promise<Map<string, ApiLegacySorted[]>> {
+    const released = await this.repo.ownReleased(collectionIds, me.id);
+    const out = new Map<string, ApiLegacySorted[]>();
+    if (!released.length) return out;
+    // Every folder they are in (the root is never one of them), then which of those the caller may see.
+    const placed = (await this.repo.otherFolders(unique(released.map((r) => r.summaryId)), rootId, sql`true`, rootId)).filter((p) => !p.legacy);
+    const visible = await this.folderRepo.visibleIds(me, unique(placed.map((p) => p.id)));
+    for (const r of released) {
+      const where = placed.filter((p) => p.summaryId === r.summaryId);
+      const entry = {
+        _id: r.summaryId,
+        name: r.name,
+        folders: where.filter((p) => visible.has(p.id)).map((p) => ({ _id: p.id, name: p.name })),
+        hiddenFolders: where.filter((p) => !visible.has(p.id)).length,
+      };
+      out.set(r.folderId, [...(out.get(r.folderId) ?? []), entry]);
+    }
+    return out;
   }
 
-  /** What is left in the collection (in the unfiled: of the caller's own). */
+  /** Of `summaryIds`, the ones waiting in the collection (with `own`: and written by the caller). */
+  private async waitingIn(me: CurrentUser, scope: Scope, id: string, summaryIds: string[]): Promise<string[]> {
+    const ids = [...(await this.repo.placedIn(id, unique(summaryIds)))];
+    return scope.own ? this.repo.writtenBy(me.id, ids) : ids;
+  }
+
+  /** What is left in the collection (with `own`: of the caller's own). */
   private async leftOf(me: CurrentUser, scope: Scope, id: string): Promise<number> {
-    if (scope.unfiled) return (await this.repo.unfiledCounts(id, me.id)).left;
+    if (scope.own) return this.repo.ownLeft(id, me.id);
     return (await this.repo.leftCounts([id])).get(id) ?? 0;
   }
 
   /**
-   * The folder is a collection in the legacy root that the caller manages, or the root itself (`unfiled`: there each
-   * person sorts only the summaries they wrote, since the root has no managers).
+   * Where the caller may sort, and what: a collection in the legacy root they manage (all of it), or only the summaries
+   * they wrote in the root itself (the unfiled: it has no managers) or in a collection someone else manages. Either
+   * way the ids are limited further by `waitingIn` / `writtenBy`, so a collection of others yields nothing but the
+   * caller's own summaries.
    */
   private async assertCollection(me: CurrentUser, id: string): Promise<Scope> {
     const place = await this.repo.placeOf(id);
-    if (place === 'root') return { rootId: id, unfiled: true };
-    await this.folders.assertEditable(me, id);
+    if (place === 'root') return { rootId: id, own: true };
     if (place !== 'collection') throw new BadRequestException('not a collection from the old Summer');
-    return { rootId: (await this.repo.rootId())!, unfiled: false };
+    const managed = (await this.folderRepo.visibleIds(me, [id], 'edit')).has(id);
+    return { rootId: (await this.repo.rootId())!, own: !managed };
   }
 }

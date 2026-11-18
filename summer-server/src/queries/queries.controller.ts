@@ -7,7 +7,7 @@ import { QueriesService } from './queries.service';
 
 /**
  * Queries (saved searches) and the caller's alerts on them.
- * GET/POST /queries · GET /queries/shared · POST /queries/:id/copy · PUT/DELETE /queries/:id · PUT/DELETE /queries/:id/alert
+ * GET/POST /queries · GET /queries/shared · GET/PUT/DELETE /queries/:id · POST /queries/:id/copy · PUT/DELETE /queries/:id/alert
  */
 @Controller('queries')
 export class QueriesController {
@@ -21,6 +21,12 @@ export class QueriesController {
   @Get('shared')
   shared(@Me() me: CurrentUser, @Query() query: unknown): Promise<ApiQuery[]> {
     return this.queries.shared(me, query);
+  }
+
+  /** Declared after `shared` so that path isn't taken for an id. */
+  @Get(':id')
+  one(@Me() me: CurrentUser, @Param('id', IdPipe) id: string): Promise<ApiQuery> {
+    return this.queries.get(me, id);
   }
 
   @Post()
