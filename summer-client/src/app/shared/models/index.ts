@@ -415,6 +415,11 @@ export interface ILegacyOverview {
   demo?: boolean;
   /** collections still waiting that the user manages */
   collections: ILegacyCollection[];
+  /**
+   * the user's own summaries the old Summer had in no collection, waiting in the legacy root itself: shown like a
+   * collection (folder = the root); null when none are left
+   */
+  unfiled: ILegacyCollection | null;
   /** over every collection the user manages or managed, including ones already moved out or deleted */
   progress: { total: number; left: number; collections: number; done: number };
 }
@@ -424,6 +429,14 @@ export interface ILegacyItem extends IFolderItem {
   alsoIn: { _id: string; name: string }[];
   /** other legacy collections it also waits in */
   alsoLegacy: { _id: string; name: string }[];
+}
+
+/** POST /legacy/search: which summaries in the user's collections match a search. */
+export interface ILegacySearch {
+  /** collection id → its matching summary ids (only collections with a match) */
+  matches: Record<string, string[]>;
+  /** more matched than the server returns: some may be missing */
+  capped: boolean;
 }
 
 export interface ILegacyResult {

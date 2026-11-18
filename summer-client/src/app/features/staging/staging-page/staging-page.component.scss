@@ -1,5 +1,8 @@
 @use 'tokens' as *;
 
+/** Text on the "already moved" greens (darker than $success-color, for contrast). */
+$moved-text: #157a3f;
+
 // The page fills the shell's content area: the header on top, then the two columns, each scrolling on its own.
 :host {
   display: block;
@@ -92,6 +95,58 @@
 }
 
 // ---- collections ----
+// The search box over every collection, and what it found.
+.search {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: $surface-subtle;
+  font-size: 12px;
+  color: $dark-gray;
+}
+.results-text {
+  flex: 1;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.results-moved {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: $moved-text;
+}
+// Small counts in a collection's header: search matches, summaries already moved.
+.pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 20px;
+  &.match {
+    background: $orange-50;
+    color: $orange-strong;
+  }
+  &.moved {
+    background: rgba($success-color, 0.12);
+    color: $moved-text;
+  }
+}
 .collections-scroll {
   flex: 1;
   min-height: 0;
@@ -109,6 +164,28 @@
   &.done {
     opacity: 0.75;
   }
+  // The user's summaries that were in no collection: not a folder, so it looks set apart.
+  &.unfiled {
+    border-style: dashed;
+    background: $surface-subtle;
+    .collection-head {
+      cursor: default;
+    }
+    .collection-name .icon {
+      color: $orange-strong;
+    }
+  }
+}
+.unfiled-note {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: $white;
+  border: 1px solid $border-color;
+  font-size: 11px;
+  font-weight: 400;
+  color: $dark-gray;
+  line-height: 18px;
 }
 .collection-head {
   display: flex;
@@ -207,17 +284,26 @@
     color: $dark-blue;
   }
 }
-.sorted-strip {
+// Summaries already in a new folder: a green group under the ones still waiting.
+.moved-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba($success-color, 0.06);
+  border: 1px solid rgba($success-color, 0.25);
+}
+.moved-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: rgba($success-color, 0.1);
+  padding: 2px 6px;
   font-size: 12px;
-  color: #157a3f;
+  font-weight: 600;
+  color: $moved-text;
 }
-.strip-text {
+.moved-title {
   flex: 1;
 }
 
@@ -241,8 +327,20 @@
   &.picked {
     background: $orange-50;
   }
-  &.sorted .item-name {
-    color: $dark-gray;
+  &.sorted {
+    &:hover {
+      background: rgba($success-color, 0.1);
+    }
+    .item-name {
+      color: $dark-gray;
+    }
+    .item-icon,
+    .item-icon.running {
+      color: $success-color;
+    }
+  }
+  &.sorted.picked {
+    background: $orange-50;
   }
 }
 .item-icon {
@@ -251,6 +349,46 @@
   color: $primary-pink;
   &.running {
     color: #800080;
+  }
+}
+.item-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.moved-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: $success-color;
+  color: $white;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.hint-label {
+  flex: none;
+}
+.folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 220px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba($success-color, 0.14);
+  color: $moved-text;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  &:hover {
+    color: $moved-text;
+    text-decoration: underline;
   }
 }
 .item-text {
@@ -273,11 +411,12 @@
 }
 .hint {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   font-size: 12px;
   &.moved {
-    color: #157a3f;
+    color: $moved-text;
   }
   &.waiting {
     color: $gray;

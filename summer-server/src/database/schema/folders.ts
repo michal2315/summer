@@ -10,7 +10,8 @@ import { users } from './users';
  * checked for cycles by FoldersService.move. Deleting a folder deletes its subtree (FK cascade).
  *
  * The one legacy root (isLegacyRoot) holds the collections imported from the old Summer, one flat folder each, while
- * people sort them into the hierarchy on the staging page. It has no permissions and no managers, and nothing can be
+ * people sort them into the hierarchy on the staging page. Summaries the old Summer had in no collection are placed in
+ * the root itself, and each author sorts their own. It has no permissions and no managers, and nothing can be
  * added to it or to the collections in it: things only leave (see folders/legacy.service.ts).
  */
 export const folders = pgTable(

@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
-import { ILegacyItem, ILegacyMoveResult, ILegacyOverview, ILegacyResult } from '../models';
+import { ILegacyItem, ILegacyMoveResult, ILegacyOverview, ILegacyResult, ILegacySearch, ISummarySearch } from '../models';
 import { FolderService } from './folder.service';
 
 const BASE = '/api/legacy';
@@ -17,6 +17,11 @@ export class LegacyService {
 
   overview(): Observable<ILegacyOverview> {
     return this.http.get<ILegacyOverview>(BASE);
+  }
+
+  /** The home page's search (text with operators, a saved search's filters) over the user's collections. */
+  search(search: ISummarySearch): Observable<ILegacySearch> {
+    return this.http.post<ILegacySearch>(`${BASE}/search`, { search });
   }
 
   items(collectionId: string): Observable<ILegacyItem[]> {

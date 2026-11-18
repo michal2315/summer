@@ -2,16 +2,16 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { SummyComponent } from '../../../shared/easter-eggs/summy/summy.component';
 
 /**
- * The sky through the day, by percent sorted: [at, top, middle, horizon, the sun's glow]. Between two, every colour
- * blends.
+ * The sky through the day, by percent sorted: [at, top, upper, middle, horizon, the sun's glow]. Between two, every
+ * colour blends.
  */
-const SKY: [number, string, string, string, string][] = [
-  [0, '#2e2a6e', '#c76b98', '#ffb27a', '#ffcf8a'], // sunrise: indigo night giving way to rose and peach
-  [18, '#4b7fd1', '#9cc7ee', '#ffe2b8', '#fff0c2'], // early morning
-  [45, '#1f7fd8', '#5db4f2', '#cdeeff', '#fffbe6'], // noon: deep blue to pale horizon
-  [70, '#3a6db8', '#f2b071', '#ffd98a', '#ffe7a3'], // golden afternoon
-  [90, '#2a1c5e', '#b4487c', '#ff8a4c', '#ffb36b'], // sunset: violet, magenta, orange
-  [100, '#060a22', '#151a48', '#352a68', '#8f86d6'], // night: all sorted
+const SKY: [number, string, string, string, string, string][] = [
+  [0, '#e8834a', '#f9a54e', '#ffc65c', '#ffe372', '#fff4b8'], // sunrise: warm orange melting into yellow
+  [18, '#5a95dc', '#8fbde9', '#ffd69a', '#fff0c0', '#fff6cc'], // early morning
+  [45, '#1f7fd8', '#3f9ae6', '#7cc4f4', '#cdeeff', '#fffbe6'], // noon: deep blue to pale horizon
+  [70, '#3a6db8', '#7a9fd0', '#f2b071', '#ffd98a', '#ffe7a3'], // golden afternoon
+  [90, '#2c3f94', '#7b4bb0', '#e0609a', '#ff8f4a', '#ffb36b'], // sunset: blue, purple, pink, orange
+  [100, '#060a22', '#0d1238', '#151a48', '#352a68', '#8f86d6'], // night: all sorted
 ];
 
 /** What time of day it is, by percent sorted (the first whose `upTo` is reached). */
@@ -68,7 +68,7 @@ export class SunProgressComponent {
     const i = Math.max(0, SKY.findIndex(([at]) => at >= p) - 1);
     const [a, b] = [SKY[i], SKY[Math.min(i + 1, SKY.length - 1)]];
     const t = b[0] === a[0] ? 1 : (p - a[0]) / (b[0] - a[0]);
-    return { top: mix(a[1], b[1], t), middle: mix(a[2], b[2], t), horizon: mix(a[3], b[3], t), glow: mix(a[4], b[4], t) };
+    return { top: mix(a[1], b[1], t), upper: mix(a[2], b[2], t), middle: mix(a[3], b[3], t), horizon: mix(a[4], b[4], t), glow: mix(a[5], b[5], t) };
   });
 
   /** Where Summy is on the curve, in percent of the sky's width and height. */

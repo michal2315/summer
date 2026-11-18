@@ -105,17 +105,61 @@ export class LegacyRepository {
   }
 
   /**
-   * The other folders each summary is in (besides `exceptId`) that pass `folderVisible`, with whether each is a
-   * legacy collection: the staging page's "already moved to …" and "also waiting in …".
+   * The other folders each summary is in (besides `exceptId`) that pass `folderVisible`, with whether each is in the
+   * legacy root (a collection, or the root itself): the staging page's "already moved to …" and "also waiting in …".
    */
   async otherFolders(summaryIds: string[], exceptId: string, folderVisible: SQL, rootId: string) {
     if (!summaryIds.length) return [];
     return this.db
-      .select({ summaryId: folderSummaries.summaryId, id: folders.id, name: folders.name, legacy: sql<boolean>`${folders.parentId} is not distinct from ${rootId}` })
+      .select({
+        summaryId: folderSummaries.summaryId,
+        id: folders.id,
+        name: folders.name,
+        legacy: sql<boolean>`(${folders.parentId} is not distinct from ${rootId} or ${folders.isLegacyRoot})`,
+      })
       .from(folderSummaries)
       .innerJoin(folders, eq(folders.id, folderSummaries.folderId))
       .where(and(inArray(folderSummaries.summaryId, summaryIds), ne(folderSummaries.folderId, exceptId), folderVisible))
       .orderBy(folders.name);
+  }
+
+  /** Which of `folderIds` each of `summaryIds` is placed in, with the summary's author. */
+  async placements(folderIds: string[], summaryIds: string[]): Promise<{ folderId: string; summaryId: string; createdBy: string }[]> {
+    if (!folderIds.length || !summaryIds.length) return [];
+    return this.db
+      .select({ folderId: folderSummaries.folderId, summaryId: folderSummaries.summaryId, createdBy: summaries.createdBy })
+      .from(folderSummaries)
+      .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
+      .where(and(inArray(folderSummaries.folderId, folderIds), inArray(folderSummaries.summaryId, summaryIds)));
+  }
+
+  /**
+   * The caller's own summaries waiting directly in the legacy root (the old Summer had them in no collection): how
+   * many are left, and how many were sorted out of it already (their release rows).
+   */
+  async unfiledCounts(rootId: string, userId: string): Promise<{ left: number; released: number }> {
+    const [left] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(folderSummaries)
+      .innerJoin(summaries, eq(summaries.id, folderSummaries.summaryId))
+      .where(and(eq(folderSummaries.folderId, rootId), eq(summaries.createdBy, userId), eq(summaries.isDraft, false)));
+    const [released] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(legacyReleases)
+      .innerJoin(summaries, eq(summaries.id, legacyReleases.summaryId))
+      .where(and(eq(legacyReleases.folderId, rootId), eq(summaries.createdBy, userId), eq(summaries.isDraft, false)));
+    return { left: left.n, released: released.n };
+  }
+
+  /** Of `summaryIds`, the ones `userId` wrote. */
+  async writtenBy(userId: string, summaryIds: string[]): Promise<string[]> {
+    if (!summaryIds.length) return [];
+    const rows = await this.db
+      .select({ id: summaries.id })
+      .from(summaries)
+      .where(and(inArray(summaries.id, summaryIds), eq(summaries.createdBy, userId)));
+    const mine = new Set(rows.map((r) => r.id));
+    return summaryIds.filter((id) => mine.has(id));
   }
 
   /** Of `summaryIds`, the ones placed in `folderId`. */

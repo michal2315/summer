@@ -7,6 +7,8 @@ import { DatabaseService } from '../database/database.service';
 /** Marks the demo summaries (in their content), so a reset finds them and nothing else. */
 const MARK = 'סיכום שהועבר מ-Summer הישן.';
 const ROOT_NAME = 'לקטים מ-Summer הישן';
+/** In SUMMARIES: placed directly in the legacy root (the old Summer had it in no collection). */
+const ROOT = 'root';
 
 const COLLECTIONS = [
   { key: 'algo', name: 'סיכומי הרצאות — אלגוריתמים', group: 'cs-faculty', managers: ['mgolan'] },
@@ -17,7 +19,7 @@ const COLLECTIONS = [
   { key: 'staff', name: 'ארכיון סגל', group: 'staff', managers: ['yavraham'] },
 ];
 
-/** [title, author, permission groups, collections it sits in, a new folder it is already in] */
+/** [title, author, permission groups, collections it sits in (or ROOT), a new folder it is already in] */
 const SUMMARIES: [string, string, string[], string[], string?][] = [
   ['מיון מהיר — ניתוח המקרה הממוצע', 'mgolan', ['cs-faculty'], ['algo', 'exam']],
   ['ערימות ותורי עדיפויות', 'dlevi', ['cs-faculty'], ['algo']],
@@ -45,6 +47,13 @@ const SUMMARIES: [string, string, string[], string[], string?][] = [
   ['תוכנית עבודה לסמסטר', 'mgolan', ['cs-faculty'], ['lab']],
   ['נהלי בחינות לסגל', 'yavraham', ['staff'], ['staff']],
   ['פרוטוקול ישיבת סגל', 'yavraham', ['staff'], ['staff']],
+  // In no collection in the old Summer: waiting directly in the legacy root, each sorted by its author.
+  ['רשימות מהכנס השנתי', 'mgolan', ['cs-faculty'], [ROOT]],
+  ['סיכום פגישה עם המנחה', 'mgolan', ['research'], [ROOT]],
+  ['רעיונות לפרויקט גמר', 'mgolan', ['cs-faculty'], [ROOT]],
+  ['מבוא ללמידת מכונה — הרצאת אורח', 'mgolan', ['cs-faculty', 'year-1'], [ROOT], 'מדעי המחשב'],
+  ['קריאה מומלצת לחופשה', 'mgolan', ['year-1'], [ROOT]],
+  ['הערות לתרגיל בית 4', 'dlevi', ['cs-faculty'], [ROOT]],
 ];
 
 const DAY = 86_400_000;
@@ -85,7 +94,7 @@ export class LegacyDemoService {
       const [root] = await rows<{ id: string }>(
         sql`insert into folders (name, created_by, is_legacy_root, created_at) values (${ROOT_NAME}, ${system}, true, ${monthAgo}) returning id`,
       );
-      const ids = new Map<string, string>();
+      const ids = new Map<string, string>([[ROOT, root.id]]);
       for (const col of COLLECTIONS) {
         const perm = perms.get(col.group);
         const managers = col.managers.map((m) => users.get(m)).filter((u): u is string => !!u);

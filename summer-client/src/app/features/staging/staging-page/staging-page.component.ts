@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
@@ -11,10 +12,12 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Observable, forkJoin, map, of, switchMap } from 'rxjs';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { UndoToast, UndoToastComponent } from '../../../shared/components/undo-toast/undo-toast.component';
-import { IFolder, ILegacyCollection, ILegacyItem, ILegacyOverview, IPermission, SummaryKind } from '../../../shared/models';
+import { ILegacyCollection, ILegacyItem, ILegacyOverview, IPermission, ISummarySearch, SummaryKind } from '../../../shared/models';
 import { FolderService } from '../../../shared/services/folder.service';
 import { LegacyService } from '../../../shared/services/legacy.service';
 import { FolderTreeStore } from '../../hierarchy/folder-tree.store';
+import { alertSearch } from '../../summaries/search-query';
+import { SummarySearchComponent } from '../../summaries/summary-search/summary-search.component';
 import { NO_FOLDER_TARGET, StagingTreeComponent } from '../staging-tree/staging-tree.component';
 import { SunProgressComponent } from '../sun-progress/sun-progress.component';
 
@@ -37,7 +40,7 @@ type Drag = { kind: 'items' } | { kind: 'collection'; collection: ILegacyCollect
  */
 @Component({
   selector: 'app-staging-page',
-  imports: [RouterLink, NzButtonModule, NzCheckboxModule, NzDropDownModule, NzIconModule, NzToolTipModule, SkeletonComponent, StagingTreeComponent, SunProgressComponent, UndoToastComponent],
+  imports: [NgTemplateOutlet, RouterLink,NzButtonModule, NzCheckboxModule, NzDropDownModule, NzIconModule, NzToolTipModule, SkeletonComponent, StagingTreeComponent, SummarySearchComponent, SunProgressComponent, UndoToastComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './staging-page.component.html',
   styleUrl: './staging-page.component.scss',
@@ -51,7 +54,13 @@ export class StagingPageComponent {
   private readonly modal = inject(NzModalService);
 
   readonly overview = signal<ILegacyOverview | null>(null);
-  readonly collections = computed(() => this.overview()?.collections ?? []);
+  /** The user's unfiled summaries (a section like a collection, first), then the collections. */
+  readonly collections = computed(() => {
+    const o = this.overview();
+    return o ? [...(o.unfiled ? [o.unfiled] : []), ...o.collections] : [];
+  });
+  /** Nothing to sort here at all (no collections ever, no unfiled summaries). */
+  readonly nothing = computed(() => !this.progress().collections && !this.progress().total);
   readonly progress = computed(() => this.overview()?.progress ?? { total: 0, left: 0, collections: 0, done: 0 });
 
   /** Collections opened to show their summaries. */
@@ -76,6 +85,42 @@ export class StagingPageComponent {
 
   readonly FILTER_FROM = FILTER_FROM;
 
+  // ---- search (the home page's box: operators, @user, :field:value, #capsule, saved searches) ----
+  /** The applied search (its filters only), or {} for none. */
+  readonly search = signal<ISummarySearch>({});
+  /** Matching summaries per collection; null while no search is applied. */
+  readonly matches = signal<Map<string, Set<string>> | null>(null);
+  readonly searching = signal(false);
+  /** The server returned only the first of more matches. */
+  readonly capped = signal(false);
+  private searchSeq = 0;
+  /** During a search: only the collections with a match. */
+  readonly shownCollections = computed(() => {
+    const m = this.matches();
+    return m ? this.collections().filter((c) => m.has(c.folder._id)) : this.collections();
+  });
+  readonly matchCount = computed(() => [...(this.matches()?.values() ?? [])].reduce((n, s) => n + s.size, 0));
+  /** The matches that still wait to be moved (loaded and not already in a new folder): what "pick all results" picks. */
+  readonly pendingMatches = computed(() => {
+    const m = this.matches();
+    if (!m) return new Map<string, string[]>();
+    const out = new Map<string, string[]>();
+    for (const [cid, ids] of m) {
+      const pending = (this.items().get(cid) ?? []).filter((i) => ids.has(i._id) && !i.alsoIn.length).map((i) => i._id);
+      if (pending.length) out.set(cid, pending);
+    }
+    return out;
+  });
+  readonly pendingMatchCount = computed(() => [...this.pendingMatches().values()].reduce((n, l) => n + l.length, 0));
+  /** Matches already in a new folder. */
+  readonly movedMatchCount = computed(() => {
+    const m = this.matches();
+    if (!m) return 0;
+    let n = 0;
+    for (const [cid, ids] of m) n += (this.items().get(cid) ?? []).filter((i) => ids.has(i._id) && i.alsoIn.length).length;
+    return n;
+  });
+
   constructor() {
     this.load();
     // The tree (or another tab's change through it) changed the folders: counts may have changed too.
@@ -97,7 +142,60 @@ export class StagingPageComponent {
         if (first) this.toggle(first.folder._id);
       }
       for (const id of this.expanded()) this.loadItems(id);
+      // What matches may have changed too (summaries left their collections).
+      if (this.matches()) this.runSearch();
     });
+  }
+
+  /** The search box applied a search (or cleared it). */
+  onSearch(raw: ISummarySearch) {
+    // Only what selects summaries; the server scopes it to the collections.
+    const { folders: _, ...s } = alertSearch(raw);
+    this.search.set(s);
+    this.runSearch();
+  }
+
+  clearSearch() {
+    this.search.set({});
+    this.runSearch();
+  }
+
+  private runSearch() {
+    const seq = ++this.searchSeq;
+    const s = this.search();
+    if (!Object.keys(s).length) {
+      this.searching.set(false);
+      this.matches.set(null);
+      this.capped.set(false);
+      return;
+    }
+    this.searching.set(true);
+    this.legacy.search(s).subscribe({
+      next: (r) => {
+        if (seq !== this.searchSeq) return;
+        this.searching.set(false);
+        this.capped.set(r.capped);
+        const m = new Map(Object.entries(r.matches).map(([cid, ids]) => [cid, new Set(ids)]));
+        this.matches.set(m);
+        // Open every collection with a match, so the results show.
+        const closed = [...m.keys()].filter((id) => !this.expanded().has(id));
+        if (closed.length) this.expanded.update((s) => new Set([...s, ...closed]));
+        for (const id of closed) this.loadItems(id);
+      },
+      error: () => {
+        if (seq === this.searchSeq) this.searching.set(false);
+      },
+    });
+  }
+
+  /** Pick every result that still waits to be moved (replacing the picks). */
+  pickMatches() {
+    this.selected.set(new Map([...this.pendingMatches()].map(([cid, ids]) => [cid, new Set(ids)])));
+  }
+
+  /** How many of the collection's summaries match the search. */
+  matchesIn(id: string): number {
+    return this.matches()?.get(id)?.size ?? 0;
   }
   private loadedOnce = false;
 
@@ -123,6 +221,11 @@ export class StagingPageComponent {
   }
 
   // ---- display helpers ----
+  /** The section of the user's own summaries that were in no collection (the legacy root itself). */
+  isUnfiled(id: string): boolean {
+    return id === this.overview()?.rootId;
+  }
+
   sortedOf(c: ILegacyCollection): number {
     return Math.max(0, c.total - c.left);
   }
@@ -132,6 +235,7 @@ export class StagingPageComponent {
   }
 
   itemIcon(item: ILegacyItem): string {
+    if (item.alsoIn.length) return 'check-circle';
     return item.kind === SummaryKind.Running ? 'unordered-list' : 'file-text';
   }
 
@@ -143,11 +247,22 @@ export class StagingPageComponent {
     this.filters.update((m) => new Map(m).set(id, value));
   }
 
-  /** The collection's summaries that pass its filter. */
+  /** The collection's summaries that pass its filter and the search: the ones waiting first, then those already moved. */
   shown(id: string): ILegacyItem[] {
-    const list = this.items().get(id) ?? [];
     const term = this.filterOf(id).trim().toLowerCase();
-    return term ? list.filter((i) => i.name.toLowerCase().includes(term)) : list;
+    const matched = this.matches()?.get(id);
+    const list = (this.items().get(id) ?? []).filter((i) => (!term || i.name.toLowerCase().includes(term)) && (!matched || matched.has(i._id)));
+    return [...list.filter((i) => !i.alsoIn.length), ...list.filter((i) => i.alsoIn.length)];
+  }
+
+  /** Of the shown summaries, the ones still waiting to be moved. */
+  shownPending(id: string): ILegacyItem[] {
+    return this.shown(id).filter((i) => !i.alsoIn.length);
+  }
+
+  /** Of the shown summaries, the ones already in a new folder. */
+  shownMoved(id: string): ILegacyItem[] {
+    return this.shown(id).filter((i) => i.alsoIn.length);
   }
 
   /** Summaries in the collection that are already in a folder outside the legacy root. */
@@ -224,6 +339,8 @@ export class StagingPageComponent {
   }
 
   onCollectionDragStart(e: DragEvent, collection: ILegacyCollection) {
+    // The unfiled section isn't a folder: it can't go anywhere as a whole.
+    if (this.isUnfiled(collection.folder._id)) return e.preventDefault();
     this.startDrag(e, { kind: 'collection', collection }, collection.folder.name);
   }
 
@@ -316,15 +433,17 @@ export class StagingPageComponent {
     this.release([[collectionId, [item._id]]], 'מהלקט');
   }
 
-  /** Take out every summary of the collection that is already in a folder. */
-  releaseSorted(c: ILegacyCollection) {
-    this.release([[c.folder._id, this.alreadySorted(c.folder._id).map((i) => i._id)]], `מ"${c.folder.name}" (כבר בתיקיות)`);
+  /** Take out the collection's summaries that are already in a folder (default: all of them; or just the shown ones). */
+  releaseSorted(c: ILegacyCollection, list = this.alreadySorted(c.folder._id)) {
+    this.release([[c.folder._id, list.map((i) => i._id)]], `מ"${c.folder.name}" (כבר בתיקיות)`);
   }
 
   // ---- actions on a whole collection ----
   /** "Keep as is": the collection becomes an ordinary top-level folder, with everything in it. */
   keepAsIs(c: ILegacyCollection) {
     if (this.busy()) return;
+    // The unfiled ones stay as they are: out of the old Summer's root, into "summaries in no folder".
+    if (this.isUnfiled(c.folder._id)) return this.withItems(c, (list) => this.release([[c.folder._id, list.map((i) => i._id)]], 'ונשארו כמו שהן (ללא תיקייה)'));
     this.busy.set(true);
     this.folders.move(c.folder._id, null).subscribe({
       next: () => {
@@ -406,6 +525,8 @@ export class StagingPageComponent {
 
   /** After a move emptied collections: congratulate, and offer to delete them. */
   private offerDelete(ids: string[]) {
+    // The unfiled section is the legacy root itself: nothing to delete, it just goes away when empty.
+    ids = ids.filter((id) => !this.isUnfiled(id));
     if (!ids.length) return;
     const names = ids.map((id) => `"${this.nameOfCollection(id)}"`).join(', ');
     this.modal.confirm({

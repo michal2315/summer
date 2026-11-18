@@ -12,8 +12,8 @@
   height: 96px;
   overflow: hidden;
   border-radius: 12px;
-  // Three bands that blend: high sky, the middle, and the warm haze at the horizon.
-  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-middle) 58%, var(--sky-horizon) 100%);
+  // Four bands that blend: high sky, below it, the middle, and the warm haze at the horizon.
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-upper) 34%, var(--sky-middle) 68%, var(--sky-horizon) 100%);
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.4);
 }
 
@@ -109,9 +109,10 @@
 .sea {
   position: absolute;
   z-index: 2;
-  left: 0;
+  // Wider than the sky on both sides, so the drift never shows a wave's end.
+  left: -24px;
   bottom: 0;
-  width: 100%;
+  width: calc(100% + 48px);
   height: 22px;
   .wave {
     animation: drift 6s ease-in-out infinite alternate;

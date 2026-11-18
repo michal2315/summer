@@ -3,7 +3,7 @@ import { Me } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/identity-provider';
 import { IdPipe } from '../common/validation';
 import { LegacyDemoService } from './legacy-demo.service';
-import { ApiLegacyItem, ApiLegacyMoveResult, ApiLegacyOverview, LegacyService } from './legacy.service';
+import { ApiLegacyItem, ApiLegacyMoveResult, ApiLegacyOverview, ApiLegacySearch, LegacyService } from './legacy.service';
 
 /** The staging page: sorting the collections from the old Summer (see LegacyService). */
 @Controller('legacy')
@@ -25,6 +25,13 @@ export class LegacyController {
   async demoReset(): Promise<object> {
     await this.demo.reset();
     return {};
+  }
+
+  /** Which summaries in the caller's collections match a search-box text. */
+  @Post('search')
+  @HttpCode(200)
+  search(@Me() me: CurrentUser, @Body() body: unknown): Promise<ApiLegacySearch> {
+    return this.legacy.search(me, body);
   }
 
   @Get(':id/items')
