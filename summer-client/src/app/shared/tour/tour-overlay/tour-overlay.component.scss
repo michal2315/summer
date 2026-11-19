@@ -1,6 +1,8 @@
 @use 'tokens' as *;
 
 $dim: rgba(5, 4, 61, 0.45);
+// The dim is the ring's own outer shadow, so it follows the ring's rounded corners (the blocks only catch clicks).
+$dim-shadow: 0 0 0 200vmax $dim;
 $move: 0.16s ease-out;
 
 // While probing whether a target is reachable, our own layers must not catch the hit test.
@@ -15,33 +17,30 @@ $move: 0.16s ease-out;
   pointer-events: none;
 }
 
-// ---- spotlight: four blocks dim (and, outside "do" steps, block) everything but the hole
+// ---- spotlight: the hole's shadow dims everything around it; four invisible blocks (outside "do" steps) block it
 
 .block {
   position: fixed;
   pointer-events: auto;
-  background: $dim;
-  transition:
-    left $move,
-    top $move,
-    width $move,
-    height $move;
-  animation: fade 0.15s ease-out;
 }
 
 .hole {
   position: fixed;
   border-radius: $border-radius;
-  box-shadow: 0 0 0 2px $primary-pink;
+  box-shadow:
+    0 0 0 2px $primary-pink,
+    $dim-shadow;
   transition:
     left $move,
     top $move,
     width $move,
-    height $move;
+    height $move,
+    border-radius $move;
+  animation: fade 0.15s ease-out;
 }
 
 .free .hole {
-  box-shadow: none;
+  box-shadow: $dim-shadow;
 }
 
 // "Do it yourself" steps: the page stays usable and the ring pulses.
@@ -52,7 +51,8 @@ $move: 0.16s ease-out;
   .hole {
     box-shadow:
       0 0 0 2px $primary-pink,
-      0 0 0 6px rgba($primary-pink, 0.25);
+      0 0 0 6px rgba($primary-pink, 0.25),
+      $dim-shadow;
     animation: ring 1.4s ease-in-out infinite;
   }
 }
@@ -297,7 +297,8 @@ $move: 0.16s ease-out;
   50% {
     box-shadow:
       0 0 0 2px $primary-pink,
-      0 0 0 11px rgba($primary-pink, 0.08);
+      0 0 0 11px rgba($primary-pink, 0.08),
+      $dim-shadow;
   }
 }
 @keyframes pulse {

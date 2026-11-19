@@ -9,6 +9,8 @@ import { TourService } from '../tour.service';
 /** Gap between the spotlight ring and its element, and between the ring and the bubble. */
 const PAD = 6;
 const GAP = 14;
+/** The ring's smallest corner radius: the bubble's ($radius-md). */
+const MIN_RING_RADIUS = 8;
 /** The bubble dims (not hidden) only when a step's prep takes noticeably long. */
 const BUSY_DELAY_MS = 180;
 
@@ -227,7 +229,8 @@ export class TourOverlayComponent {
       .map((c) => {
         const v = parseFloat(c) || 0; // elliptical radii ('8px 4px'): the first value is close enough
         const px = c.trim().endsWith('%') ? (v / 100) * Math.min(r.width, r.height) : v;
-        return `${Math.min(px, Math.min(r.width, r.height) / 2) + PAD}px`;
+        // Never sharper than the bubble's corners, even around a square element.
+        return `${Math.max(MIN_RING_RADIUS, Math.min(px, Math.min(r.width, r.height) / 2) + PAD)}px`;
       })
       .join(' ');
   }
