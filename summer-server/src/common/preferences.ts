@@ -5,9 +5,9 @@ import { z } from 'zod';
  * adding a preference needs no migration. Unknown keys are dropped.
  */
 export const preferencesSchema = z.object({
-  /** Moving to another folder: keep the current search there ('keep', default) or start without one ('reset'). */
+  /** Moving to another folder: keep the current search there ('keep') or start without one ('reset', default). */
   folderSearch: z.enum(['keep', 'reset']).optional(),
-  /** Times shown as "3 hours ago" ('relative', default) or as the date and hour ('exact'). */
+  /** Times shown as "3 hours ago" ('relative') or as the date and hour ('exact', default). */
   dates: z.enum(['relative', 'exact']).optional(),
 });
 

@@ -4,8 +4,8 @@ import { UserPreferences } from '../../shared/models';
 
 /** What each preference is when the user hasn't set it. */
 export const PREFERENCE_DEFAULTS: Required<UserPreferences> = {
-  folderSearch: 'keep',
-  dates: 'relative',
+  folderSearch: 'reset',
+  dates: 'exact',
 };
 
 /** The user's preferences with the defaults filled in. They live on the user (server), so they follow the user. */
