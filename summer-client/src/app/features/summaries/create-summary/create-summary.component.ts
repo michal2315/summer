@@ -21,7 +21,7 @@ import { NzTreeSelectModule } from 'ng-zorro-antd/tree-select';
 import { NzUploadFile, NzUploadModule } from 'ng-zorro-antd/upload';
 import { QuillEditorComponent } from 'ngx-quill';
 import type Quill from 'quill';
-import { Subject, debounceTime, distinctUntilChanged, filter, forkJoin, map, of, startWith, switchMap, take } from 'rxjs';
+import { Subject, concat, debounceTime, distinctUntilChanged, filter, forkJoin, map, of, startWith, switchMap, take, toArray } from 'rxjs';
 import { HasPendingChanges } from '../../../core/auth/guards';
 import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
@@ -44,7 +44,8 @@ import {
   SummaryPayload,
   UserRef,
 } from '../../../shared/models';
-import { DateFormatPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
+import { PreferencesService } from '../../../core/preferences/preferences.service';
+import { DateFormatPipe, PlainTextPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { LabelService } from '../../../shared/services/label.service';
 import { PermissionService } from '../../../shared/services/permission.service';
@@ -94,6 +95,14 @@ type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
 type ParentInfo = ISummaryParent & { contentTypeId: string };
 /** The sharing-section values a template fills in. */
 type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'folders'>;
+/** A sumaroon written together with its new running summary. The title is the full style's only (the small one makes it). */
+type SumaroonRow = FormGroup<{ title: FormControl<string>; eventDate: FormControl<Date | null>; link: FormControl<string>; content: FormControl<string> }>;
+const LINK_PATTERN = /^(https?:\/\/\S+)?$/i;
+/** A small sumaroon has no title of its own; the server needs one, so it is the start of its content. */
+const LITE_TITLE_LENGTH = 80;
+const plainText = new PlainTextPipe();
+const liteTitle = (contentHtml: string, date: Date | null): string =>
+  plainText.transform(contentHtml, LITE_TITLE_LENGTH) || (date ? `תמציתונית ${format(date, 'dd/MM/yyyy')}` : 'תמציתונית');
 const LABELS_PAGE = 20;
 /** Users suggested in the tag field before anything is typed. */
 const USER_SUGGESTIONS = 15;
@@ -146,6 +155,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private readonly storage = inject(StorageService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly templates = inject(SummaryTemplateService);
+  private readonly prefs = inject(PreferencesService);
 
   /** Set by the edit route's resolver (withComponentInputBinding). */
   readonly summary = input<ISummary | undefined>(undefined);
@@ -175,7 +185,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     /** running: [from, to] */
     range: [[] as Date[]],
     /** sumaroon: source link */
-    link: ['', Validators.pattern(/^(https?:\/\/\S+)?$/i)],
+    link: ['', Validators.pattern(LINK_PATTERN)],
     contentType: ['', Validators.required],
     permissions: [[] as string[], Validators.required],
     title: ['', [Validators.required, Validators.maxLength(200)]],
@@ -189,6 +199,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
     department: [this.users.user()?.department ?? ''],
     typeFields: this.typeFields,
     extraFields: new FormArray<FormGroup<{ field: FormControl<string>; value: FormControl<FieldValue> }>>([]),
+    /** New running summary: its sumaroons are its content, so it's written with at least one (enabled only then). */
+    sumaroons: new FormArray<SumaroonRow>([]),
   });
 
   // Files: new uploads (kept client-side until submit) + existing attachment names (edit).
@@ -290,6 +302,20 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   // ---- kind (summary / running / sumaroon) ----
   readonly kind = toSignal(this.form.controls.kind.valueChanges.pipe(startWith(this.form.controls.kind.value)), { requireSync: true });
+  /** Small-sumaroon style: a sumaroon has only a date, a link and content; the rest comes from its running summary. */
+  readonly liteSumaroon = computed(() => this.prefs.liteSumaroons() && this.kind() === SummaryKind.Sumaroon);
+  /** Small sumaroons in general (the demo switch), for the inline rows. */
+  readonly liteStyle = this.prefs.liteSumaroons;
+  /** A running summary has no content of its own — its sumaroons are the content — so a new one comes with at least one. */
+  readonly inlineSumaroons = computed(() => this.kind() === SummaryKind.Running && !this.isEdit());
+  private readonly rangeValue = toSignal(this.form.controls.range.valueChanges.pipe(startWith(this.form.controls.range.value)), { requireSync: true });
+  /** Inline sumaroon dates must fall inside the range being written. */
+  readonly outsideOwnRange = (d: Date): boolean => {
+    const [from, to] = this.rangeValue();
+    if (!from || !to) return false;
+    const day = format(d, DAY);
+    return day < format(from, DAY) || day > format(to, DAY);
+  };
   readonly parentInfo = signal<ParentInfo | null>(null);
   readonly parentOptions = signal<{ _id: string; title: string }[]>([]);
   private readonly parentSearch$ = new Subject<string>();
@@ -423,6 +449,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     check(c.permissions.invalid, 'הרשאות');
     check(c.labels.invalid, 'תגיות');
     check(c.folders.invalid, 'תיקייה');
+    check(c.sumaroons.invalid, 'תמציתוניות');
     return out;
   });
 
@@ -442,15 +469,17 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   constructor() {
     // Rebuild the content-type field group, keeping values of fields that exist in both types.
+    // A small sumaroon has no type fields of its own (they're hidden), so none is required.
     effect(() => {
       const defs = this.typeFieldDefs();
+      const lite = this.liteSumaroon();
       untracked(() => {
         const group = this.typeFields;
         const old = group.getRawValue();
         for (const key of Object.keys(group.controls)) group.removeControl(key, { emitEvent: false });
         for (const { field, required } of defs) {
           const value = old[field._id] ?? this.pendingTypeValues[field._id] ?? null;
-          group.addControl(field._id, new FormControl<FieldValue>(value, required ? Validators.required : null), { emitEvent: false });
+          group.addControl(field._id, new FormControl<FieldValue>(value, required && !lite ? Validators.required : null), { emitEvent: false });
         }
         group.updateValueAndValidity();
       });
@@ -482,8 +511,55 @@ export class CreateSummaryComponent implements HasPendingChanges {
         set(c.range as FormControl<unknown>, kind === SummaryKind.Running);
         set(c.permissions as FormControl<unknown>, kind !== SummaryKind.Sumaroon);
         set(c.labels as FormControl<unknown>, kind !== SummaryKind.Sumaroon);
+        // A running summary's content is its sumaroons.
+        set(c.content as FormControl<unknown>, kind !== SummaryKind.Running);
         if (kind !== SummaryKind.Sumaroon) this.parentInfo.set(null);
       });
+    });
+
+    // A small sumaroon's title is made from its content on submit, so the field is off.
+    effect(() => {
+      const lite = this.liteSumaroon();
+      untracked(() => {
+        const t = this.form.controls.title;
+        if (lite && t.enabled) t.disable({ emitEvent: false });
+        else if (!lite && t.disabled) t.enable({ emitEvent: false });
+        this.form.updateValueAndValidity({ emitEvent: false });
+      });
+    });
+
+    // Inline sumaroon titles: required in the full style; the small style makes them from the content.
+    effect(() => {
+      const lite = this.liteStyle();
+      untracked(() => {
+        for (const row of this.form.controls.sumaroons.controls) {
+          row.controls.title.setValidators(lite ? null : [Validators.required, Validators.maxLength(200)]);
+          row.controls.title.updateValueAndValidity({ emitEvent: false });
+        }
+        this.form.updateValueAndValidity({ emitEvent: false });
+      });
+    });
+
+    // A new running summary comes with its first sumaroon; otherwise the rows are off.
+    effect(() => {
+      const inline = this.inlineSumaroons();
+      untracked(() => {
+        const rows = this.form.controls.sumaroons;
+        if (inline) {
+          if (!rows.length) rows.push(this.sumaroonRow(), { emitEvent: false });
+          rows.enable({ emitEvent: false });
+        } else rows.disable({ emitEvent: false });
+        this.form.updateValueAndValidity({ emitEvent: false });
+      });
+    });
+
+    // A new range: inline sumaroons without a date (or with one outside it) start on its first day.
+    this.form.controls.range.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(([from, to]) => {
+      if (!from || !to) return;
+      for (const row of this.form.controls.sumaroons.controls) {
+        const d = row.controls.eventDate.value;
+        if (!d || this.outsideOwnRange(d)) row.controls.eventDate.setValue(from);
+      }
     });
 
     // Opened from a running summary ("add sumaroon"): start inside it.
@@ -609,7 +685,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   restoreDraft() {
     const d = this.restorable();
     if (!d) return;
-    const { typeFields, extraFields, kind, contentType, ...rest } = reviveDates(d.value);
+    const { typeFields, extraFields, sumaroons, kind, contentType, ...rest } = reviveDates(d.value);
     // Same order as fill(): kind and type first, so the type-field group is rebuilt with the saved values.
     this.pendingTypeValues = typeFields;
     this.form.controls.kind.setValue(kind);
@@ -618,6 +694,13 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.form.patchValue(rest);
     this.form.controls.extraFields.clear();
     for (const e of extraFields) this.addExtraRow(e.field, e.value);
+    if (sumaroons?.length) {
+      const rows = this.form.controls.sumaroons;
+      const enabled = rows.enabled;
+      rows.clear();
+      for (const r of sumaroons) rows.push(this.sumaroonRow(r));
+      if (!enabled) rows.disable();
+    }
     this.labelOptions.update((l) => this.withSelected(l, rest.labels));
     this.userOptions.update((u) => mergeById(d.users, u));
     this.form.markAsDirty();
@@ -820,6 +903,38 @@ export class CreateSummaryComponent implements HasPendingChanges {
     );
   }
 
+  // ---- inline sumaroons (new running summary) ----
+  private sumaroonRow(v?: { title?: string; eventDate?: Date | null; link?: string; content?: string }): SumaroonRow {
+    const from = this.form?.controls.range.value[0] ?? null;
+    return this.fb.group({
+      title: this.fb.control(v?.title ?? '', this.liteStyle() ? null : [Validators.required, Validators.maxLength(200)]),
+      eventDate: this.fb.control<Date | null>(v?.eventDate ?? from, Validators.required),
+      link: this.fb.control(v?.link ?? '', Validators.pattern(LINK_PATTERN)),
+      content: this.fb.control(v?.content ?? '', Validators.required),
+    }) as SumaroonRow;
+  }
+
+  addSumaroon() {
+    this.form.controls.sumaroons.push(this.sumaroonRow());
+    this.form.markAsDirty();
+  }
+
+  /** The first sumaroon is required, so only the ones after it can be removed. */
+  removeSumaroon(i: number) {
+    if (i === 0) return;
+    this.form.controls.sumaroons.removeAt(i);
+    this.form.markAsDirty();
+  }
+
+  /** Added rows left completely empty are dropped instead of blocking the publish. */
+  private dropEmptySumaroons() {
+    const rows = this.form.controls.sumaroons;
+    for (let i = rows.length - 1; i > 0; i--) {
+      const r = rows.at(i).getRawValue();
+      if (!plainText.transform(r.content) && !r.link.trim() && !r.title.trim()) rows.removeAt(i);
+    }
+  }
+
   removeExtraField(i: number) {
     this.form.controls.extraFields.removeAt(i);
     this.form.markAsDirty();
@@ -912,6 +1027,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
     else {
       this.form.reset();
       this.form.controls.extraFields.clear();
+      const rows = this.form.controls.sumaroons;
+      while (rows.length > 1) rows.removeAt(rows.length - 1);
       this.fileList.set([]);
     }
     this.submitted.set(false);
@@ -940,14 +1057,18 @@ export class CreateSummaryComponent implements HasPendingChanges {
   submit(isDraft: boolean) {
     this.submitted.set(true);
     const c = this.form.controls;
+    if (c.sumaroons.enabled) this.dropEmptySumaroons();
     // Drafts only need a title (plus what their kind can't exist without); publishing validates everything.
+    // A small sumaroon's title is made from its content, so its draft needs content instead.
     const kindValid = c.parent.valid && c.range.valid && (this.kind() !== SummaryKind.Sumaroon || c.eventDate.valid);
-    const valid = isDraft ? c.title.valid && kindValid : this.form.valid;
+    const titleValid = this.liteSumaroon() ? c.content.valid : c.title.valid;
+    const valid = isDraft ? titleValid && kindValid && (c.sumaroons.disabled || c.sumaroons.valid) : this.form.valid;
     if (!valid) {
       this.form.markAllAsTouched();
       for (const ctrl of Object.values(c.typeFields.controls)) ctrl.markAsDirty();
       for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.folders, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
-      this.message.warning(isDraft ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
+      for (const row of c.sumaroons.controls) for (const ctrl of Object.values(row.controls)) ctrl.markAsDirty();
+      this.message.warning(isDraft && !this.liteSumaroon() ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
       this.scrollToFirstError();
       return;
     }
@@ -969,8 +1090,9 @@ export class CreateSummaryComponent implements HasPendingChanges {
       rangeStart: kind === SummaryKind.Running && v.range.length === 2 ? format(v.range[0], DAY) : undefined,
       rangeEnd: kind === SummaryKind.Running && v.range.length === 2 ? format(v.range[1], DAY) : undefined,
       link: kind === SummaryKind.Sumaroon ? v.link.trim() || undefined : undefined,
-      title: v.title.trim(),
-      contentHtml: v.content,
+      title: this.liteSumaroon() ? this.liteTitleFor(v.content, v.eventDate) : v.title.trim(),
+      // A new running summary has no content: its sumaroons are the content. (Older ones keep theirs when edited.)
+      contentHtml: kind === SummaryKind.Running && !this.isEdit() ? '' : v.content,
       notesHtml: v.notes,
       contentType: v.contentType,
       // A running summary is dated by its range.
@@ -988,14 +1110,20 @@ export class CreateSummaryComponent implements HasPendingChanges {
       isDraft,
     };
     const files = this.fileList().map((f) => (f.originFileObj ?? f) as unknown as File);
+    const inline = c.sumaroons.enabled ? v.sumaroons : [];
 
     this.saving.set(true);
-    const req = this.isEdit() ? this.summaries.update(payload, files) : this.summaries.create(payload, files);
+    const saved$ = this.isEdit() ? this.summaries.update(payload, files) : this.summaries.create(payload, files);
+    // Inline sumaroons need the running summary's id, so they are written after it, in order.
+    const req = inline.length
+      ? saved$.pipe(switchMap((running) => concat(...inline.map((r) => this.summaries.create(this.inlineSumaroonPayload(running, r), []))).pipe(toArray(), map(() => running))))
+      : saved$;
     req.subscribe({
       next: (s) => {
         this.saved = true;
         this.saving.set(false);
         this.clearLocalDraft();
+        if (inline.length) this.message.success(inline.length === 1 ? 'נוספה תמציתונית אחת' : `נוספו ${inline.length} תמציתוניות`);
         if (isDraft && v.folders.length && kind !== SummaryKind.Sumaroon)
           this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
         this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
@@ -1008,6 +1136,38 @@ export class CreateSummaryComponent implements HasPendingChanges {
       },
       error: () => this.saving.set(false),
     });
+  }
+
+  /**
+   * A small sumaroon's title: the start of its content. Editing a sumaroon written with a title of its own (full style)
+   * keeps that title.
+   */
+  private liteTitleFor(contentHtml: string, date: Date | null): string {
+    const s = this.summary();
+    if (s && s.title !== liteTitle(s.content, s.eventDate ? new Date(s.eventDate) : null)) return s.title;
+    return liteTitle(contentHtml, date);
+  }
+
+  /** A sumaroon of the running summary just saved: its title, date, link and content; the rest is the running summary's. */
+  private inlineSumaroonPayload(running: ISummary, r: FormValue['sumaroons'][number]): SummaryPayload {
+    return {
+      kind: SummaryKind.Sumaroon,
+      parentId: running._id,
+      link: r.link.trim() || undefined,
+      title: this.liteStyle() ? liteTitle(r.content, r.eventDate) : r.title.trim(),
+      contentHtml: r.content,
+      notesHtml: '',
+      contentType: running.contentType._id,
+      eventDate: r.eventDate ? format(r.eventDate, DAY) : undefined,
+      department: running.department,
+      labels: [],
+      permissions: [],
+      taggedUsers: [],
+      taggedPermissions: [],
+      summaryFields: [],
+      files: [],
+      isDraft: false,
+    };
   }
 
   private withSelected(list: string[], selected: string[]) {

@@ -567,7 +567,8 @@ export class SummariesService {
         if (!def) throw new BadRequestException(`unknown field ${fieldId}`);
         return { fieldId, value: validateFieldValue(def, value) };
       });
-    if (!p.isDraft) {
+    // A sumaroon is one entry of its running summary: the content type's required fields are the running summary's to fill.
+    if (!p.isDraft && !isSumaroon) {
       const missing = contentType.fields.filter((f) => f.required && !fieldValues.some((v) => v.fieldId === f.fieldId));
       if (missing.length) throw new BadRequestException('required content-type fields are missing');
     }

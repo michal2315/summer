@@ -29,10 +29,14 @@
         <div class="muted hint">
           @switch (kind()) {
             @case (K.Running) {
-              סדרה ממוקדת (למשל "ספר 1, פרק 3") עם טווח תאריכים, שאליה מוסיפים תמציתוניות.
+              סדרה ממוקדת (למשל "ספר 1, פרק 3") עם טווח תאריכים. אין לה תוכן משלה — התמציתוניות הן התוכן, ולכן כותבים כאן לפחות אחת.
             }
             @case (K.Sumaroon) {
-              חלק אחד מתוך תמצית רצף — יורש ממנה את סוג התוכן, התגיות וההרשאות.
+              @if (liteSumaroon()) {
+                רשומה קצרה בתוך תמצית רצף: רק תאריך, קישור ותוכן — כל השאר מגיע מתמצית הרצף.
+              } @else {
+                חלק אחד מתוך תמצית רצף — יורש ממנה את סוג התוכן, התגיות וההרשאות.
+              }
             }
             @default {
               תמצית רגילה, שאפשר לסדר בתיקייה.
@@ -78,6 +82,8 @@
   <!-- 2. Details: content type and its fields, event date/time (or the running summary's range), link, department -->
   <div class="section">
     <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="calendar"></span> פרטים</div>
+    <!-- A small sumaroon takes its content type (and its fields) from the running summary: only date and link here. -->
+    @if (!liteSumaroon()) {
     <div class="field-label" id="type-label"><span class="req" aria-hidden="true">*</span> סוג תוכן</div>
     <div class="types" role="radiogroup" aria-labelledby="type-label" [class.no-selection-error]="submitted() && c.contentType.invalid" [class.locked]="contentTypeLocked()">
       @for (t of contentTypes.list(); track t._id) {
@@ -141,6 +147,7 @@
         </nz-form-item>
       }
     </div>
+    }
 
     <div class="grid">
       @if (kind() === K.Running) {
@@ -157,10 +164,12 @@
             <nz-date-picker formControlName="eventDate" nzFormat="dd/MM/yyyy" [nzDisabledDate]="outsideParentRange" />
           </nz-form-control>
         </nz-form-item>
-        <nz-form-item>
-          <nz-form-label>שעה</nz-form-label>
-          <nz-form-control><nz-time-picker formControlName="eventSecTime" nzFormat="HH:mm" nzPlaceHolder="בחירת שעה" /></nz-form-control>
-        </nz-form-item>
+        @if (!liteSumaroon()) {
+          <nz-form-item>
+            <nz-form-label>שעה</nz-form-label>
+            <nz-form-control><nz-time-picker formControlName="eventSecTime" nzFormat="HH:mm" nzPlaceHolder="בחירת שעה" /></nz-form-control>
+          </nz-form-item>
+        }
       }
       @if (kind() === K.Sumaroon) {
         <nz-form-item>
@@ -170,38 +179,106 @@
           </nz-form-control>
         </nz-form-item>
       }
-      <nz-form-item>
-        <nz-form-label nzFor="department">מחלקה / פקולטה</nz-form-label>
-        <nz-form-control><input nz-input id="department" formControlName="department" /></nz-form-control>
-      </nz-form-item>
+      @if (!liteSumaroon()) {
+        <nz-form-item>
+          <nz-form-label nzFor="department">מחלקה / פקולטה</nz-form-label>
+          <nz-form-control><input nz-input id="department" formControlName="department" /></nz-form-control>
+        </nz-form-item>
+      }
     </div>
   </div>
 
-  <!-- 3. Content: title + body -->
+  <!-- 3. Content: title + body (a small sumaroon has no title: it's made from the content) -->
   <div class="section">
     <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="file-text"></span> תוכן</div>
-    <nz-form-item>
-      <nz-form-label nzRequired nzFor="title">כותרת</nz-form-label>
-      <nz-form-control nzErrorTip="חובה למלא כותרת">
-        <input nz-input id="title" formControlName="title" placeholder="כותרת התמצית" />
-      </nz-form-control>
-    </nz-form-item>
-    <nz-form-item>
-      <nz-form-label nzRequired>תוכן</nz-form-label>
-      <nz-form-control nzErrorTip="חובה למלא את תוכן התמצית">
-        <quill-editor
-          formControlName="content"
-          [placeholder]="editorPlaceholder"
-          [styles]="{ minHeight: '260px' }"
-          (onEditorCreated)="onEditorCreated($event)"
-          class="editor"
-          [class.invalid]="c.content.invalid && c.content.dirty"
-        />
-      </nz-form-control>
-    </nz-form-item>
+    @if (!liteSumaroon()) {
+      <nz-form-item>
+        <nz-form-label nzRequired nzFor="title">כותרת</nz-form-label>
+        <nz-form-control nzErrorTip="חובה למלא כותרת">
+          <input nz-input id="title" formControlName="title" placeholder="כותרת התמצית" />
+        </nz-form-control>
+      </nz-form-item>
+    }
+    <!-- A running summary has no content of its own: its sumaroons (below, when it's new) are the content. -->
+    @if (kind() !== K.Running) {
+      <nz-form-item>
+        <nz-form-label nzRequired>תוכן</nz-form-label>
+        <nz-form-control nzErrorTip="חובה למלא את תוכן התמצית">
+          <quill-editor
+            formControlName="content"
+            [placeholder]="editorPlaceholder"
+            [styles]="{ minHeight: '260px' }"
+            (onEditorCreated)="onEditorCreated($event)"
+            class="editor"
+            [class.invalid]="c.content.invalid && c.content.dirty"
+          />
+        </nz-form-control>
+      </nz-form-item>
+    }
   </div>
 
-  <!-- 4. Sharing & organizing: permissions, tagged users, labels, folder -->
+  <!-- 3b. New running summary: its sumaroons, in place of content. The first is required; more are optional. -->
+  @if (inlineSumaroons()) {
+    <div class="section" formArrayName="sumaroons">
+      <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="unordered-list"></span> תמציתוניות</div>
+      <div class="muted hint">
+        {{ liteStyle() ? 'כל תמציתונית היא רק תאריך, קישור ותוכן' : 'כל תמציתונית עם כותרת, תאריך, קישור ותוכן' }} — סוג התוכן, התגיות וההרשאות מגיעים מתמצית הרצף. צריך לפחות אחת.
+      </div>
+      @for (row of c.sumaroons.controls; track row; let i = $index) {
+        <div class="inline-sumaroon" [formGroupName]="i" role="group" [attr.aria-label]="'תמציתונית ' + (i + 1)">
+          <div class="inline-head">
+            <span class="inline-number">{{ i + 1 }}</span>
+            <span class="inline-title">{{ i === 0 ? 'תמציתונית ראשונה' : 'תמציתונית ' + (i + 1) }}</span>
+            <span class="spacer"></span>
+            @if (i > 0) {
+              <button nz-button nzType="text" nzSize="small" type="button" (click)="removeSumaroon(i)" [attr.aria-label]="'הסרת תמציתונית ' + (i + 1)">
+                <span nz-icon nzType="delete"></span>
+              </button>
+            }
+          </div>
+          @if (!liteStyle()) {
+            <nz-form-item>
+              <nz-form-label nzRequired [nzFor]="'st-' + i">כותרת</nz-form-label>
+              <nz-form-control nzErrorTip="חובה למלא כותרת">
+                <input nz-input [id]="'st-' + i" formControlName="title" placeholder="כותרת התמציתונית" />
+              </nz-form-control>
+            </nz-form-item>
+          }
+          <div class="grid">
+            <nz-form-item>
+              <nz-form-label nzRequired>תאריך</nz-form-label>
+              <nz-form-control nzErrorTip="חובה לבחור תאריך בתוך הטווח">
+                <nz-date-picker formControlName="eventDate" nzFormat="dd/MM/yyyy" [nzDisabledDate]="outsideOwnRange" />
+              </nz-form-control>
+            </nz-form-item>
+            <nz-form-item>
+              <nz-form-label [nzFor]="'sl-' + i">קישור</nz-form-label>
+              <nz-form-control nzErrorTip="קישור צריך להתחיל ב-http:// או https://">
+                <input nz-input [id]="'sl-' + i" formControlName="link" placeholder="https://" dir="ltr" />
+              </nz-form-control>
+            </nz-form-item>
+          </div>
+          <nz-form-item>
+            <nz-form-label nzRequired>תוכן</nz-form-label>
+            <nz-form-control nzErrorTip="חובה למלא תוכן">
+              <quill-editor
+                formControlName="content"
+                placeholder="מה קרה?"
+                [styles]="{ minHeight: '100px' }"
+                (onEditorCreated)="onEditorCreated($event)"
+                class="editor"
+                [class.invalid]="row.controls.content.invalid && row.controls.content.dirty"
+              />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      }
+      <button nz-button nzType="dashed" type="button" class="add-sumaroon" (click)="addSumaroon()"><span nz-icon nzType="plus"></span> עוד תמציתונית</button>
+    </div>
+  }
+
+  <!-- 4. Sharing & organizing: permissions, tagged users, labels, folder (a small sumaroon has none of its own) -->
+  @if (!liteSumaroon()) {
   <div class="section">
     <div class="section-head">
       <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="team"></span> שיתוף ושיוך</div>
@@ -422,8 +499,10 @@
       }
     </div>
   </div>
+  }
 
-  <!-- 5. More: notes, extra fields, files -->
+  <!-- 5. More: notes, extra fields, files (not for a small sumaroon) -->
+  @if (!liteSumaroon()) {
   <div class="section">
     <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="paper-clip"></span> נוספים ונספחים</div>
 
@@ -484,6 +563,7 @@
       </div>
     </nz-upload>
   </div>
+  }
 
   <!-- Sticky action bar: what's still missing, then save -->
   <div class="actions">

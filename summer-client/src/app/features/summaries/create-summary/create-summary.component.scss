@@ -57,6 +57,44 @@
   margin: 0 0 8px;
 }
 
+// A new running summary's own sumaroons (small-sumaroon style): one framed block each, then "more".
+.inline-sumaroon {
+  border: 1px solid $border-color;
+  border-radius: $border-radius;
+  padding: 10px 12px 0;
+  margin-bottom: 10px;
+  background: $surface-subtle;
+}
+
+.inline-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  .inline-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: $white;
+    border: 1px solid $border-color;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .inline-title {
+    font-weight: 700;
+  }
+  .spacer {
+    flex: 1;
+  }
+}
+
+.add-sumaroon {
+  align-self: flex-start;
+}
+
 // Section title with controls at the far end (templates).
 .section-head {
   display: flex;

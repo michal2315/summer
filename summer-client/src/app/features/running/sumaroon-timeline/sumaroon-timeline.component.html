@@ -23,13 +23,29 @@
           @if (store.selectMode()) {
             <label nz-checkbox [nzChecked]="store.selected().has(s._id)" (nzCheckedChange)="store.toggleSelected(s._id)" aria-label="בחירת התמציתונית"></label>
           }
+          @if (prefs.liteSumaroons()) {
+            <!-- Small sumaroon: same timeline row, but just the event itself — what happened, and its link. -->
+            <div class="content lite">
+              <span class="number">{{ step.number }}</span>
+              <span class="lite-text" [innerHTML]="s.content | plainText | highlight: search() : T.Content"></span>
+              @if (s.link) {
+                <a class="lite-icon" [href]="s.link" target="_blank" rel="noopener noreferrer" [nz-tooltip]="s.link" aria-label="קישור"><span nz-icon nzType="link"></span></a>
+              }
+              @if (unread(s)) {
+                <span class="unread" aria-label="טרם נקרא"></span>
+              }
+              @if (s.user._id === users.userId()) {
+                <a class="lite-icon lite-edit" [routerLink]="['/summaries', s._id, 'edit']" nz-tooltip="עריכה" aria-label="עריכת התמציתונית"><span nz-icon nzType="edit"></span></a>
+              }
+            </div>
+          } @else {
           <button
             type="button"
             class="content"
             nz-popover
             [nzPopoverContent]="details"
             nzPopoverTrigger="hover"
-            nzPopoverPlacement="left"
+            [nzPopoverPlacement]="['bottomRight', 'topRight']"
             [nzPopoverMouseEnterDelay]="0.4"
             nzPopoverOverlayClassName="sumaroon-details-popover"
             (click)="toggle.emit(s)"
@@ -44,6 +60,7 @@
               <span class="unread" aria-label="טרם נקרא"></span>
             }
           </button>
+          }
         </div>
 
         <ng-template #details>

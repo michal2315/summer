@@ -1,4 +1,4 @@
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { UserService } from '../auth/user.service';
 import { UserPreferences } from '../../shared/models';
 
@@ -18,6 +18,11 @@ export class PreferencesService {
   readonly keepSearchAcrossFolders = computed(() => this.all().folderSearch === 'keep');
   /** Times as the date and hour instead of "3 hours ago". */
   readonly exactDates = computed(() => this.all().dates === 'exact');
+  /**
+   * Demo switch, not saved: small sumaroons (only a date, a link and content of their own; everything else comes from
+   * the running summary) instead of full ones. Turned on again on every load.
+   */
+  readonly liteSumaroons = signal(true);
 
   set(patch: UserPreferences) {
     return this.users.setPreferences(patch);

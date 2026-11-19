@@ -34,5 +34,20 @@
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-title" role="heading" aria-level="3"><span nz-icon nzType="unordered-list"></span> תמציתוניות</div>
+
+    <div class="pref">
+      <div class="pref-text">
+        <div class="pref-label" id="pref-sumaroons">איך נראית תמציתונית</div>
+        <div class="pref-hint">מלאה, כמו תמצית רגילה — או קטנה, שכל השאר בה מגיע מתמצית הרצף. לא נשמר: חוזר לקטנה בטעינה הבאה.</div>
+      </div>
+      <nz-radio-group aria-labelledby="pref-sumaroons" [ngModel]="prefs.liteSumaroons() ? 'lite' : 'full'" (ngModelChange)="prefs.liteSumaroons.set($event === 'lite')">
+        <label nz-radio nzValue="full">מלאה: כותרת, תוכן, תגיות, הרשאות ושדות משלה</label>
+        <label nz-radio nzValue="lite">קטנה: רק תאריך, קישור ותוכן</label>
+      </nz-radio-group>
+    </div>
+  </div>
+
   <div class="footnote">ההעדפות נשמרות בחשבון שלך, ומופיעות בכל מחשב ודפדפן.</div>
 </div>
