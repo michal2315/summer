@@ -17,6 +17,7 @@ import { SUMMARY_DRAG_TYPE, hierarchyParams } from '../../../shared/services/fol
 import { DateFormatPipe, HighlightPipe, RelativeTimePipe, RichHtmlPipe } from '../../../shared/pipes/pipes';
 import { FolderInfoComponent } from '../folder-info/folder-info.component';
 import { MatchSnippetsComponent } from '../match-snippets/match-snippets.component';
+import { DeferredClick } from '../deferred-click';
 import { SummaryActionsService } from '../summary-actions.service';
 import { SummaryListStore } from '../summary-list.store';
 
@@ -72,6 +73,8 @@ export class SummaryCardComponent {
   readonly toggleOpen = output<ISummary>();
   readonly selectToggle = output<string>();
 
+  private readonly pendingSelect = new DeferredClick();
+
   readonly T = SearchType;
   readonly K = SummaryKind;
   /** Hidden when the list is this sumaroon's own running summary (the page header already says so). */
@@ -89,10 +92,10 @@ export class SummaryCardComponent {
   readonly visibleFolders = computed(() => this.summary().folders.slice(0, 1));
   readonly hiddenFolders = computed(() => this.summary().folders.slice(1));
 
-  /** Can be dragged onto a folder in the tree to add it there: published, yours to edit, and not a sumaroon. */
+  /** Can be dragged onto a folder in the tree to add it there (another pointer, so anyone who sees it may): published, not a sumaroon. */
   readonly placeable = computed(() => {
     const s = this.summary();
-    return s.canEdit && !s.isDraft && s.kind !== SummaryKind.Sumaroon;
+    return !s.isDraft && s.kind !== SummaryKind.Sumaroon;
   });
 
   onDragStart(e: DragEvent) {
@@ -109,11 +112,31 @@ export class SummaryCardComponent {
     else this.router.navigate(['/running', id]);
   }
 
-  /** Anywhere on the card opens it, except its own controls and when the user is selecting text. */
+  /**
+   * Anywhere on the card opens it, except its own controls and when the user is selecting text.
+   * In select mode a click toggles its selection instead; ctrl/cmd-click or a double-click opens it.
+   */
   onCardClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
     if (target.closest(INTERACTIVE) && !target.closest('.body')) return;
+    if (this.selectable()) {
+      if (event.ctrlKey || event.metaKey) this.toggleOpen.emit(this.summary());
+      // Waits out a possible double-click; its second click is left to onCardDblClick.
+      else if (event.detail === 1 && !window.getSelection()?.toString()) this.pendingSelect.run(() => this.selectToggle.emit(this.summary()._id));
+      return;
+    }
     if (window.getSelection()?.toString()) return;
+    this.toggleOpen.emit(this.summary());
+  }
+
+  /** In select mode a double-click opens the card and leaves its selection as it was. */
+  onCardDblClick(event: MouseEvent) {
+    if (!this.selectable() || event.ctrlKey || event.metaKey) return;
+    const target = event.target as HTMLElement;
+    if (target.closest(INTERACTIVE) && !target.closest('.body')) return;
+    window.getSelection()?.removeAllRanges();
+    // A slow double-click's first click already toggled; undo it.
+    if (!this.pendingSelect.cancel()) this.selectToggle.emit(this.summary()._id);
     this.toggleOpen.emit(this.summary());
   }
 

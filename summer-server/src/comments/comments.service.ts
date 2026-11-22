@@ -26,15 +26,16 @@ export class CommentsService {
       await this.notifications.notify([summary.createdBy], {
         summaryId: input.summaryId,
         text: `${me.fullName} הגיב/ה על התמצית "${summary.title}"`,
+        kind: 'comment',
         createdBy: me.id,
         commentId: comment.id,
       });
       const mentioned = unique(input.mentions.filter((m) => m.type === 'user' && isUuid(m._id)).map((m) => m._id)).filter((id) => id !== summary.createdBy);
-      await this.notifications.notify(mentioned, { summaryId: input.summaryId, text: `${me.fullName} הזכיר/ה אותך בתגובה`, createdBy: me.id, commentId: comment.id });
+      await this.notifications.notify(mentioned, { summaryId: input.summaryId, text: `${me.fullName} הזכיר/ה אותך בתגובה`, kind: 'mention', createdBy: me.id, commentId: comment.id });
       const groups = input.mentions.filter((m) => m.type === 'permission' && isUuid(m._id)).map((m) => m._id);
       await this.notifications.notifyGroups(
         groups,
-        { summaryId: input.summaryId, createdBy: me.id, commentId: comment.id },
+        { summaryId: input.summaryId, kind: 'mention', createdBy: me.id, commentId: comment.id },
         (group) => `${me.fullName} הזכיר/ה את "${group}" בתגובה`,
         [summary.createdBy, ...mentioned],
       );

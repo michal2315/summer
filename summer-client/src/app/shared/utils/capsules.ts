@@ -1,10 +1,11 @@
 import { CapsuleCondition, ICapsule, IQueryGroup } from '../models';
+import { MARK } from './search-syntax';
 
 /** Names compare case-insensitively, with `_` (as typed in the search box) standing for spaces. */
 export const normalizeCapsuleName = (s: string) => s.replace(/[_\s]+/g, ' ').trim().toLowerCase();
 
-/** How a capsule is written in the search box: `#name`, `_` for spaces. */
-export const capsuleSearchToken = (c: Pick<ICapsule, 'name'>) => `#${c.name.trim().replace(/\s+/g, '_')}`;
+/** How a capsule is written in the search box: a marked `#name`, `_` for spaces. */
+export const capsuleSearchToken = (c: Pick<ICapsule, 'name'>) => `${MARK}#${c.name.trim().replace(/\s+/g, '_')}`;
 
 /** How a capsule is stored in advanced-search word lists. */
 export const CAPSULE_TOKEN = '#cap:';

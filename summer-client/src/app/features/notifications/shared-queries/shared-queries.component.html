@@ -1,0 +1,71 @@
+<div class="muted intro">חיפושים שאחרים שיתפו. אפשר להריץ אותם, לקבל התראה עליהם (ההתראה עוקבת אחרי השינויים של מי ששיתף), או לשמור עותק משלך לעריכה.</div>
+
+<nz-input-group [nzPrefix]="searchIcon" class="filter">
+  <input nz-input placeholder="חיפוש לפי שם החיפוש או מי ששיתף" [ngModel]="text()" (ngModelChange)="setText($event)" aria-label="חיפוש בחיפושים משותפים" />
+</nz-input-group>
+<ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+
+@if (items(); as list) {
+  <ul class="list">
+    @for (q of list; track q._id) {
+      @let own = ownCopy(q);
+      <li class="item" [class.following]="q.alert">
+        <button type="button" class="text" (click)="run(q)" nz-tooltip="פתיחת החיפוש בפיד" nzTooltipPlacement="left">
+          <span class="name">
+            <span class="kind" nz-icon [nzType]="q.kind === 'advanced' ? 'apartment' : 'search'" [attr.aria-label]="kindLabel[q.kind]"></span>
+            {{ q.name }}
+          </span>
+          <span class="owner">
+            <span nz-icon nzType="user"></span> {{ q.owner.fullName }}
+            @if (q.followers) {
+              <span class="dot">·</span>
+              <span>{{ q.followers === 1 ? 'עוקב/ת אחד/ת' : q.followers + ' עוקבים' }}</span>
+            }
+          </span>
+          <span class="desc">{{ describe(q.search) }}</span>
+          @if (own) {
+            <span class="own"><span nz-icon nzType="save"></span> שמור אצלך בשם "{{ own.name }}"</span>
+          }
+        </button>
+        <span class="row-actions">
+          <button
+            nz-button
+            nzType="text"
+            nzShape="circle"
+            nzSize="small"
+            type="button"
+            class="bell"
+            [class.on]="q.alert"
+            [disabled]="isBusy(q)"
+            (click)="toggleFollow(q)"
+            [nz-tooltip]="q.alert ? 'ביטול ההתראה' : 'התראה על תמציות חדשות שמתאימות לחיפוש'"
+            [attr.aria-label]="q.alert ? 'ביטול ההתראה' : 'התראה על החיפוש'"
+            [attr.aria-pressed]="!!q.alert"
+          >
+            <span nz-icon nzType="bell" [nzTheme]="q.alert ? 'fill' : 'outline'"></span>
+          </button>
+          <button
+            nz-button
+            nzType="text"
+            nzShape="circle"
+            nzSize="small"
+            type="button"
+            [disabled]="isBusy(q) || !!own"
+            (click)="copy(q)"
+            [nz-tooltip]="own ? 'כבר שמור אצלך' : 'שמירת עותק בחיפושים שלי'"
+            aria-label="שמירת עותק"
+          >
+            <span nz-icon nzType="copy"></span>
+          </button>
+        </span>
+      </li>
+    } @empty {
+      <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="text().trim() ? 'אין חיפוש משותף כזה' : 'עדיין אף אחד לא שיתף חיפוש.'" />
+    }
+  </ul>
+  @if (hasMore()) {
+    <div class="sentinel" (appInView)="more()" [appInViewKey]="list.length"></div>
+  }
+} @else {
+  <app-skeleton variant="rows" [count]="5" />
+}

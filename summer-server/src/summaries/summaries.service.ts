@@ -13,7 +13,6 @@ import { DatabaseService } from '../database/database.service';
 import { FieldType, SUMMARY_KINDS, summaries } from '../database/schema';
 import { LabelsRepository } from '../labels/labels.repository';
 import { NotificationsService } from '../notifications/notifications.service';
-import { SUMMARY_TEXT_FIELD } from '../notifications/rule-matcher';
 import { validPermissionSet } from '../permissions/permission-assignment';
 import { PermissionsRepository } from '../permissions/permissions.repository';
 import { UsersRepository } from '../users/users.repository';
@@ -325,7 +324,7 @@ export class SummariesService {
 
   /**
    * Excel bulk import: every row is validated first, then all rows are written in one transaction
-   * (all-or-nothing). Imports do not fan out follower/rule notifications.
+   * (all-or-nothing). Imports do not fan out follower/alert notifications.
    */
   async importMany(me: CurrentUser, rawPayloads: unknown[]): Promise<number> {
     const inputs: ValidInput[] = [];
@@ -364,7 +363,7 @@ export class SummariesService {
   /**
    * Add and/or remove labels on many summaries. Applies to every summary the caller may edit and reports the rest.
    * Added labels go after the existing ones, so a summary's first label only changes if it is removed.
-   * Like Excel import, bulk edits do not fan out follower/rule notifications.
+   * Like Excel import, bulk edits do not fan out follower/alert notifications.
    */
   async bulkLabels(me: CurrentUser, body: unknown): Promise<ApiBulkResult> {
     const p = parse(bulkLabelsSchema, body);
@@ -518,29 +517,21 @@ export class SummariesService {
 
   /** Tagged users, then members of tagged groups who weren't tagged by name: one notification each. */
   private async notifyTagged(me: CurrentUser, id: string, title: string, userIds: string[], permissionIds: string[]): Promise<void> {
-    const n = { summaryId: id, createdBy: me.id };
+    const n = { summaryId: id, kind: 'tag' as const, createdBy: me.id };
     await this.notifications.notify(userIds, { ...n, text: `${me.fullName} תייג/ה אותך בתמצית "${title}"` });
     await this.notifications.notifyGroups(permissionIds, n, (group) => `${me.fullName} תייג/ה את "${group}" בתמצית "${title}"`, userIds);
   }
 
-  /** What notification rules are checked against (inside the write's transaction, so the saved row is what matches). */
+  /** What query alerts are checked against (inside the write's transaction, so the saved rows are what matches). */
   private published(id: string, input: ValidInput) {
     return {
       id,
       title: input.values.title,
-      fieldValues: this.fieldMap(input),
       matchesSearch: async (search: Record<string, unknown>) => {
         const f = summarySearchSchema.safeParse(search);
         return f.success && (await this.repo.count(and(eq(summaries.id, id), ...(await this.filters(f.data)))!)) > 0;
       },
     };
-  }
-
-  /** Field values for rule matching, plus the summary's own text under SUMMARY_TEXT_FIELD. */
-  private fieldMap(input: ValidInput): Map<string, string> {
-    const { title, contentText, notesText } = input.values;
-    const text = [title, contentText, notesText].filter(Boolean).join('\n');
-    return new Map([...input.fieldValues.map((f): [string, string] => [f.fieldId, f.value]), [SUMMARY_TEXT_FIELD._id, text]]);
   }
 
   /** Everything the database cannot check by itself: references, field types, and who may assign what. */
@@ -576,7 +567,8 @@ export class SummariesService {
         if (!def) throw new BadRequestException(`unknown field ${fieldId}`);
         return { fieldId, value: validateFieldValue(def, value) };
       });
-    if (!p.isDraft) {
+    // A sumaroon is one entry of its running summary: the content type's required fields are the running summary's to fill.
+    if (!p.isDraft && !isSumaroon) {
       const missing = contentType.fields.filter((f) => f.required && !fieldValues.some((v) => v.fieldId === f.fieldId));
       if (missing.length) throw new BadRequestException('required content-type fields are missing');
     }

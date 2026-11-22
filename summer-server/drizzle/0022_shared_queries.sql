@@ -1,0 +1,2 @@
+ALTER TABLE "queries" ADD COLUMN "is_shared" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX "queries_is_shared_created_at_index" ON "queries" USING btree ("is_shared","created_at");

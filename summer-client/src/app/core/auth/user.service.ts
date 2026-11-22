@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, shareReplay, tap } from 'rxjs';
-import { IBulkResult, ISummarySearch, IUser, UserRef } from '../../shared/models';
+import { IBulkResult, IUser, UserPreferences, UserRef } from '../../shared/models';
 import { SILENT_ERRORS } from '../http/http-context';
 
 const BASE = '/api/user';
@@ -50,14 +50,7 @@ export class UserService {
     return this.http.get<UserRef[]>(`${BASE}/name/${encodeURIComponent(text)}`);
   }
 
-  // ---- pins / favorites / follows (all return the updated IUser) ----
-  /** Saving a search that is already saved keeps its name unless `name` is given. */
-  pinSearch(search: ISummarySearch, isPin: boolean, name?: string) {
-    return this.update(this.http.post<IUser>(`${BASE}/pinned-search/`, { ...search, isPin, ...(name !== undefined ? { name } : {}) }));
-  }
-  renameSearch(id: string, name: string) {
-    return this.update(this.http.put<IUser>(`${BASE}/pinned-search/${id}`, { name }));
-  }
+  // ---- pins / favorites / follows (all return the updated IUser); saved searches are queries (QueryService) ----
   pinLabel(label: string) {
     return this.update(this.http.post<IUser>(`${BASE}/pinned-label/`, { label }));
   }
@@ -85,6 +78,11 @@ export class UserService {
   }
   unfollow(userId: string) {
     return this.update(this.http.delete<IUser>(`${BASE}/remove-follow/${userId}`));
+  }
+
+  /** Change some preferences; keys left out stay as they are. */
+  setPreferences(patch: UserPreferences) {
+    return this.update(this.http.put<IUser>(`${BASE}/preferences`, patch));
   }
 
   private update(req: Observable<IUser>) {

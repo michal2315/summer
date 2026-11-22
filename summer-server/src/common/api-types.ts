@@ -2,6 +2,7 @@
 // which keeps Mongo-era names (`_id`, `creationDate`, `user`…) — the database underneath does not.
 
 import type { Mention } from '../database/schema';
+import type { UserPreferences } from './preferences';
 
 export interface ApiPermission {
   _id: string;
@@ -18,16 +19,55 @@ export interface UserRef {
   isSystem?: boolean;
 }
 
-/** A saved search; without a name the client describes it from its filters. */
-export interface ApiSavedSearch {
+/** The caller's alert on a query. */
+export interface ApiQueryAlert {
   _id: string;
-  name: string | null;
+  /** off pauses the alert */
+  isActive: boolean;
+  isMail: boolean;
+  isDigest: boolean;
+  creationDate: string;
+}
+
+/** A query: a saved search, which may also alert. */
+export interface ApiQuery {
+  _id: string;
+  name: string;
+  /** edited with the search box only (simple) or with the condition builder too (advanced) */
+  kind: 'simple' | 'advanced';
   search: Record<string, unknown>;
+  /** only the owner's own flag; false on others' queries */
+  isFavorite: boolean;
+  /** others can find, run, copy and alert on it */
+  isShared: boolean;
+  isMine: boolean;
+  owner: UserRef;
+  /** how many people other than the owner alert on it */
+  followers: number;
+  creationDate: string;
+  updateDate: string;
+  /** the caller's alert on it */
+  alert: ApiQueryAlert | null;
+}
+
+/** A user group: users and permission groups tagged together. Inactive users are left out. */
+export interface ApiUserGroup {
+  _id: string;
+  name: string;
+  users: UserRef[];
+  /** permission (group) ids */
+  permissions: string[];
+  /** only the owner's own flag; false on others' groups */
+  isFavorite: boolean;
+  /** others can find, use and copy it */
+  isShared: boolean;
+  isMine: boolean;
+  owner: UserRef;
+  creationDate: string;
+  updateDate: string;
 }
 
 export interface ApiUser extends UserRef {
-  /** newest first */
-  pinnedSearches: ApiSavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
@@ -35,6 +75,8 @@ export interface ApiUser extends UserRef {
   pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
+  /** missing keys mean the default */
+  preferences: UserPreferences;
 }
 
 export interface ApiField {
@@ -162,6 +204,13 @@ export interface ApiNotification {
   creationDate: string;
   isViewed: boolean;
   createdBy?: Pick<UserRef, '_id' | 'username' | 'fullName'>;
+}
+
+/** A notifications-page feed entry: the notification, the query whose alert raised it (if any), and its summary. */
+export interface ApiNotificationFeedItem extends ApiNotification {
+  kind: 'alert' | 'comment' | 'mention' | 'tag' | 'follow';
+  query?: { _id: string; name: string };
+  summary: ApiSummary;
 }
 
 export const toRef = (u: { id: string; username: string; fullName: string; department: string; isSystem: boolean }): UserRef => ({

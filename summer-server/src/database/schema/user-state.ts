@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { labels, permissions } from './catalog';
 import { createdAt, id, updatedAt } from './columns';
 import { summaries } from './summaries';
@@ -82,19 +82,6 @@ export const userPinnedUsers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.pinnedUserId] }), check('user_pinned_users_not_self', sql`${t.userId} <> ${t.pinnedUserId}`)],
-);
-
-/** Saved searches: an opaque client search object (ISummarySearch minus paging), optionally named by the user. */
-export const userPinnedSearches = pgTable(
-  'user_pinned_searches',
-  {
-    id: id(),
-    userId: userFk(),
-    search: jsonb().$type<Record<string, unknown>>().notNull(),
-    name: text(),
-    createdAt: createdAt(),
-  },
-  (t) => [index().on(t.userId, t.createdAt)],
 );
 
 /** What a summary template fills in: ids as picked in the form; labels by name, since typing a new one creates it. */

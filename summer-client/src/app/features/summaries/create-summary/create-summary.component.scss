@@ -2,20 +2,42 @@
 
 :host {
   display: block;
-  background: $white;
+  background: $app-background;
   min-height: 100%;
+  padding: 16px;
+
+  @media (max-width: $bp-mobile) {
+    padding: 0;
+  }
+
+  // Inside a modal the modal is the card.
+  &.in-modal {
+    padding: 0;
+    background: $white;
+    min-height: 0;
+    .page {
+      padding: 0;
+      max-width: none;
+    }
+  }
 }
 
+// The form sits as a white card on the grey page background, like the feed's cards.
 .page {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 16px 20px 32px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  background: $white;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
 
   @media (max-width: $bp-mobile) {
     padding: 16px 12px 40px;
+    border-radius: 0;
+    box-shadow: none;
   }
 }
 
@@ -33,6 +55,44 @@
   font-size: 14px;
   font-weight: 800;
   margin: 0 0 8px;
+}
+
+// A new running summary's own sumaroons (small-sumaroon style): one framed block each, then "more".
+.inline-sumaroon {
+  border: 1px solid $border-color;
+  border-radius: $border-radius;
+  padding: 10px 12px 0;
+  margin-bottom: 10px;
+  background: $surface-subtle;
+}
+
+.inline-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  .inline-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: $white;
+    border: 1px solid $border-color;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .inline-title {
+    font-weight: 700;
+  }
+  .spacer {
+    flex: 1;
+  }
+}
+
+.add-sumaroon {
+  align-self: flex-start;
 }
 
 // Section title with controls at the far end (templates).
@@ -165,17 +225,26 @@
   nz-date-picker,
   nz-time-picker,
   nz-input-number,
-  nz-select {
+  nz-select,
+  nz-tree-select {
     width: 100%;
+  }
+  // Grid cells stretch to the tallest one; keep label + input at the top so the inputs
+  // line up however much help/error text sits under each.
+  nz-form-item {
+    align-content: flex-start;
   }
 }
 
-// Content-type fields share one row, however many the type defines.
+// Content-type fields share one row, however many the type defines. The row keeps the height of one
+// field (label + input + the item's bottom margin) even with no fields, so switching types never shifts the form.
+$type-row-height: 86px;
 .type-fields {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   gap: 0 16px;
+  min-height: $type-row-height;
   nz-date-picker,
   nz-time-picker,
   nz-input-number {
@@ -183,10 +252,31 @@
   }
   nz-form-item {
     min-width: 0;
+    align-content: flex-start;
+  }
+  // Long field names stay on one line, so a type with many fields doesn't grow a taller row.
+  ::ng-deep .ant-form-item-label > label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   @media (max-width: $bp-mobile) {
     grid-auto-flow: row;
   }
+}
+
+// Stand-in for the fields: a ghost input where the inputs would sit.
+.type-fields-empty {
+  align-self: start;
+  margin-top: 30px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px dashed $border-color;
+  border-radius: $border-radius;
+  font-size: 12.5px;
 }
 
 .types {
@@ -208,8 +298,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 12px;
-  border-radius: 16px;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: $border-radius;
   border: 1px solid #d9d9d9;
   background: $white;
   font-weight: 700;
@@ -286,6 +378,146 @@
   }
 }
 
+// ---- tag field (users + groups) ----
+// A group option: its colour as a round badge with the team icon, the size of a user's avatar.
+.group-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: $white;
+  font-size: 13px;
+}
+// A saved user group (picking it tags all its members).
+.group-icon.user-group {
+  background: $accent;
+}
+.opt-count {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: $gray;
+  background: $gray-tag;
+}
+// The tag field with its "save as a user group" button at the end.
+.tag-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  nz-select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+.save-tags-btn {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-sm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  color: $white;
+  background: $primary-pink;
+  &:hover,
+  &:focus-visible {
+    filter: brightness(0.92);
+  }
+}
+.opt-username {
+  font-size: 12px;
+  color: $gray;
+  direction: ltr;
+}
+// The selected tag says whether it's a user or a group.
+.tag-kind {
+  flex-shrink: 0;
+  color: $gray;
+  font-size: 12px;
+}
+
+// ---- folder picker (tree dropdown) ----
+// A row is the whole hit area: click to pick/unpick. Picked rows get the orange tint and a check at the end.
+.folder-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  .folder-icon {
+    color: $gray;
+    font-size: 15px;
+  }
+  .folder-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .folder-mark {
+    font-size: 13px;
+  }
+  &.picked {
+    color: $orange-strong;
+    font-weight: 700;
+    .folder-icon {
+      color: $primary-orange;
+    }
+  }
+  // Only the way down to a folder you can pick: quieter, not clickable.
+  &.passage {
+    color: $gray;
+  }
+  // Already in it, but only its managers may take the summary out.
+  &.locked {
+    color: $dark-gray;
+    .folder-icon,
+    .folder-mark {
+      color: $gray;
+    }
+  }
+}
+
+// The dropdown lives in an overlay, outside this component: scope by its class.
+::ng-deep .folder-picker .ant-select-tree {
+  .ant-select-tree-treenode {
+    width: 100%;
+    padding: 0 4px 2px;
+  }
+  .ant-select-tree-node-content-wrapper {
+    flex: 1;
+    min-width: 0;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-radius: $border-radius;
+    transition: background 0.15s;
+    &:hover {
+      background: $surface-subtle;
+    }
+    &.ant-select-tree-node-selected {
+      background: $orange-50;
+    }
+  }
+  .ant-select-tree-switcher {
+    align-self: center;
+    line-height: 32px;
+  }
+  .ant-select-tree-treenode-disabled .ant-select-tree-node-content-wrapper {
+    cursor: default;
+    &:hover {
+      background: transparent;
+    }
+  }
+}
+
 .extra-add {
   display: flex;
   gap: 8px;
@@ -316,11 +548,6 @@
       grid-column: 1 / -1;
     }
   }
-}
-
-.add-notes {
-  align-self: flex-start;
-  margin-bottom: 14px;
 }
 
 .drop {

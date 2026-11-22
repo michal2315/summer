@@ -1,0 +1,78 @@
+<div class="editor">
+  <div class="field">
+    <span class="field-label">שם הקבוצה</span>
+    <input
+      nz-input
+      maxlength="80"
+      aria-label="שם הקבוצה"
+      placeholder="למשל: צוות המחקר"
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event)"
+      (keydown.enter)="$event.preventDefault(); save()"
+    />
+    @if (nameTaken()) {
+      <span class="warn">כבר יש לך קבוצה בשם הזה</span>
+    }
+  </div>
+
+  <div class="field">
+    <span class="field-label">חברי הקבוצה</span>
+    <nz-select
+      nzMode="multiple"
+      nzShowSearch
+      nzServerSearch
+      nzPlaceHolder="חיפוש משתמש או קבוצה"
+      nzDropdownClassName="no-check"
+      [nzCustomTemplate]="memberTag"
+      [ngModel]="value()"
+      (ngModelChange)="onChange($event)"
+      (nzOnSearch)="onSearch($event)"
+    >
+      @if (userOptions().length) {
+        <nz-option-group nzLabel="משתמשים">
+          @for (u of userOptions(); track u._id) {
+            <nz-option nzCustomContent [nzValue]="'u:' + u._id" [nzLabel]="u.fullName">
+              <div class="opt">
+                <app-avatar [user]="u" [size]="24" />
+                <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
+              </div>
+            </nz-option>
+          }
+        </nz-option-group>
+      }
+      @if (groupOptions().length) {
+        <nz-option-group nzLabel="קבוצות">
+          @for (p of groupOptions(); track p._id) {
+            <nz-option nzCustomContent [nzValue]="'g:' + p._id" [nzLabel]="p.name">
+              <div class="opt">
+                <span class="group-icon" [style.background]="p.color"><span nz-icon nzType="team"></span></span>
+                <span class="opt-label">{{ p.name }}</span>
+              </div>
+            </nz-option>
+          }
+        </nz-option-group>
+      }
+    </nz-select>
+    <ng-template #memberTag let-selected>
+      <span class="member-tag">
+        @if (selected.nzValue.startsWith('g:')) {
+          <span nz-icon nzType="team" class="tag-kind" [style.color]="permissionColor(selected.nzValue.slice(2))"></span>
+        } @else {
+          <span nz-icon nzType="user" class="tag-kind"></span>
+        }
+        {{ selected.nzLabel }}
+      </span>
+    </ng-template>
+  </div>
+
+  <label nz-checkbox [ngModel]="isShared()" (ngModelChange)="isShared.set($event)">
+    <span nz-icon nzType="team"></span> משותפת: כולם יוכלו למצוא את הקבוצה, להשתמש בה בתיוג ולהעתיק אותה
+  </label>
+
+  <div class="footer">
+    <button nz-button type="button" (click)="modal.close()">ביטול</button>
+    <button nz-button nzType="primary" type="button" [disabled]="!name().trim() || empty() || nameTaken()" [nzLoading]="busy()" (click)="save()">
+      {{ group ? 'שמירה' : 'יצירת הקבוצה' }}
+    </button>
+  </div>
+</div>

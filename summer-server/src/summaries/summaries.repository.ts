@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { SQL, and, asc, eq, exists, gte, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
+import { SQL, SQLWrapper, and, asc, eq, exists, gte, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { Capsule, CapsuleLookup, NO_CAPSULES, capsuleTokenId, isCapsuleToken, wordsOf } from '../capsules/capsule';
-import { idsWhere, textLike, uuidArray } from '../common/sql';
+import { idsWhere, textLike, textWholeWord, uuidArray } from '../common/sql';
 import { dayRange } from '../common/time';
 import { DatabaseService } from '../database/database.service';
 import {
@@ -26,7 +26,10 @@ import {
 } from '../database/schema';
 import { folderEditable, folderVisible } from '../folders/folder.access';
 import { summaryEditable, summaryVisible } from './summary.access';
-import { Bucket, QueryCondition, QueryGroup, SummarySearch, TEXT_FIELDS, TextField, parseQuery } from './summary-search';
+import { Bucket, CATALOG_FIELD, QueryCondition, QueryGroup, QueryTerm, SummarySearch, TEXT_FIELDS, TermField, TextField, colorValue, parseQuery } from './summary-search';
+
+type ValueTermField = Extract<TermField, 'author' | 'type' | 'color'>;
+const isValueField = (f: TermField | undefined): f is ValueTermField => f === 'author' || f === 'type' || f === 'color';
 
 const ALL_TEXT_FIELDS: TextField[] = TEXT_FIELDS.filter((f) => f !== 'text');
 /** The basic search's "search in" checkboxes. */
@@ -106,41 +109,31 @@ export class SummariesRepository {
     return new Set(rows.map((r) => r.id));
   }
 
-  /** Search filters shared by the feed, rule matching and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
+  /** Search filters shared by the feed, query alerts and Excel export. `capsules`: the ones the search refers to (see capsuleRefs). */
   filterConditions(f: SummarySearch, timeZone: string, capsules: CapsuleLookup = NO_CAPSULES): SQL[] {
     const conds: SQL[] = [];
     const checked = f.searchTypes.flatMap((t) => SEARCH_TYPE_FIELDS[t] ?? []);
     const textFields: TextField[] = checked.length ? checked : ALL_TEXT_FIELDS;
 
     const query = parseQuery(f.text);
-    const anyGroup = query.groups.map((g) =>
-      and(
-        ...g.map((t) => {
-          const capsule = t.capsule ? capsules.byName(t.term) : undefined;
-          if (capsule) return t.neg ? notTrue(this.capsuleMatch(capsule, textFields)) : this.capsuleMatch(capsule, textFields);
-          const match = this.textMatch(t.term, textFields);
-          return match && t.neg ? not(match) : match;
-        }),
-      ),
-    );
+    const termMatch = (t: QueryTerm): SQL | undefined => {
+      const capsule = t.capsule ? capsules.byName(t.term) : undefined;
+      if (capsule) return t.neg ? notTrue(this.capsuleMatch(capsule, textFields)) : this.capsuleMatch(capsule, textFields);
+      if (isValueField(t.field)) return t.neg ? notTrue(this.valueMatch(t.field, t.term)) : this.valueMatch(t.field, t.term);
+      const match = this.textMatch(t.term, t.field ? [t.field] : textFields, t.exact);
+      return match && t.neg ? not(match) : match;
+    };
+    const anyGroup = query.groups.map((g) => {
+      // A summary has one author, type and color: `@a @b` means either of them.
+      const byField = new Map<string, SQL[]>();
+      const rest: (SQL | undefined)[] = [];
+      for (const t of g) {
+        if (!isValueField(t.field) || t.neg) rest.push(termMatch(t));
+        else byField.set(t.field, [...(byField.get(t.field) ?? []), this.valueMatch(t.field, t.term)]);
+      }
+      return and(...rest, ...[...byField.values()].map((list) => or(...list)));
+    });
     if (anyGroup.length) conds.push(or(...anyGroup)!);
-    if (query.users.length)
-      conds.push(inArray(summaries.createdBy, this.db.select({ id: users.id }).from(users).where(inArray(sql`lower(${users.username})`, query.users))));
-    if (query.contentTypes.length)
-      conds.push(
-        inArray(
-          summaries.contentTypeId,
-          this.db
-            .select({ id: contentTypes.id })
-            .from(contentTypes)
-            .where(
-              or(
-                inArray(sql`lower(${contentTypes.name})`, query.contentTypes.map((t) => t.toLowerCase())),
-                inArray(contentTypes.displayName, query.contentTypes),
-              ),
-            ),
-        ),
-      );
     const advanced = f.query && this.queryGroup(f.query, timeZone, capsules);
     if (advanced) conds.push(advanced);
 
@@ -170,13 +163,30 @@ export class SummariesRepository {
     return conds;
   }
 
-  /** `term` appears (case-insensitive substring) in any of `fields`; undefined when no field applies. */
-  private textMatch(term: string, fields: readonly TextField[]): SQL | undefined {
+  /** `@user`, `:type:` or `:color:` from the search text: username or full name / content type name or display name / palette color. */
+  private valueMatch(field: ValueTermField, value: string): SQL {
+    if (field === 'author')
+      return inArray(summaries.createdBy, this.db.select({ id: users.id }).from(users).where(or(eq(sql`lower(${users.username})`, value.toLowerCase()), eq(users.fullName, value))));
+    if (field === 'type')
+      return inArray(
+        summaries.contentTypeId,
+        this.db
+          .select({ id: contentTypes.id })
+          .from(contentTypes)
+          .where(or(eq(sql`lower(${contentTypes.name})`, value.toLowerCase()), eq(contentTypes.displayName, value))),
+      );
+    const color = colorValue(value);
+    return color ? eq(summaries.color, color) : sql`false`;
+  }
+
+  /** `term` appears (case-insensitive substring; with `exact`, as whole words) in any of `fields`; undefined when no field applies. */
+  private textMatch(term: string, fields: readonly TextField[], exact = false): SQL | undefined {
+    const like = (col: SQLWrapper) => (exact ? textWholeWord(col, term) : textLike(col, term));
     const anyOf: SQL[] = [];
     const has = (f: TextField) => fields.includes('text') || fields.includes(f);
-    if (has('title')) anyOf.push(textLike(summaries.title, term));
-    if (has('content')) anyOf.push(textLike(summaries.contentText, term));
-    if (has('notes')) anyOf.push(textLike(summaries.notesText, term));
+    if (has('title')) anyOf.push(like(summaries.title));
+    if (has('content')) anyOf.push(like(summaries.contentText));
+    if (has('notes')) anyOf.push(like(summaries.notesText));
     if (has('labels'))
       anyOf.push(
         exists(
@@ -184,7 +194,7 @@ export class SummariesRepository {
             .select({ x: sql`1` })
             .from(summaryLabels)
             .innerJoin(labels, eq(labels.id, summaryLabels.labelId))
-            .where(and(eq(summaryLabels.summaryId, summaries.id), textLike(labels.name, term))),
+            .where(and(eq(summaryLabels.summaryId, summaries.id), like(labels.name))),
         ),
       );
     if (has('comments'))
@@ -193,7 +203,7 @@ export class SummariesRepository {
           this.db
             .select({ x: sql`1` })
             .from(comments)
-            .where(and(eq(comments.summaryId, summaries.id), textLike(comments.content, term))),
+            .where(and(eq(comments.summaryId, summaries.id), like(comments.content))),
         ),
       );
     return anyOf.length ? or(...anyOf) : undefined;
@@ -204,7 +214,11 @@ export class SummariesRepository {
    * optional word (capsule.ts). A capsule with nothing to look for matches nothing.
    */
   private capsuleMatch(c: Capsule, fields: readonly TextField[]): SQL {
-    const match = (w: string) => this.textMatch(w, fields) ?? sql`false`;
+    return this.capsuleWith(c, (w) => this.textMatch(w, fields) ?? sql`false`);
+  }
+
+  /** capsuleMatch with any word matcher (a catalog field's value, say). */
+  private capsuleWith(c: Capsule, match: (word: string) => SQL): SQL {
     const must = wordsOf(c, 'must').map(match);
     const optional = wordsOf(c, 'optional').map(match);
     if (!must.length && !optional.length) return sql`false`;
@@ -238,6 +252,8 @@ export class SummariesRepository {
     const pick = (cond: SQL) => (c.op === 'isNot' ? notTrue(cond) : cond);
 
     switch (c.field) {
+      case CATALOG_FIELD:
+        return this.catalogCondition(c, timeZone, capsules);
       case 'text':
       case 'title':
       case 'content':
@@ -273,6 +289,72 @@ export class SummariesRepository {
         const to = c.op !== 'after' && c.to ? dayRange(c.to, c.to, timeZone)?.[1] : undefined;
         const bounds = [from && gte(column, from), to && lte(column, to)].filter((b) => !!b);
         return bounds.length ? and(...bounds) : undefined;
+      }
+    }
+  }
+
+  /**
+   * A condition on a catalog field's value (summary_fields). Values are stored as validated text (numbers as numbers,
+   * dates as ISO instants, lists as JSON arrays or comma-separated); one that doesn't read as the operator's type
+   * (the field's type changed since) never matches. A summary without the field never matches, not even "none".
+   */
+  private catalogCondition(c: QueryCondition, timeZone: string, capsules: CapsuleLookup): SQL | undefined {
+    const v = summaryFields.value;
+    const has = (match: SQL) =>
+      exists(
+        this.db
+          .select({ x: sql`1` })
+          .from(summaryFields)
+          .where(and(eq(summaryFields.summaryId, summaries.id), eq(summaryFields.fieldId, c.fieldId!), match)),
+      );
+    const bound = (s: string | undefined) => (s === undefined || s.trim() === '' ? undefined : s.trim());
+
+    switch (c.op) {
+      case 'all':
+      case 'any':
+      case 'none': {
+        const word = (w: string): SQL => {
+          if (!isCapsuleToken(w)) return textLike(v, w);
+          const capsule = capsules.byId(capsuleTokenId(w));
+          return capsule ? this.capsuleWith(capsule, (x) => textLike(v, x)) : sql`false`;
+        };
+        const matches = c.words.filter(Boolean).map(word);
+        if (!matches.length) return undefined;
+        if (c.op === 'any') return has(or(...matches)!);
+        if (c.op === 'none') return has(notTrue(or(...matches)!));
+        return has(and(...matches)!);
+      }
+      case 'eq':
+      case 'gt':
+      case 'lt':
+      case 'range': {
+        const num = sql`(case when pg_input_is_valid(${v}, 'numeric') then ${v}::numeric end)`;
+        const lo = c.op === 'lt' ? undefined : bound(c.from);
+        const hi = c.op === 'eq' || c.op === 'gt' ? undefined : bound(c.to);
+        if (c.op === 'eq') return lo === undefined ? undefined : has(sql`${num} = ${lo}::numeric`);
+        const parts = [lo !== undefined && sql`${num} ${sql.raw(c.op === 'gt' ? '>' : '>=')} ${lo}::numeric`, hi !== undefined && sql`${num} ${sql.raw(c.op === 'lt' ? '<' : '<=')} ${hi}::numeric`].filter(
+          (p): p is SQL => !!p,
+        );
+        return parts.length ? has(and(...parts)!) : undefined;
+      }
+      case 'after':
+      case 'before':
+      case 'between': {
+        const ts = sql`(case when pg_input_is_valid(${v}, 'timestamptz') then ${v}::timestamptz end)`;
+        const from = c.op !== 'before' && c.from ? dayRange(c.from, c.from, timeZone)?.[0] : undefined;
+        const to = c.op !== 'after' && c.to ? dayRange(c.to, c.to, timeZone)?.[1] : undefined;
+        const parts = [from && sql`${ts} >= ${from.toISOString()}::timestamptz`, to && sql`${ts} <= ${to.toISOString()}::timestamptz`].filter((p): p is SQL => !!p);
+        return parts.length ? has(and(...parts)!) : undefined;
+      }
+      case 'isOneOf':
+      case 'isNot': {
+        if (!c.values.length) return undefined;
+        const list = sql`(case when pg_input_is_valid(${v}, 'jsonb') then (case when jsonb_typeof(${v}::jsonb) = 'array' then array(select jsonb_array_elements_text(${v}::jsonb)) else array[btrim(${v})] end) else regexp_split_to_array(btrim(${v}), '\\s*,\\s*') end)`;
+        const overlap = sql`${list} && array[${sql.join(
+          c.values.map((x) => sql`${x}`),
+          sql`, `,
+        )}]::text[]`;
+        return has(c.op === 'isNot' ? notTrue(overlap) : overlap);
       }
     }
   }

@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { searchParamsOf } from '../../summaries/search-query';
+import { PreferencesService } from '../../../core/preferences/preferences.service';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { IFolder } from '../../../shared/models';
 
@@ -21,6 +24,11 @@ export class FolderCardsComponent {
   readonly folders = input.required<IFolder[]>();
   /** Folder id → summaries in it and its subfolders. */
   readonly totals = input.required<Map<string, number>>();
+
+  private readonly params = toSignal(inject(ActivatedRoute).queryParams, { initialValue: {} });
+  private readonly prefs = inject(PreferencesService);
+  /** A card keeps the search (the folder's results update with it), unless the user prefers a fresh start per folder. */
+  readonly cardParams = (folderId: string) => ({ ...(this.prefs.keepSearchAcrossFolders() ? searchParamsOf(this.params()) : {}), folderId });
 
   readonly expanded = signal(false);
   /** Cards per row at the current width (the grid auto-fills, so this mirrors it). */

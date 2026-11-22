@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { htmlToText } from '../../common/html';
 import { Db } from '../client';
 import * as s from '../schema';
@@ -42,8 +42,8 @@ const COLORS = ['#fe9eae', '#ff0000', '#ffa500', '#008000', '#00b2b2', '#0000c9'
 const COMMENTS = ['תודה רבה! עזר מאוד 🙏', 'יש טעות קטנה בהגדרה בפסקה השנייה', 'מישהו יודע אם זה בחומר למבחן?', 'סיכום מעולה', '@dlevi תסתכלי על זה'];
 
 const TABLES = [
-  'folder_summaries', 'folder_editors', 'folder_permissions', 'folders',
-  'notifications', 'notification_rule_hits', 'notification_rules', 'whats_new_seen', 'user_pinned_searches', 'user_pinned_permissions', 'user_fav_labels',
+  'legacy_releases', 'legacy_collections', 'folder_summaries', 'folder_editors', 'folder_permissions', 'folders',
+  'notifications', 'query_alert_hits', 'query_alerts', 'queries', 'whats_new_seen', 'user_pinned_permissions', 'user_fav_labels',
   'user_pinned_labels', 'user_fav_summaries', 'user_follows',
   'comments', 'summary_files',
   'summary_seen', 'summary_tagged_users', 'summary_tagged_permissions', 'summary_fields', 'summary_labels', 'summary_editors', 'summary_permissions',
@@ -266,6 +266,29 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
     await place('fd1', [], [2]);
     await place('fd7', [], [4, 5]);
 
+    // Collections from the old Summer, waiting in the legacy root to be sorted on /staging (no permissions, no
+    // managers on the root itself). Some summaries sit in two collections; the last one is someone else's to sort.
+    const [legacyRoot] = await tx
+      .insert(s.folders)
+      .values({ name: 'לקטים מ-Summer הישן', parentId: null, createdBy: user('summer').id, isLegacyRoot: true, createdAt: new Date(now - 30 * DAY) })
+      .returning({ id: s.folders.id });
+    const legacyDefs: { name: string; group: string; managers: string[]; summaries: number[] }[] = [
+      { name: 'סיכומי הרצאות', group: 'year-1', managers: ['mgolan'], summaries: [0, 1, 2, 3, 6, 7, 8, 9] },
+      { name: 'למבחן', group: 'year-1', managers: ['mgolan', 'yavraham'], summaries: [2, 3, 10, 11, 12] },
+      { name: 'תרגולים', group: 'cs-faculty', managers: ['mgolan'], summaries: [13, 14, 15] },
+      { name: 'ארכיון סגל', group: 'staff', managers: ['yavraham'], summaries: [4, 5, 16] },
+    ];
+    for (const d of legacyDefs) {
+      const [row] = await tx
+        .insert(s.folders)
+        .values({ name: d.name, parentId: legacyRoot.id, createdBy: user('summer').id, createdAt: new Date(now - 30 * DAY) })
+        .returning({ id: s.folders.id });
+      await tx.insert(s.folderPermissions).values({ folderId: row.id, permissionId: perm(d.group) });
+      await tx.insert(s.folderEditors).values(d.managers.map((u) => ({ folderId: row.id, userId: user(u).id })));
+      for (const i of d.summaries)
+        if (summaryIds[i] && !draftIds.has(summaryIds[i])) await tx.insert(s.folderSummaries).values({ folderId: row.id, summaryId: summaryIds[i] }).onConflictDoNothing();
+    }
+
     // A running summary (תמצית רצף) with three sumaroons (תמציתוניות), one per paragraph of the chapter.
     const textbook = types.find((t) => t.name === 'textbook')!;
     const day = (offset: number) => new Date(now + offset * DAY).toISOString().slice(0, 10);
@@ -328,18 +351,113 @@ export async function seed(db: Db, now = Date.now()): Promise<void> {
     await tx.insert(s.userFavSummaries).values([4, 8, 13].map((i) => ({ userId: mgolan.id, summaryId: summaryIds[i] })));
 
     await tx.insert(s.notifications).values([
-      { userId: mgolan.id, summaryId: summaryIds[6], text: 'דנה לוי תייגה אותך בסיכום', createdBy: user('dlevi').id, createdAt: new Date(now - 2 * 3_600_000) },
-      { userId: mgolan.id, summaryId: summaryIds[0], text: 'תגובה חדשה על הסיכום שלך', createdBy: user('aperetz').id, createdAt: new Date(now - 26 * 3_600_000) },
-      { userId: mgolan.id, summaryId: summaryIds[11], text: 'סיכום חדש נוסף לאוסף', createdAt: new Date(now - 4 * DAY), viewedAt: new Date(now - 3 * DAY) },
+      { userId: mgolan.id, summaryId: summaryIds[6], text: 'דנה לוי תייגה אותך בסיכום', kind: 'tag', createdBy: user('dlevi').id, createdAt: new Date(now - 2 * 3_600_000) },
+      { userId: mgolan.id, summaryId: summaryIds[0], text: 'תגובה חדשה על הסיכום שלך', kind: 'comment', createdBy: user('aperetz').id, createdAt: new Date(now - 26 * 3_600_000) },
+      { userId: mgolan.id, summaryId: summaryIds[11], text: 'סיכום חדש נוסף לאוסף', kind: 'follow', createdAt: new Date(now - 4 * DAY), viewedAt: new Date(now - 3 * DAY) },
     ]);
 
-    await tx.insert(s.notificationRules).values({
-      userId: mgolan.id,
-      name: 'הרצאות חדשות במבני נתונים',
-      conditions: [{ field: { _id: f(1), name: 'שם הקורס', type: 'string' }, funcName: 'stringContains', content: ['מבני נתונים'] }],
-      isMail: false,
-      isNotify: true,
-      createdAt: new Date(now - 30 * DAY),
-    });
+    // Queries (saved searches) of mgolan's, some with alerts. Catalog fields go in the advanced tree as `field: 'field'`.
+    const group = (op: 'AND' | 'OR', ...children: Record<string, unknown>[]) => ({ type: 'group', op, children });
+    const cond = (c: Record<string, unknown>) => ({ type: 'cond', words: [], values: [], ...c });
+    const queryDefs: {
+      name: string;
+      kind: 'simple' | 'advanced';
+      search: Record<string, unknown>;
+      isFavorite?: boolean;
+      isShared?: boolean;
+      alert?: { isActive: boolean; isMail: boolean; isDigest: boolean };
+      daysAgo: number;
+    }[] = [
+      {
+        name: 'הרצאות חדשות במבני נתונים',
+        kind: 'advanced',
+        search: { query: group('AND', cond({ field: 'field', fieldId: f(1), op: 'all', words: ['מבני נתונים'] }), cond({ field: 'contentType', op: 'isOneOf', values: ['lecture'] })) },
+        alert: { isActive: true, isMail: false, isDigest: true },
+        daysAgo: 30,
+      },
+      {
+        name: 'חומר למבחן',
+        kind: 'simple',
+        search: { text: 'מבחן', labels: ['חומר למבחן'] },
+        isFavorite: true,
+        isShared: true,
+        alert: { isActive: true, isMail: true, isDigest: false },
+        daysAgo: 21,
+      },
+      { name: 'התמציות של דנה לוי', kind: 'simple', search: { text: '⁣@dlevi', sort: '-creationDate' }, daysAgo: 14 },
+      {
+        name: 'הרצאות 1–5 באלגוריתמים',
+        kind: 'advanced',
+        search: { query: group('AND', cond({ field: 'field', fieldId: f(1), op: 'all', words: ['אלגוריתמים'] }), cond({ field: 'field', fieldId: f(3), op: 'range', from: '1', to: '5' })) },
+        alert: { isActive: false, isMail: false, isDigest: false },
+        daysAgo: 10,
+      },
+      { name: 'סיבוכיות', kind: 'simple', search: { text: '"סיבוכיות"' }, isFavorite: true, isShared: true, daysAgo: 7 },
+      {
+        name: 'גרפים או עצים בכותרת',
+        kind: 'advanced',
+        search: { query: group('OR', cond({ field: 'title', op: 'any', words: ['גרפים', 'עצי'] }), cond({ field: 'labels', op: 'all', words: ['הוכחות'] })) },
+        daysAgo: 5,
+      },
+      {
+        name: 'ירוקות או כתומות מ־3 החודשים האחרונים',
+        kind: 'advanced',
+        search: { query: group('AND', cond({ field: 'color', op: 'isOneOf', values: ['#008000', '#ffa500'] }), cond({ field: 'createdDate', op: 'after', from: new Date(now - 90 * DAY).toISOString() })) },
+        alert: { isActive: true, isMail: false, isDigest: false },
+        daysAgo: 2,
+      },
+      { name: 'פסיכולוגיה — זיכרון', kind: 'simple', search: { text: 'זיכרון', contentTypes: ['lecture', 'textbook'] }, daysAgo: 1 },
+    ];
+    const alertIds = new Map<string, string>();
+    for (const q of queryDefs) {
+      const at = new Date(now - q.daysAgo * DAY);
+      const [row] = await tx
+        .insert(s.queries)
+        .values({ ownerId: mgolan.id, name: q.name, kind: q.kind, search: q.search, isFavorite: q.isFavorite ?? false, isShared: q.isShared ?? false, createdAt: at, updatedAt: at })
+        .returning({ id: s.queries.id });
+      if (!q.alert) continue;
+      const [alert] = await tx.insert(s.queryAlerts).values({ queryId: row.id, userId: mgolan.id, ...q.alert, createdAt: at, updatedAt: at }).returning({ id: s.queryAlerts.id });
+      alertIds.set(q.name, alert.id);
+    }
+
+    // Others' queries, some shared (the queries page's "shared" tab); mgolan follows one, and dlevi follows mgolan's.
+    const othersDefs: { owner: string; name: string; kind: 'simple' | 'advanced'; search: Record<string, unknown>; isShared: boolean; followedBy?: string[]; daysAgo: number }[] = [
+      { owner: 'dlevi', name: 'תכנון דינמי — כל החומר', kind: 'simple', search: { text: '"תכנון דינמי"' }, isShared: true, followedBy: ['mgolan', 'aperetz'], daysAgo: 12 },
+      { owner: 'dlevi', name: 'טבלאות גיבוב', kind: 'simple', search: { text: 'גיבוב' }, isShared: true, daysAgo: 6 },
+      { owner: 'dlevi', name: 'הטיוטות שלי', kind: 'simple', search: { text: 'טיוטה' }, isShared: false, daysAgo: 3 },
+      {
+        owner: 'yavraham',
+        name: 'אלגברה לינארית — ערכים עצמיים ולכסון',
+        kind: 'advanced',
+        search: { query: group('OR', cond({ field: 'title', op: 'any', words: ['עצמיים', 'לכסון'] }), cond({ field: 'text', op: 'all', words: ['ערכים עצמיים'] })) },
+        isShared: true,
+        followedBy: ['sbiton'],
+        daysAgo: 9,
+      },
+      { owner: 'nmizrahi', name: 'למידה והתניה', kind: 'simple', search: { text: 'התניה' }, isShared: true, daysAgo: 4 },
+      { owner: 'aperetz', name: 'מערכות הפעלה — סנכרון וקיפאון', kind: 'simple', search: { text: 'סנכרון או קיפאון' }, isShared: true, daysAgo: 2 },
+    ];
+    for (const q of othersDefs) {
+      const at = new Date(now - q.daysAgo * DAY);
+      const [row] = await tx
+        .insert(s.queries)
+        .values({ ownerId: user(q.owner).id, name: q.name, kind: q.kind, search: q.search, isShared: q.isShared, createdAt: at, updatedAt: at })
+        .returning({ id: s.queries.id });
+      for (const u of q.followedBy ?? []) await tx.insert(s.queryAlerts).values({ queryId: row.id, userId: user(u).id, isActive: true, createdAt: at, updatedAt: at });
+    }
+    const [exam] = await tx.select({ id: s.queries.id }).from(s.queries).where(eq(s.queries.name, 'חומר למבחן'));
+    await tx.insert(s.queryAlerts).values({ queryId: exam.id, userId: user('dlevi').id, isActive: true });
+
+    // A couple of alert notifications, so the notifications page shows them by query.
+    const alerted = [
+      { query: 'חומר למבחן', summary: summaryIds[2], hoursAgo: 5 },
+      { query: 'ירוקות או כתומות מ־3 החודשים האחרונים', summary: summaryIds[39], hoursAgo: 30 },
+      { query: 'הרצאות חדשות במבני נתונים', summary: summaryIds[6], hoursAgo: 52 },
+    ];
+    for (const a of alerted) {
+      const alertId = alertIds.get(a.query)!;
+      await tx.insert(s.notifications).values({ userId: mgolan.id, summaryId: a.summary, text: `תמצית חדשה תואמת לחיפוש "${a.query}"`, kind: 'alert', alertId, createdAt: new Date(now - a.hoursAgo * 3_600_000) });
+      await tx.insert(s.queryAlertHits).values({ alertId, summaryId: a.summary });
+    }
   });
 }

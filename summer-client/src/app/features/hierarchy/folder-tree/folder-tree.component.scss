@@ -30,13 +30,115 @@ app-scroll-rail {
   border-radius: 3px;
 }
 
-.drag-hint {
+// Moving: what is being moved and how to put it down, stuck to the top while the tree scrolls.
+.move-hint {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 4px 8px;
   padding: 6px 10px;
   font-size: 12px;
   border-radius: $border-radius;
   background: $orange-50;
   color: $orange-strong;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.move-hint-text {
+  flex: 1;
+  min-width: 0;
+}
+.move-hint-title {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.move-hint-sub {
+  font-size: 11px;
+  opacity: 0.85;
+}
+.move-cancel {
+  all: unset;
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    background: rgba($primary-orange, 0.12);
+  }
+}
+
+// The lifted row grows a little past the tree's width; don't let that scroll sideways.
+.scroller.moving {
+  overflow-x: hidden;
+}
+
+// The "moved" toast: fixed over the top of the side nav (placed from the nav's box), sliding down into view.
+.moved-toast {
+  position: fixed;
+  z-index: 1010;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: $border-radius;
+  background: $background;
+  color: $white;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba($primary-orange-hex, 0.45), 0 2px 6px rgba(0, 0, 0, 0.12);
+  animation: toast-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  .moved-icon {
+    flex: none;
+    font-size: 16px;
+  }
+  .moved-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  // Undo: a white pill, the toast's one call to action.
+  .undo {
+    all: unset;
+    flex: none;
+    padding: 2px 12px;
+    border-radius: 999px;
+    background: $white;
+    color: $orange-strong;
+    font-weight: 700;
+    cursor: pointer;
+    &:hover,
+    &:focus-visible {
+      background: $orange-50;
+    }
+  }
+  .close {
+    all: unset;
+    flex: none;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    color: rgba($white, 0.8);
+    cursor: pointer;
+    &:hover,
+    &:focus-visible {
+      color: $white;
+    }
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 
 // The search fills the row; the small actions follow it.
@@ -62,10 +164,6 @@ app-scroll-rail {
   &:focus-visible {
     color: $dark-blue;
     background: $input-hover-color;
-  }
-  &.on {
-    color: $white;
-    background: $dark-blue;
   }
 }
 
@@ -124,6 +222,10 @@ app-scroll-rail {
   .branch {
     padding-inline-start: 16px;
   }
+  // The top level sits flush with "all summaries" rather than under it.
+  .node.root ~ .branch {
+    padding-inline-start: 0;
+  }
 }
 
 .node {
@@ -152,10 +254,6 @@ app-scroll-rail {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    // The name matches the tree search.
-    &.match {
-      font-weight: 700;
-    }
   }
   .icon {
     flex: none;
@@ -182,21 +280,60 @@ app-scroll-rail {
   &.root .label {
     font-weight: 700;
   }
-  // Drag mode: folders you may move can be grabbed; a valid drop target is outlined.
-  &.movable {
-    cursor: grab;
+  // Summaries in no folder: pink, in a light pink dashed frame, with its count always in a light pink chip.
+  &.unfiled[hidden] {
+    display: none;
   }
-  &.dragging {
-    opacity: 0.5;
+  &.unfiled {
+    margin-block: 2px;
+    border: 1px dashed rgba($primary-pink, 0.35);
+    color: $primary-pink;
+    .icon.folder {
+      color: $primary-pink;
+    }
+    .count {
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba($primary-pink, 0.15);
+      color: $primary-pink;
+      line-height: 16px;
+    }
   }
+  // A summary card dragged from the feed over a folder it can go into.
   &.drop {
     background: $orange-50;
     box-shadow: inset 0 0 0 1px $primary-orange;
   }
-  .grip {
-    flex: none;
-    width: 20px;
-    color: $gray;
+  // Moving: the picked-up row pops out and floats; the places it can go outline on hover; the rest fade
+  // back. The row that just landed flashes.
+  &.lifted {
+    position: relative;
+    z-index: 1;
+    background: $white;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), inset 0 0 0 1px $primary-orange;
+    transform: scale(1.03);
+    animation: pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    .link {
+      cursor: pointer;
+    }
+  }
+  &.target {
+    .link {
+      cursor: pointer;
+    }
+    &:hover {
+      background: $orange-50;
+      box-shadow: inset 0 0 0 1px $primary-orange;
+    }
+  }
+  &.dimmed {
+    opacity: 0.4;
+    .link {
+      cursor: not-allowed;
+    }
+  }
+  &.landed {
+    animation: landed 1200ms ease-out;
   }
   .hidden-count {
     flex: none;
@@ -272,5 +409,42 @@ li.sentinel {
 @media (hover: none) {
   .more {
     opacity: 1;
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+  60% {
+    transform: scale(1.07);
+  }
+  100% {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes landed {
+  0% {
+    background: rgba($primary-orange, 0.35);
+    transform: scale(0.97);
+  }
+  25% {
+    transform: scale(1);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node.lifted,
+  .node.landed,
+  .moved-toast {
+    animation: none;
+  }
+  .node.lifted {
+    transform: none;
   }
 }

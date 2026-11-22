@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CurrentUser } from '../auth/identity-provider';
 import { z } from 'zod';
 import { ApiBulkResult, ApiUser } from '../common/api-types';
+import { preferencesSchema } from '../common/preferences';
 import { isUuid, parse, unique, zId } from '../common/validation';
 import { DatabaseService } from '../database/database.service';
 import { LabelsRepository } from '../labels/labels.repository';
@@ -10,29 +11,7 @@ import { BULK_MAX } from '../summaries/summaries.service';
 import { UserStateRepository } from './user-state.repository';
 import { UsersRepository } from './users.repository';
 
-const MAX_PINNED_SEARCH_BYTES = 4096;
-const MAX_PINNED_SEARCHES = 50;
-const MAX_SEARCH_NAME = 120;
-
-/** A blank name means "unnamed" (the client describes the search instead). */
-function searchName(name: unknown): string | null {
-  if (name === undefined || name === null) return null;
-  if (typeof name !== 'string') throw new BadRequestException('name must be a string');
-  return name.trim().slice(0, MAX_SEARCH_NAME) || null;
-}
-
 const bulkFavoriteSchema = z.object({ summaryIds: z.array(zId).min(1).max(BULK_MAX), favorite: z.boolean() });
-/** Keys that do not distinguish one saved search from another. */
-const IGNORED_SEARCH_KEYS = new Set(['sort', 'isPin', 'skip', 'limit']);
-
-/** Order-insensitive identity of a saved search (empty values ignored). */
-function searchKey(search: Record<string, unknown>): string {
-  const norm = Object.entries(search)
-    .filter(([k, v]) => !IGNORED_SEARCH_KEYS.has(k) && v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length))
-    .map(([k, v]) => [k, Array.isArray(v) ? [...v].map(String).sort() : v] as const)
-    .sort(([a], [b]) => a.localeCompare(b));
-  return JSON.stringify(norm);
-}
 
 /** Pins, favourites and follows. Every mutation returns the caller's refreshed IUser, which the client caches. */
 @Injectable()
@@ -51,28 +30,10 @@ export class UsersService {
     return user;
   }
 
-  async pinSearch(me: CurrentUser, body: unknown): Promise<ApiUser> {
-    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new BadRequestException();
-    const { isPin, name: rawName, ...search } = body as Record<string, unknown>;
-    for (const k of ['skip', 'limit']) delete search[k];
-    if (JSON.stringify(search).length > MAX_PINNED_SEARCH_BYTES) throw new BadRequestException('search too large');
-    const name = searchName(rawName);
-    const key = searchKey(search);
-    await this.database.transaction(async () => {
-      const existing = await this.state.pinnedSearches(me.id);
-      const same = existing.filter((s) => searchKey(s.search) === key);
-      for (const s of same) await this.state.deletePinnedSearch(s.id);
-      if (isPin === true || isPin === 'true') {
-        if (existing.length - same.length >= MAX_PINNED_SEARCHES) throw new BadRequestException('too many pinned searches');
-        // Saving the same search again moves it to the top and keeps its name unless a new one is given.
-        await this.state.addPinnedSearch(me.id, search, name ?? same.find((s) => s.name)?.name ?? null);
-      }
-    });
-    return this.me(me);
-  }
-
-  async renameSearch(me: CurrentUser, id: string, name: unknown): Promise<ApiUser> {
-    if (!(await this.state.renamePinnedSearch(me.id, id, searchName(name)))) throw new NotFoundException();
+  /** Change some preferences (keys left out stay as they are). */
+  async setPreferences(me: CurrentUser, body: unknown): Promise<ApiUser> {
+    const patch = parse(preferencesSchema, body ?? {});
+    await this.users.setPreferences(me.id, patch);
     return this.me(me);
   }
 

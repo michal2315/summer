@@ -1,85 +1,41 @@
-<div class="saved" role="region" aria-label="חיפושים שמורים">
-  <div class="title" role="heading" aria-level="2"><span nz-icon nzType="pushpin"></span> חיפושים שמורים</div>
-
-  @if (list().length) {
-    <ul class="cards">
-      @for (s of list(); track s._id) {
-        @let alert = alertFor(s);
-        <li class="card" [class.alerting]="alert">
-          <button type="button" class="open" (click)="open(s)" nz-tooltip="פתיחת החיפוש בפיד">
-            <span class="name">{{ label(s) }}</span>
-            @if (s.name) {
-              <span class="desc">{{ describe(s.search) }}</span>
-            }
-          </button>
-
-          <div class="actions">
-            @if (canAlert(s)) {
-              <button
-                type="button"
-                class="icon-btn"
-                [class.on]="alert"
-                [disabled]="isBusy(s)"
-                (click)="toggleAlert(s)"
-                [nz-tooltip]="alert ? 'ביטול ההתראה' : 'יצירת התראה על תמציות חדשות שמתאימות לחיפוש'"
-                aria-label="התראה על החיפוש"
-                [attr.aria-pressed]="!!alert"
-              >
-                <span nz-icon nzType="bell" [nzTheme]="alert ? 'fill' : 'outline'"></span>
-              </button>
-              @if (alert?._id) {
-                <a class="icon-btn" [routerLink]="['/notifications', alert!._id, 'edit']" nz-tooltip="הגדרות ההתראה (מייל, סיכום יומי)" aria-label="הגדרות ההתראה">
-                  <span nz-icon nzType="setting"></span>
-                </a>
+@if (list().length) {
+  <ul class="cards">
+    @for (s of list(); track s._id) {
+      @let alert = s.alert;
+      <li class="card" (contextmenu)="openMenu($event, menu)" [class.alerting]="alert?.isActive">
+        <button type="button" class="open" (click)="open(s)" [nz-tooltip]="'פתיחה בפיד · ' + kindLabel[s.kind] + ' · קליק ימני לפעולות'">
+          <span class="name-row">
+            <span class="name">{{ s.name }}</span>
+            <span class="marks">
+              @if (s.isFavorite) {
+                <span nz-icon nzType="star" nzTheme="fill" class="mark-fav" aria-label="מועדף"></span>
               }
-            }
-            <button
-              type="button"
-              class="icon-btn"
-              nz-popover
-              nzPopoverTrigger="click"
-              nzPopoverTitle="שינוי שם"
-              nzPopoverPlacement="bottomRight"
-              [nzPopoverContent]="renameTpl"
-              [nzPopoverVisible]="renaming() === s._id"
-              (nzPopoverVisibleChange)="onRenamePopover(s, $event)"
-              nz-tooltip="שינוי שם"
-              aria-label="שינוי שם"
-            >
-              <span nz-icon nzType="edit"></span>
-            </button>
-            <button
-              type="button"
-              class="icon-btn danger"
-              nz-popconfirm
-              nzPopconfirmTitle="להסיר את החיפוש מהשמורים?"
-              nzOkText="הסרה"
-              nzCancelText="ביטול"
-              (nzOnConfirm)="remove(s)"
-              nz-tooltip="הסרה"
-              aria-label="הסרה"
-            >
-              <span nz-icon nzType="delete"></span>
-            </button>
-          </div>
+              @if (alert) {
+                <span nz-icon [nzType]="alert.isActive ? 'bell' : 'pause-circle'" [nzTheme]="alert.isActive ? 'fill' : 'outline'" [class]="alert.isActive ? 'mark-alert' : 'mark-paused'" [attr.aria-label]="alert.isActive ? 'יש התראה' : 'התראה מושהית'"></span>
+              }
+              @if (s.isShared) {
+                <span class="mark-shared" aria-label="משותף"><span nz-icon nzType="team"></span>{{ s.followers ? ' ' + s.followers : '' }}</span>
+              }
+            </span>
+          </span>
+          <span class="desc">{{ describe(s.search) }}</span>
+        </button>
 
-          <ng-template #renameTpl>
-            <div class="rename">
-              <input
-                nz-input
-                maxlength="120"
-                aria-label="שם החיפוש"
-                [ngModel]="renameValue()"
-                (ngModelChange)="renameValue.set($event)"
-                (keydown.enter)="$event.preventDefault(); rename(s)"
-              />
-              <button nz-button nzType="primary" type="button" [nzLoading]="isBusy(s)" [disabled]="!renameValue().trim()" (click)="rename(s)">שמירה</button>
-            </div>
-          </ng-template>
-        </li>
-      }
-    </ul>
-  } @else {
-    <div class="empty">אין עדיין חיפושים שמורים. אחרי חיפוש, הנעץ שבתיבת החיפוש שומר אותו כאן.</div>
-  }
-</div>
+        <nz-dropdown-menu #menu="nzDropdownMenu">
+          <ul nz-menu class="shelf-menu">
+            <li nz-menu-item (click)="toggleFavorite(s)"><span nz-icon nzType="star" [nzTheme]="s.isFavorite ? 'fill' : 'outline'"></span> {{ s.isFavorite ? 'הסרה מהמועדפים' : 'סימון כמועדף' }}</li>
+            <li nz-menu-item (click)="toggleAlert(s)"><span nz-icon nzType="bell"></span> {{ alert ? 'ביטול ההתראה' : 'התראה על תמציות חדשות' }}</li>
+            <li nz-menu-item (click)="toggleShared(s)"><span nz-icon nzType="team"></span> {{ s.isShared ? 'הפסקת השיתוף' : 'שיתוף עם כולם' }}</li>
+            <li nz-menu-item (click)="edit(s)"><span nz-icon nzType="edit"></span> עריכה</li>
+            <li nz-menu-divider></li>
+            <li nz-menu-item class="danger" (click)="remove(s)"><span nz-icon nzType="delete"></span> הסרה</li>
+          </ul>
+        </nz-dropdown-menu>
+      </li>
+    }
+  </ul>
+} @else if (filter()) {
+  <div class="empty">אין חיפוש שמור בשם הזה.</div>
+} @else if (queries.list() !== null) {
+  <div class="empty">אין עדיין חיפושים שמורים. אחרי חיפוש, כפתור השמירה שבתיבת החיפוש (או בחיפוש המתקדם) שומר אותו כאן.</div>
+}

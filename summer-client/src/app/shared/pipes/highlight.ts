@@ -17,12 +17,20 @@ const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /**
- * Search text → match regex over the terms that must appear (not negated ones, operators, @users or :types).
+ * Search text → match regex over the terms that must appear (not negated ones, operators, @users, :type: / :color:).
+ * With `scope`, plain terms count only when `plain` and `:field:` terms only for that field.
  * Words are matched anywhere; "quoted text" is a whole-word exact match; a #capsule stands for its must and optional words.
  * Uses Unicode letter classes because \b does not understand Hebrew.
  */
-export function searchRegex(text: string | undefined, extra: QueryTerm[] = [], capsules?: CapsuleResolver): RegExp | null {
-  const typed = (text?.trim() ? parseQuery(text).groups.flat() : []).filter((t) => !t.neg);
+export function searchRegex(
+  text: string | undefined,
+  extra: QueryTerm[] = [],
+  capsules?: CapsuleResolver,
+  scope?: { field: QueryTextField | undefined; plain: boolean },
+): RegExp | null {
+  const applies = (t: QueryTerm) =>
+    t.field === 'author' || t.field === 'type' || t.field === 'color' ? false : t.field ? !scope || scope.field === t.field : !scope || scope.plain;
+  const typed = (text?.trim() ? parseQuery(text).groups.flat() : []).filter((t) => !t.neg && applies(t));
   const terms = [
     ...typed.flatMap((t) => {
       const c = t.capsule ? capsules?.byName(t.term) : undefined;
@@ -60,11 +68,11 @@ function queryWords(q: IQueryGroup | undefined, field: QueryTextField | undefine
   );
 }
 
-/** Highlight only fields whose search type is checked (no types selected ⇒ all), plus the advanced search's words for the field. */
+/** Highlight only fields whose search type is checked (no types selected ⇒ all), plus :field: terms and the advanced search's words for the field. */
 export function regexFor(search: ISummarySearch | null | undefined, type: SearchType, capsules?: CapsuleResolver): RegExp | null {
   if (!search) return null;
   const textApplies = !search.searchTypes?.length || search.searchTypes.includes(type);
-  return searchRegex(textApplies ? search.text : undefined, queryWords(search.query, TYPE_FIELD[type], capsules), capsules);
+  return searchRegex(search.text, queryWords(search.query, TYPE_FIELD[type], capsules), capsules, { field: TYPE_FIELD[type], plain: textApplies });
 }
 
 /** Plain text → escaped HTML with <span class="highlight"> around hits. */

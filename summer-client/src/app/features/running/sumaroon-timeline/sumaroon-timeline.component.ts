@@ -5,6 +5,7 @@ import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
+import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { UserService } from '../../../core/auth/user.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { ContentTypeIconComponent } from '../../../shared/components/content-type-icon/content-type-icon.component';
@@ -12,6 +13,8 @@ import { InViewDirective } from '../../../shared/components/in-view.directive';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { ISummary, ISummarySearch, SearchType } from '../../../shared/models';
 import { DateFormatPipe, HighlightPipe, PlainTextPipe } from '../../../shared/pipes/pipes';
+import { PreferencesService } from '../../../core/preferences/preferences.service';
+import { RouterLink } from '@angular/router';
 import { SummaryListStore } from '../../summaries/summary-list.store';
 
 interface Step {
@@ -47,6 +50,8 @@ interface Month {
     DateFormatPipe,
     HighlightPipe,
     PlainTextPipe,
+    NzToolTipModule,
+    RouterLink,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sumaroon-timeline.component.html',
@@ -54,7 +59,9 @@ interface Month {
 })
 export class SumaroonTimelineComponent {
   readonly store = inject(SummaryListStore);
-  private readonly users = inject(UserService);
+  readonly users = inject(UserService);
+  /** The small-sumaroon demo switch: rows show the whole sumaroon instead of a title and a hover card. */
+  readonly prefs = inject(PreferencesService);
 
   readonly search = input<ISummarySearch | null>(null);
   readonly openId = input<string | null>(null);

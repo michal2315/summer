@@ -127,6 +127,62 @@
       "when": 1793892165735,
       "tag": "0017_saved_search_names",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794478652822,
+      "tag": "0018_notification_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794489869832,
+      "tag": "0019_saved_search_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794741603912,
+      "tag": "0020_drop_rules_and_saved_searches",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794741675436,
+      "tag": "0021_queries_and_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794745493072,
+      "tag": "0022_shared_queries",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794949400402,
+      "tag": "0023_legacy_staging",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794952428980,
+      "tag": "0024_user_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794952794103,
+      "tag": "0025_user_preferences",
+      "breakpoints": true
     }
   ]
 }

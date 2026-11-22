@@ -15,6 +15,7 @@ import { EmptyState } from '../../summaries/summary-list/summary-list.component'
 import { SummaryDetailComponent } from '../../summaries/summary-detail/summary-detail.component';
 import { FolderCardsComponent } from '../folder-cards/folder-cards.component';
 import { FolderTreeStore, NO_FOLDER } from '../folder-tree.store';
+import { searchParamsOf } from '../../summaries/search-query';
 
 /**
  * Home page (/summaries): the summaries list for the selection made in the side nav's folder tree — every summary
@@ -40,6 +41,12 @@ export class HierarchyPageComponent {
   readonly folderId = computed<string | null>(() => this.params()['folderId'] ?? null);
   readonly summaryId = computed<string | null>(() => this.params()['summaryId'] ?? null);
   readonly runningId = computed<string | null>(() => this.params()['runningId'] ?? null);
+  /** The search, kept when moving to another folder. */
+  readonly searchParams = computed(() => searchParamsOf(this.params()));
+
+  withSearch(p: Params = {}): Params {
+    return { ...this.searchParams(), ...p };
+  }
 
   /** The selected folder, when the selection is a real folder. */
   readonly folder = computed(() => this.tree.byId().get(this.folderId() ?? '') ?? null);
@@ -85,7 +92,7 @@ export class HierarchyPageComponent {
       .subscribe((removedId) => {
         // The open running summary / summary was deleted: show its folder instead.
         if (removedId && (removedId === this.runningId() || removedId === this.summaryId()))
-          this.router.navigate([], { relativeTo: this.route, queryParams: { folderId: this.folderId() } });
+          this.router.navigate([], { relativeTo: this.route, queryParams: this.withSearch({ folderId: this.folderId() }) });
         this.refreshTick.update((t) => t + 1);
       });
   }

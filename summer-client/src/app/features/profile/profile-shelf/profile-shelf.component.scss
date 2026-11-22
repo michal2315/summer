@@ -1,0 +1,92 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.shelf {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid $border-strong;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.tab {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 14px;
+  font-size: 13px;
+  color: $gray;
+  &:hover,
+  &:focus-visible {
+    color: $dark-blue;
+    background: $gray-tag;
+  }
+  &.active {
+    color: $dark-blue;
+    font-weight: 500;
+    background: $gray-tag;
+  }
+  .collapsed &.active {
+    background: none;
+    font-weight: 400;
+  }
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 400;
+  color: $gray;
+}
+
+.tools {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter {
+  width: 160px;
+  border-radius: 14px;
+}
+
+.tool {
+  all: unset;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: $gray;
+  &:hover,
+  &:focus-visible {
+    color: $dark-blue;
+    background: $gray-tag;
+  }
+}
+
+.collapse {
+  .collapsed & {
+    margin-inline-start: auto;
+  }
+}

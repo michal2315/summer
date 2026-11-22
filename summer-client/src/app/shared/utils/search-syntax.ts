@@ -1,11 +1,22 @@
+import { QueryTextField } from '../models';
+import { SUMMARY_COLORS } from '../models/colors';
+
 /**
- * Search-box syntax, kept in sync with the server's parseQuery (summary-search.ts):
- * - and / or / not (וגם / או / לא, ולא, בלי) between terms; AND binds tighter, adjacent terms are ANDed
- * - @username filters by author, :lecture or :שיעור by content type (`_` for spaces)
- * - #name is a capsule (`_` for spaces) and joins and / or / not like a word; when no capsule has that name it is the plain word
- * - "quoted phrases" stay whole (and are how to search for an operator word itself)
+ * Search-box syntax, kept in sync with the server's parseQuery (summary-search.ts). Every word is plain text (matched
+ * anywhere; "quoted" = whole words only) unless it starts with MARK, which the box puts there as soon as the word or sigil
+ * is typed (Backspace right after it takes the mark off, leaving plain text):
+ * - and / or / not (וגם, גם / או / לא, ולא, בלי, ובלי) between terms; AND binds tighter, adjacent terms are ANDed
+ * - @username filters by author; #name is a capsule (`_` for spaces) and joins and / or / not like a word
+ * - $name picks one of the user's saved searches (the box runs it); only on its own in the box, otherwise plain text
+ * - :field:value searches one field; the value is one word (`_` for spaces: `:author:Michal_Golan`), so a space ends
+ *   it, or a "phrase" (whole words only, spaces allowed)
  */
-export type TokenKind = 'term' | 'and' | 'or' | 'not' | 'user' | 'type' | 'capsule';
+export const MARK = '\u2063';
+
+/** A :field:value token (MARK, `:name:`, then a "phrase" or a word), a "phrase", or a word. */
+const TOKEN_RE = /(?<!\S)\u2063:[^\s:]*(?::(?:"[^"]*"?|\S*))?|"([^"]*)"?|\S+/g;
+
+export type TokenKind = 'term' | 'and' | 'or' | 'not' | 'user' | 'field' | 'capsule' | 'saved';
 
 export interface QueryToken {
   kind: TokenKind;
@@ -15,13 +26,51 @@ export interface QueryToken {
   active?: boolean;
 }
 
+export type SearchFieldKey = Exclude<QueryTextField, 'text'> | 'author' | 'type' | 'color';
+
+export interface SearchField {
+  key: SearchFieldKey;
+  /** As written in the box: `:name:value` */
+  name: string;
+  label: string;
+  /** Other names the field may be written with */
+  aliases: string[];
+  /** What the value suggestions are */
+  values: 'text' | 'users' | 'types' | 'colors' | 'labels';
+}
+
+/** `:field:value` fields. Kept in sync with the server's FIELD_NAMES. */
+export const SEARCH_FIELDS: SearchField[] = [
+  { key: 'title', name: 'כותרת', label: 'כותרת', aliases: ['title'], values: 'text' },
+  { key: 'type', name: 'סוג', label: 'סוג תוכן', aliases: ['type'], values: 'types' },
+  { key: 'author', name: 'כותב', label: 'כותב', aliases: ['author', 'user'], values: 'users' },
+  { key: 'labels', name: 'תווית', label: 'תווית', aliases: ['label', 'labels'], values: 'labels' },
+  { key: 'color', name: 'צבע', label: 'צבע', aliases: ['color'], values: 'colors' },
+  { key: 'content', name: 'תוכן', label: 'תוכן', aliases: ['content'], values: 'text' },
+  { key: 'notes', name: 'הערות', label: 'הערות', aliases: ['notes'], values: 'text' },
+  { key: 'comments', name: 'תגובות', label: 'תגובות', aliases: ['comments'], values: 'text' },
+];
+
+export const fieldByName = (name: string) => {
+  const n = name.trim().toLowerCase();
+  return SEARCH_FIELDS.find((f) => f.name === n || f.aliases.includes(n));
+};
+
+/** `:color:<name>` names, in palette order. Kept in sync with the server's COLOR_NAMES. */
+export const COLOR_NAMES: { name: string; hex: string }[] = ['ורוד', 'אדום', 'כתום', 'ירוק', 'טורקיז', 'כחול', 'סגול', 'אפור'].map((name, i) => ({
+  name,
+  hex: SUMMARY_COLORS[i],
+}));
+
 export interface QueryTerm {
   term: string;
   neg: boolean;
-  /** Came from "quotes" */
+  /** Came from "quotes": whole words only */
   exact: boolean;
   /** Written #name: `term` is the name, to resolve with the capsules service */
   capsule?: boolean;
+  /** `@user` (author) or `:field:value`: the term applies to this field only */
+  field?: SearchFieldKey;
 }
 
 export interface ParsedQuery {
@@ -33,44 +82,117 @@ export interface ParsedQuery {
 const OPERATORS: Record<string, 'and' | 'or' | 'not'> = {
   and: 'and',
   וגם: 'and',
+  גם: 'and',
   or: 'or',
   או: 'or',
   not: 'not',
   לא: 'not',
   ולא: 'not',
   בלי: 'not',
+  ובלי: 'not',
 };
 
-export function parseQuery(text: string): ParsedQuery {
-  const tokens: QueryToken[] = [];
-  const groups: QueryTerm[][] = [[]];
+/** The operator a word would be once marked. */
+export const operatorOf = (word: string) => OPERATORS[word.toLowerCase()];
+
+const strip = (s: string) => s.replaceAll(MARK, '');
+
+const isOperator = (t: QueryToken) => t.kind === 'and' || t.kind === 'or' || t.kind === 'not';
+
+/** OR of AND-groups. */
+type Terms = QueryTerm[][];
+
+const andTerms = (a: Terms, b: Terms): Terms => a.flatMap((x) => b.map((y) => [...x, ...y]));
+/** ¬(g1 ∨ g2 …) = ¬g1 ∧ ¬g2 …, and each ¬(t1 ∧ t2 …) = ¬t1 ∨ ¬t2 … */
+const notTerms = (d: Terms): Terms => d.reduce<Terms>((acc, g) => andTerms(acc, g.map((t) => [{ ...t, neg: !t.neg }])), [[]]);
+const leaf = (t: Omit<QueryTerm, 'neg'> | undefined): Terms | undefined => (t?.term ? [[{ ...t, neg: false }]] : undefined);
+
+/** An operator token, or something that matches. */
+type Item = { op: QueryToken } | { terms?: Terms };
+
+/**
+ * Items joined: adjacent ones are ANDed, AND binds tighter than OR, `not` negates the next item. Operators that don't
+ * join anything (a leading `or`, a trailing `not`) are dropped; each operator token's `active` says which is which.
+ */
+function combine(items: Item[]): Terms {
+  const out: Terms = [];
+  let current: Terms | null = null;
   let pending: QueryToken[] = [];
   let pendingOr = false;
   let neg = false;
-
-  for (const m of text.matchAll(/"([^"]*)"?|\S+/g)) {
-    const word = m[0];
-    const quoted = m[1] !== undefined;
-    const op = quoted ? undefined : OPERATORS[word.toLowerCase()];
-    const kind: TokenKind = quoted ? 'term' : /^@\S/.test(word) ? 'user' : /^:\S/.test(word) ? 'type' : /^#\S/.test(word) ? 'capsule' : (op ?? 'term');
-    const token: QueryToken = { kind, start: m.index!, end: m.index! + word.length };
-    tokens.push(token);
-
-    if (kind === 'or') pendingOr = groups[groups.length - 1].length > 0;
-    else if (kind === 'not') neg = true;
-    if (op) pending.push(token);
-    if (kind !== 'term' && kind !== 'capsule') continue;
-
-    const term = (quoted ? m[1] : word.replace(/^#/, '')).trim();
-    if (!term) continue;
-    const hasPrev = groups[groups.length - 1].length > 0;
-    for (const p of pending) p.active = p.kind === 'not' ? neg : hasPrev && (p.kind === 'and' || pendingOr);
-    if (pendingOr) groups.push([]);
-    groups[groups.length - 1].push(kind === 'capsule' ? { term, neg, exact: false, capsule: true } : { term, neg, exact: quoted });
+  for (const item of items) {
+    if ('op' in item) {
+      if (item.op.kind === 'or') pendingOr = current !== null;
+      else if (item.op.kind === 'not') neg = true;
+      pending.push(item.op);
+      continue;
+    }
+    if (!item.terms?.length) continue;
+    for (const p of pending) p.active = p.kind === 'not' ? neg : current !== null && (p.kind === 'and' || pendingOr);
+    const terms = neg ? notTerms(item.terms) : item.terms;
+    if (pendingOr && current) {
+      out.push(...current);
+      current = null;
+    }
+    current = current ? andTerms(current, terms) : terms;
     pending = [];
     pendingOr = neg = false;
   }
-  return { tokens, groups: groups.filter((g) => g.length) };
+  if (current) out.push(...current);
+  return out;
+}
+
+/** Where a :field:value token's value starts (after `MARK:name:`), and its field; no field for an unknown name. */
+function fieldHead(text: string, start: number): { field?: SearchField; from: number } {
+  const head = /^\u2063:([^:\s]+):/.exec(text.slice(start));
+  return head ? { field: fieldByName(head[1]), from: start + head[0].length } : { from: start };
+}
+
+/** A :field:value token (text[start, end)): its field's term, a "phrase" (whole words) or a word (`_` for spaces). */
+function fieldValue(text: string, start: number, end: number): Terms | undefined {
+  const { field, from } = fieldHead(text, start);
+  if (!field || from > end) return undefined;
+  const value = strip(text.slice(from, end));
+  const phrase = /^"([^"]*)"?$/.exec(value);
+  return leaf(phrase ? { term: phrase[1].trim(), exact: true, field: field.key } : { term: value.replace(/_/g, ' ').trim(), exact: false, field: field.key });
+}
+
+/** A marked word (without its mark): its token kind and, for a complete one, its term. */
+function markedWord(word: string): { kind: TokenKind; term?: Omit<QueryTerm, 'neg'> } {
+  const op = operatorOf(word);
+  if (op) return { kind: op };
+  if (word.startsWith('@')) return { kind: 'user', term: word.length > 1 ? { term: word.slice(1).replace(/_/g, ' '), exact: false, field: 'author' } : undefined };
+  if (word.startsWith('#')) return { kind: 'capsule', term: word.length > 1 ? { term: word.slice(1), exact: false, capsule: true } : undefined };
+  // Only a picked saved search means anything (the box runs it); left in the text it is searched as typed, like the server does.
+  if (word.startsWith('$')) return { kind: 'saved', term: { term: word, exact: false } };
+  return { kind: 'term', term: { term: word, exact: false } };
+}
+
+export function parseQuery(text: string): ParsedQuery {
+  const tokens: QueryToken[] = [];
+  const items: Item[] = [];
+  for (const m of text.matchAll(TOKEN_RE)) {
+    const raw = m[0];
+    const token: QueryToken = { kind: 'term', start: m.index!, end: m.index! + raw.length };
+    let terms: Terms | undefined;
+    if (raw.startsWith(MARK + ':')) {
+      token.kind = 'field';
+      terms = fieldValue(text, token.start, token.end);
+    } else if (m[1] !== undefined) {
+      terms = leaf({ term: strip(m[1]).trim(), exact: true });
+    } else if (raw.startsWith(MARK)) {
+      const parsed = markedWord(strip(raw));
+      token.kind = parsed.kind;
+      terms = leaf(parsed.term);
+    } else {
+      terms = leaf({ term: strip(raw), exact: false });
+    }
+    tokens.push(token);
+    items.push(isOperator(token) ? { op: token } : { terms });
+  }
+  // A saved search replaces the whole search, so $name is one only on its own.
+  if (tokens.length > 1) for (const t of tokens) if (t.kind === 'saved') t.kind = 'term';
+  return { tokens, groups: combine(items) };
 }
 
 export interface QuerySegment {
@@ -82,17 +204,20 @@ export interface QuerySegment {
 /** Is `name` (from #name) a known capsule? */
 export type IsCapsule = (name: string) => boolean;
 
+/** A marked #capsule token's name. */
+const capsuleName = (text: string, t: QueryToken) => text.slice(t.start + 2, t.end);
+
 /**
- * The text split for display: active operators, @users, :types, #capsules and "phrases" get a kind, the rest is plain.
+ * The text split for display: marked operators, @users, :fields, #capsules and "phrases" get a kind, the rest is plain.
  * With `isCapsule`, only known capsules are marked; without it every #name is (examples).
  */
 export function querySegments(text: string, isCapsule?: IsCapsule): QuerySegment[] {
   const out: QuerySegment[] = [];
   let last = 0;
   for (const t of parseQuery(text).tokens) {
-    const capsule = t.kind === 'capsule' && (!isCapsule || isCapsule(text.slice(t.start + 1, t.end)));
+    const capsule = t.kind === 'capsule' && (!isCapsule || isCapsule(capsuleName(text, t)));
     const phrase = t.kind === 'term' && text[t.start] === '"';
-    const marked = t.kind === 'user' || t.kind === 'type' || t.active || capsule || phrase;
+    const marked = t.kind === 'user' || t.kind === 'field' || t.kind === 'saved' || isOperator(t) || capsule || phrase;
     if (!marked) continue;
     if (t.start > last) out.push({ text: text.slice(last, t.start), kind: null });
     out.push({ text: text.slice(t.start, t.end), kind: phrase ? 'phrase' : t.kind });
@@ -103,29 +228,107 @@ export function querySegments(text: string, isCapsule?: IsCapsule): QuerySegment
 }
 
 export interface ShortcutContext {
-  kind: 'user' | 'type' | 'capsule';
-  /** What was typed after the @ / : / # up to the caret */
+  /** 'field': choosing the field (`:ti`); 'value': typing a field's value (`:title:gr`) */
+  kind: 'user' | 'field' | 'value' | 'capsule' | 'saved';
+  /** It has its MARK (put on when the sigil is typed; Backspace right after the sigil takes it off, leaving plain text) */
+  marked: boolean;
+  /** What was typed after the sigil (for 'value': after the field name's `:`) up to the caret */
   query: string;
+  /** For 'value' */
+  field?: SearchField;
+  /** For 'value': the field name as written */
+  fieldName?: string;
+  /** For saved: there is other text in the box, so it can't be one (stays plain text) */
+  blocked?: boolean;
+  /** For 'value': where the value sits, which a picked value replaces */
+  segment?: TextRange;
   start: number;
   end: number;
 }
 
-const SIGILS: Record<string, ShortcutContext['kind']> = { '@': 'user', ':': 'type', '#': 'capsule' };
+const SIGILS: Record<string, 'user' | 'field' | 'capsule' | 'saved'> = { '@': 'user', ':': 'field', '#': 'capsule', '$': 'saved' };
 
-/** The @user / :type / #capsule word the caret is in, if any. */
+/** The @user / :field:value / #capsule / $saved search the caret is in, marked or not. */
 export function shortcutAt(text: string, caret: number): ShortcutContext | null {
-  const m = /(^|\s)([@:#])(\S*)$/.exec(text.slice(0, caret));
-  if (!m) return null;
+  const ft = parseQuery(text).tokens.find((t) => t.kind === 'field' && caret > t.start && caret <= t.end);
+  if (ft) {
+    const body = strip(text.slice(ft.start, caret)).slice(1);
+    const colon = body.indexOf(':');
+    const field = colon >= 0 ? fieldByName(body.slice(0, colon)) : undefined;
+    if (!field) {
+      // Choosing the field: a picked one replaces the name up to its `:` (the value after it stays).
+      let end = caret;
+      while (end < ft.end && text[end] !== ':') end++;
+      return { kind: 'field', marked: true, query: body, start: ft.start, end: Math.min(end + 1, ft.end) };
+    }
+    const from = fieldHead(text, ft.start).from;
+    return {
+      kind: 'value',
+      marked: true,
+      query: strip(text.slice(from, caret)),
+      field,
+      fieldName: body.slice(0, colon),
+      segment: { start: from, end: ft.end },
+      start: ft.start,
+      end: ft.end,
+    };
+  }
+  const m = /(^|\s)(\u2063?)([@:#$])(\S*)$/.exec(text.slice(0, caret));
+  if (!m || m[4].includes(MARK)) return null;
   let end = caret;
   while (end < text.length && !/\s/.test(text[end])) end++;
-  return { kind: SIGILS[m[2]], query: m[3], start: m.index + m[1].length, end };
+  const start = m.index + m[1].length;
+  const kind = SIGILS[m[3]];
+  // A saved search replaces the whole search: with other text in the box it is plain text.
+  if (kind === 'saved' && (text.slice(0, start) + text.slice(end)).trim()) return { kind, marked: false, blocked: true, query: m[4], start, end };
+  return { kind, marked: !!m[2], query: m[4], start, end };
 }
 
-/** Replace the shortcut word with `token` and a trailing space; returns the new text and caret. */
-export function replaceShortcut(text: string, ctx: ShortcutContext, token: string): { text: string; caret: number } {
-  const rest = text.slice(ctx.end).replace(/^\s*/, '');
-  const head = text.slice(0, ctx.start) + token + ' ';
-  return { text: head + rest, caret: head.length };
+/** Where the unmarked operator word that ends at the caret starts, if there is one. */
+function operatorWordAt(text: string, caret: number): number | null {
+  if (caret < text.length && !/\s/.test(text[caret])) return null;
+  const m = /(^|\s)([^\s"\u2063]+)$/.exec(text.slice(0, caret));
+  return m && operatorOf(m[2]) ? m.index + m[1].length : null;
+}
+
+/**
+ * What was just typed at the caret gets its MARK: an operator word it completes, or an @ / : / # / $ starting a word.
+ * Only the keystroke that makes one marks it, so one unmarked with Backspace stays plain.
+ */
+export function markTyped(text: string, caret: number): { text: string; caret: number } | null {
+  const ctx = shortcutAt(text, caret);
+  const at = ctx ? (ctx.marked || ctx.blocked || ctx.start !== caret - 1 ? null : ctx.start) : operatorWordAt(text, caret);
+  return at === null ? null : { text: text.slice(0, at) + MARK + text.slice(at), caret: caret + 1 };
+}
+
+/** Backspace right after a marked operator word, or right after a marked sigil: takes the mark off, leaving the text. */
+export function unmarkBefore(text: string, caret: number): { text: string; caret: number } | null {
+  const t = parseQuery(text).tokens.find((t) => text[t.start] === MARK && (isOperator(t) ? t.end === caret : t.kind !== 'term' && caret === t.start + 2));
+  return t ? { text: text.slice(0, t.start) + text.slice(t.start + 1), caret: caret - 1 } : null;
+}
+
+/** Replace the shortcut with `token` (and a trailing space unless `space` is false); returns the new text and caret. */
+export function replaceShortcut(text: string, ctx: ShortcutContext, token: string, space = true): { text: string; caret: number } {
+  const rest = text.slice(ctx.end);
+  const head = text.slice(0, ctx.start) + token + (space ? ' ' : '');
+  return { text: head + (space ? rest.replace(/^\s*/, '') : rest), caret: head.length };
+}
+
+/**
+ * MARKs that no longer mark anything (an edit cut a token, or left a word that is no longer an operator or sigil) are
+ * dropped, keeping the caret in place.
+ */
+export function cleanMarks(text: string, caret: number): { text: string; caret: number } | null {
+  const keep = new Set<number>();
+  for (const t of parseQuery(text).tokens) if (text[t.start] === MARK && t.kind !== 'term') keep.add(t.start);
+  let out = '';
+  let at = caret;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c !== MARK || keep.has(i)) out += c;
+    else if (i < caret) at--;
+  }
+  return out === text ? null : { text: out, caret: at };
 }
 
 // ---------------------------------------------------------------- capsules are atomic in the search box
@@ -135,11 +338,21 @@ export interface TextRange {
   end: number;
 }
 
-/** Where the known capsules sit in the text. */
+/** Where the known capsules sit in the text: they behave as one unit. */
 export function capsuleRanges(text: string, isCapsule: IsCapsule): TextRange[] {
   return parseQuery(text)
-    .tokens.filter((t) => t.kind === 'capsule' && isCapsule(text.slice(t.start + 1, t.end)))
+    .tokens.filter((t) => t.kind === 'capsule' && isCapsule(capsuleName(text, t)))
     .map(({ start, end }) => ({ start, end }));
+}
+
+/**
+ * The mark and first character of marked tokens (@users / :fields / #names / $searches / operators): the caret can't
+ * sit between the two (the mark is invisible).
+ */
+export function markHeads(text: string): TextRange[] {
+  return parseQuery(text)
+    .tokens.filter((t) => t.kind !== 'term' && text[t.start] === MARK)
+    .map(({ start }) => ({ start, end: start + 2 }));
 }
 
 /**

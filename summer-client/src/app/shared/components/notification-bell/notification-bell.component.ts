@@ -6,6 +6,7 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
+import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { INotification } from '../../models';
 import { RelativeTimePipe } from '../../pipes/pipes';
 import { NotificationService } from '../../services/notification.service';
@@ -15,7 +16,7 @@ import { SkeletonComponent } from '../skeleton/skeleton.component';
 
 @Component({
   selector: 'app-notification-bell',
-  imports: [AltKeyDirective, RouterLink, NzBadgeModule, NzButtonModule, NzIconModule, NzPopoverModule, NzEmptyModule, InViewDirective, SkeletonComponent, RelativeTimePipe],
+  imports: [AltKeyDirective, RouterLink, NzBadgeModule, NzButtonModule, NzIconModule, NzPopoverModule, NzToolTipModule, NzEmptyModule, InViewDirective, SkeletonComponent, RelativeTimePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './notification-bell.component.html',
   styleUrl: './notification-bell.component.scss',

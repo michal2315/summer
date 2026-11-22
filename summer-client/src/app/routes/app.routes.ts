@@ -28,6 +28,12 @@ export const routes: Routes = [
       // The hierarchy is the home page now (old links keep their query params).
       { path: 'hierarchy', redirectTo: 'summaries' },
       { path: 'notifications', loadChildren: () => import('./notifications.routes') },
+      // Temporary: sorting the collections from the old Summer into folders.
+      {
+        path: 'staging',
+        loadComponent: () => import('../features/staging/staging-page/staging-page.component').then((m) => m.StagingPageComponent),
+        title: 'Summer · מיון אוספים',
+      },
       {
         path: 'extension',
         children: [

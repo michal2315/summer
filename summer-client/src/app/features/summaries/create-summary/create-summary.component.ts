@@ -10,16 +10,18 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { NzModalService } from 'ng-zorro-antd/modal';
+import { NzModalRef, NzModalService } from 'ng-zorro-antd/modal';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTimePickerModule } from 'ng-zorro-antd/time-picker';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import { NzTreeNode, NzTreeNodeOptions } from 'ng-zorro-antd/tree';
+import { NzTreeSelectModule } from 'ng-zorro-antd/tree-select';
 import { NzUploadFile, NzUploadModule } from 'ng-zorro-antd/upload';
 import { QuillEditorComponent } from 'ngx-quill';
 import type Quill from 'quill';
-import { Subject, debounceTime, distinctUntilChanged, filter, forkJoin, map, startWith, switchMap, take } from 'rxjs';
+import { Subject, concat, debounceTime, distinctUntilChanged, filter, forkJoin, map, of, startWith, switchMap, take, toArray } from 'rxjs';
 import { HasPendingChanges } from '../../../core/auth/guards';
 import { UserService } from '../../../core/auth/user.service';
 import { StorageService } from '../../../core/storage/storage.service';
@@ -30,22 +32,27 @@ import {
   FieldsType,
   IContentType,
   IField,
+  IFolder,
   IFolderRef,
   ISummary,
   ISummaryParent,
   ISummaryTemplate,
+  IUserGroup,
   SUMMARY_KIND_LABEL,
   SearchType,
   SummaryKind,
   SummaryPayload,
   UserRef,
 } from '../../../shared/models';
-import { DateFormatPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
+import { PreferencesService } from '../../../core/preferences/preferences.service';
+import { DateFormatPipe, PlainTextPipe, RelativeTimePipe } from '../../../shared/pipes/pipes';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { LabelService } from '../../../shared/services/label.service';
 import { PermissionService } from '../../../shared/services/permission.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { SummaryTemplateService } from '../../../shared/services/summary-template.service';
+import { UserGroupService } from '../../../shared/services/user-group.service';
+import { UserGroupEditorComponent, UserGroupEditorData } from '../../profile/user-groups/user-group-editor/user-group-editor.component';
 import { FolderPath, FolderService, folderPaths, managedFolderPaths } from '../../../shared/services/folder.service';
 
 type FieldValue = string | number | Date | null;
@@ -88,7 +95,17 @@ type FormValue = ReturnType<CreateSummaryComponent['form']['getRawValue']>;
 type ParentInfo = ISummaryParent & { contentTypeId: string };
 /** The sharing-section values a template fills in. */
 type SharingValues = Pick<FormValue, 'permissions' | 'taggedUsers' | 'taggedPermissions' | 'labels' | 'folders'>;
+/** A sumaroon written together with its new running summary. The title is the full style's only (the small one makes it). */
+type SumaroonRow = FormGroup<{ title: FormControl<string>; eventDate: FormControl<Date | null>; link: FormControl<string>; content: FormControl<string> }>;
+const LINK_PATTERN = /^(https?:\/\/\S+)?$/i;
+/** A small sumaroon has no title of its own; the server needs one, so it is the start of its content. */
+const LITE_TITLE_LENGTH = 80;
+const plainText = new PlainTextPipe();
+const liteTitle = (contentHtml: string, date: Date | null): string =>
+  plainText.transform(contentHtml, LITE_TITLE_LENGTH) || (date ? `תמציתונית ${format(date, 'dd/MM/yyyy')}` : 'תמציתונית');
 const LABELS_PAGE = 20;
+/** Users suggested in the tag field before anything is typed. */
+const USER_SUGGESTIONS = 15;
 
 @Component({
   selector: 'app-create-summary',
@@ -107,6 +124,7 @@ const LABELS_PAGE = 20;
     NzSelectModule,
     NzTimePickerModule,
     NzToolTipModule,
+    NzTreeSelectModule,
     NzUploadModule,
     QuillEditorComponent,
     AvatarComponent,
@@ -118,7 +136,7 @@ const LABELS_PAGE = 20;
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-summary.component.html',
   styleUrl: './create-summary.component.scss',
-  host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
+  host: { '(window:beforeunload)': 'onBeforeUnload($event)', '[class.in-modal]': 'inModal' },
 })
 export class CreateSummaryComponent implements HasPendingChanges {
   private readonly fb = inject(FormBuilder).nonNullable;
@@ -128,6 +146,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly permissionGroups = inject(PermissionService);
   private readonly labels = inject(LabelService);
   readonly users = inject(UserService);
+  private readonly userGroups = inject(UserGroupService);
   private readonly summaries = inject(SummaryService);
   private readonly router = inject(Router);
   private readonly message = inject(NzMessageService);
@@ -136,12 +155,16 @@ export class CreateSummaryComponent implements HasPendingChanges {
   private readonly storage = inject(StorageService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly templates = inject(SummaryTemplateService);
+  private readonly prefs = inject(PreferencesService);
 
   /** Set by the edit route's resolver (withComponentInputBinding). */
   readonly summary = input<ISummary | undefined>(undefined);
   /** /summaries/new?parentId=… — start a sumaroon inside that running summary. */
   readonly parentId = input<string | undefined>(undefined);
   readonly isEdit = computed(() => !!this.summary());
+  /** Opened as a modal (e.g. from the timeline): publishing closes it with the saved summary instead of navigating. */
+  private readonly modalRef = inject<NzModalRef<CreateSummaryComponent, ISummary>>(NzModalRef, { optional: true });
+  readonly inModal = !!this.modalRef;
 
   readonly K = SummaryKind;
   readonly kindLabel = SUMMARY_KIND_LABEL;
@@ -149,8 +172,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   readonly FT = FieldsType;
   readonly fieldTypeLabel = FIELD_TYPE_LABEL;
-  /** Notes stay behind a button until wanted (or already filled). */
-  readonly notesOpen = signal(false);
   readonly saving = signal(false);
   private saved = false;
   readonly submitted = signal(false);
@@ -164,7 +185,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     /** running: [from, to] */
     range: [[] as Date[]],
     /** sumaroon: source link */
-    link: ['', Validators.pattern(/^(https?:\/\/\S+)?$/i)],
+    link: ['', Validators.pattern(LINK_PATTERN)],
     contentType: ['', Validators.required],
     permissions: [[] as string[], Validators.required],
     title: ['', [Validators.required, Validators.maxLength(200)]],
@@ -178,6 +199,8 @@ export class CreateSummaryComponent implements HasPendingChanges {
     department: [this.users.user()?.department ?? ''],
     typeFields: this.typeFields,
     extraFields: new FormArray<FormGroup<{ field: FormControl<string>; value: FormControl<FieldValue> }>>([]),
+    /** New running summary: its sumaroons are its content, so it's written with at least one (enabled only then). */
+    sumaroons: new FormArray<SumaroonRow>([]),
   });
 
   // Files: new uploads (kept client-side until submit) + existing attachment names (edit).
@@ -214,7 +237,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   // ---- hierarchy folders (sumaroons live inside their running summary) ----
   private readonly folderService = inject(FolderService);
   /** Every folder the user can see, and the ones they manage (only managers may add a summary to one or take it out). */
-  private readonly allFolders = signal<FolderPath[]>([]);
+  private readonly allFolders = signal<IFolder[]>([]);
   private readonly managedFolders = signal<FolderPath[]>([]);
   /** The folders the summary sits in (edit) that the user can see. */
   private readonly currentFolders = signal<IFolderRef[]>([]);
@@ -223,10 +246,48 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const managed = new Set(this.managedFolders().map((f) => f._id));
     return this.currentFolders().filter((f) => !managed.has(f._id));
   });
-  readonly folderOptions = computed<(FolderPath & { locked?: boolean })[]>(() => [
-    ...this.lockedFolders().map((cur) => ({ ...(this.allFolders().find((f) => f._id === cur._id) ?? { ...cur, path: cur.name }), locked: true })),
-    ...this.managedFolders(),
-  ]);
+  /**
+   * The folder picker's tree. Managed folders can be picked; folders the summary already sits in but the user doesn't
+   * manage are shown picked and locked; other folders appear only as the way down to one of those.
+   */
+  readonly folderNodes = computed<NzTreeNodeOptions[]>(() => {
+    const folders = this.allFolders();
+    const known = new Set(folders.map((f) => f._id));
+    const paths = new Map(folderPaths(folders).map((f) => [f._id, f.path]));
+    const managed = new Set(this.managedFolders().map((f) => f._id));
+    const locked = new Set(this.lockedFolders().map((f) => f._id));
+    const byParent = new Map<string | null, IFolder[]>();
+    for (const f of folders) {
+      const parent = f.parentId && known.has(f.parentId) ? f.parentId : null;
+      byParent.set(parent, [...(byParent.get(parent) ?? []), f]);
+    }
+    const build = (parent: string | null): NzTreeNodeOptions[] =>
+      (byParent.get(parent) ?? [])
+        .sort((a, b) => a.name.localeCompare(b.name, 'he'))
+        .flatMap((f) => {
+          const children = build(f._id);
+          if (!managed.has(f._id) && !locked.has(f._id) && !children.length) return [];
+          return [
+            {
+              key: f._id,
+              title: f.name,
+              path: paths.get(f._id) ?? f.name,
+              children,
+              isLeaf: !children.length,
+              expanded: true,
+              disabled: locked.has(f._id),
+              selectable: managed.has(f._id),
+            },
+          ];
+        });
+    // A folder the summary sits in that isn't in the user's tree still shows (locked), at the root.
+    const strays = this.lockedFolders()
+      .filter((f) => !known.has(f._id))
+      .map((f) => ({ key: f._id, title: f.name, path: f.name, isLeaf: true, disabled: true }));
+    return [...strays, ...build(null)];
+  });
+  /** Selected folders show their full path, so same-named folders in different places can be told apart. */
+  readonly folderTag = (node: NzTreeNode): string => (node.origin['path'] as string | undefined) ?? node.title;
   /** The catch-all "generic" type has to be filed somewhere — when the user manages a folder to file it in. */
   readonly folderRequired = computed(
     () => this.contentType()?.name === GENERIC && this.kind() !== SummaryKind.Sumaroon && this.managedFolders().length > 0,
@@ -241,6 +302,20 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   // ---- kind (summary / running / sumaroon) ----
   readonly kind = toSignal(this.form.controls.kind.valueChanges.pipe(startWith(this.form.controls.kind.value)), { requireSync: true });
+  /** Small-sumaroon style: a sumaroon has only a date, a link and content; the rest comes from its running summary. */
+  readonly liteSumaroon = computed(() => this.prefs.liteSumaroons() && this.kind() === SummaryKind.Sumaroon);
+  /** Small sumaroons in general (the demo switch), for the inline rows. */
+  readonly liteStyle = this.prefs.liteSumaroons;
+  /** A running summary has no content of its own — its sumaroons are the content — so a new one comes with at least one. */
+  readonly inlineSumaroons = computed(() => this.kind() === SummaryKind.Running && !this.isEdit());
+  private readonly rangeValue = toSignal(this.form.controls.range.valueChanges.pipe(startWith(this.form.controls.range.value)), { requireSync: true });
+  /** Inline sumaroon dates must fall inside the range being written. */
+  readonly outsideOwnRange = (d: Date): boolean => {
+    const [from, to] = this.rangeValue();
+    if (!from || !to) return false;
+    const day = format(d, DAY);
+    return day < format(from, DAY) || day > format(to, DAY);
+  };
   readonly parentInfo = signal<ParentInfo | null>(null);
   readonly parentOptions = signal<{ _id: string; title: string }[]>([]);
   private readonly parentSearch$ = new Subject<string>();
@@ -266,19 +341,25 @@ export class CreateSummaryComponent implements HasPendingChanges {
   readonly userOptions = signal<UserRef[]>([]);
   private readonly userQuery = signal('');
   private readonly userSearch$ = new Subject<string>();
-  /** Pinned users (those matching the typed text) come first, so they can be tagged without searching. */
+  /** The server's matches for the text typed now (cleared as the text changes, until the next answer). */
+  private readonly userResults = signal<UserRef[]>([]);
   private readonly taggedUserIds = toSignal(this.form.controls.taggedUsers.valueChanges.pipe(startWith(this.form.controls.taggedUsers.value)), {
     requireSync: true,
   });
+  /**
+   * The users offered: with nothing typed, suggestions (pinned users, then members of the user's own user groups);
+   * while typing, the users already known that match (at once), then the server's matches. Tagged users always stay
+   * listed, so their tags keep their names.
+   */
   readonly sortedUsers = computed(() => {
     const q = this.userQuery().toLowerCase();
     const tagged = new Set(this.taggedUserIds());
-    const pinned = (this.users.user()?.pinnedUsers ?? []).filter((u) => !q || matchesUser(u, q));
-    // Pinned and tagged, then pinned, then the rest.
-    return mergeById(
-      pinned.filter((u) => tagged.has(u._id)),
-      mergeById(pinned, this.userOptions()),
-    );
+    const pinned = this.users.user()?.pinnedUsers ?? [];
+    const members = (this.userGroups.list() ?? []).flatMap((g) => g.users);
+    const known = mergeById(mergeById(pinned, members), this.userOptions());
+    const taggedKnown = known.filter((u) => tagged.has(u._id));
+    if (!q) return mergeById(mergeById(pinned, members).slice(0, USER_SUGGESTIONS), taggedKnown);
+    return mergeById(mergeById(known.filter((u) => matchesUser(u, q)), this.userResults()), taggedKnown);
   });
 
   readonly sortedPermissions = computed(() => {
@@ -290,6 +371,53 @@ export class CreateSummaryComponent implements HasPendingChanges {
     const pinned = new Set(this.users.user()?.pinnedPermissions ?? []);
     return [...this.permissionGroups.list()].sort((a, b) => Number(pinned.has(b._id)) - Number(pinned.has(a._id)));
   });
+
+  // ---- one "tag" field for users and groups ----
+  private readonly taggedPermissionIds = toSignal(
+    this.form.controls.taggedPermissions.valueChanges.pipe(startWith(this.form.controls.taggedPermissions.value)),
+    { requireSync: true },
+  );
+  /** The tag field's value: `u:<id>` for users, `g:<id>` for groups; tagsChange splits it back into the two controls. */
+  readonly tagValue = computed(() => [...this.taggedUserIds().map((id) => `u:${id}`), ...this.taggedPermissionIds().map((id) => `g:${id}`)]);
+  /** Groups matching the typed text (users are searched on the server); tagged ones always stay listed. */
+  readonly tagGroups = computed(() => {
+    const q = this.userQuery().toLowerCase();
+    const tagged = new Set(this.taggedPermissionIds());
+    return this.taggablePermissions().filter((p) => tagged.has(p._id) || !q || p.name.toLowerCase().includes(q));
+  });
+
+  // ---- user groups in the tag field: picking one (`t:<id>`) tags all its members ----
+  /** Others' shared groups matching the typed text (the user's own are cached). */
+  private readonly sharedUserGroups = signal<IUserGroup[]>([]);
+  readonly tagUserGroups = computed(() => {
+    const q = this.userQuery();
+    const mine = this.userGroups.search(q);
+    return [...mine, ...(q ? this.sharedUserGroups().filter((g) => !mine.some((m) => m._id === g._id)) : [])];
+  });
+
+  tagsChange(values: string[]) {
+    const ids = (prefix: string) => values.filter((v) => v.startsWith(prefix)).map((v) => v.slice(prefix.length));
+    const picked = ids('t:').flatMap((id) => this.tagUserGroups().find((g) => g._id === id) ?? []);
+    const users = [...new Set([...ids('u:'), ...picked.flatMap((g) => g.users.map((u) => u._id))])];
+    const groups = [...new Set([...ids('g:'), ...picked.flatMap((g) => g.permissions)])];
+    if (picked.length) this.userOptions.update((cur) => mergeById(cur, picked.flatMap((g) => g.users)));
+    this.form.controls.taggedUsers.setValue(users);
+    this.form.controls.taggedPermissions.setValue(groups);
+    this.form.markAsDirty();
+  }
+
+  /** Save what the tag field holds as a new user group. */
+  saveTagsAsGroup() {
+    const v = this.form.getRawValue();
+    const known = mergeById(this.users.user()?.pinnedUsers ?? [], this.userOptions());
+    this.modal.create<UserGroupEditorComponent, UserGroupEditorData, IUserGroup>({
+      nzTitle: 'שמירת התיוג כקבוצת משתמשים',
+      nzContent: UserGroupEditorComponent,
+      nzData: { users: v.taggedUsers.flatMap((id) => known.find((u) => u._id === id) ?? []), permissions: v.taggedPermissions },
+      nzFooter: null,
+      nzWidth: 560,
+    });
+  }
   readonly sortedLabels = computed(() => this.pinFirst(this.labelOptions(), (l) => l, 'pinnedLabels', 'favoriteLabels'));
 
   // ---- sharing-section templates ----
@@ -321,6 +449,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
     check(c.permissions.invalid, 'הרשאות');
     check(c.labels.invalid, 'תגיות');
     check(c.folders.invalid, 'תיקייה');
+    check(c.sumaroons.invalid, 'תמציתוניות');
     return out;
   });
 
@@ -340,15 +469,17 @@ export class CreateSummaryComponent implements HasPendingChanges {
 
   constructor() {
     // Rebuild the content-type field group, keeping values of fields that exist in both types.
+    // A small sumaroon has no type fields of its own (they're hidden), so none is required.
     effect(() => {
       const defs = this.typeFieldDefs();
+      const lite = this.liteSumaroon();
       untracked(() => {
         const group = this.typeFields;
         const old = group.getRawValue();
         for (const key of Object.keys(group.controls)) group.removeControl(key, { emitEvent: false });
         for (const { field, required } of defs) {
           const value = old[field._id] ?? this.pendingTypeValues[field._id] ?? null;
-          group.addControl(field._id, new FormControl<FieldValue>(value, required ? Validators.required : null), { emitEvent: false });
+          group.addControl(field._id, new FormControl<FieldValue>(value, required && !lite ? Validators.required : null), { emitEvent: false });
         }
         group.updateValueAndValidity();
       });
@@ -380,8 +511,55 @@ export class CreateSummaryComponent implements HasPendingChanges {
         set(c.range as FormControl<unknown>, kind === SummaryKind.Running);
         set(c.permissions as FormControl<unknown>, kind !== SummaryKind.Sumaroon);
         set(c.labels as FormControl<unknown>, kind !== SummaryKind.Sumaroon);
+        // A running summary's content is its sumaroons.
+        set(c.content as FormControl<unknown>, kind !== SummaryKind.Running);
         if (kind !== SummaryKind.Sumaroon) this.parentInfo.set(null);
       });
+    });
+
+    // A small sumaroon's title is made from its content on submit, so the field is off.
+    effect(() => {
+      const lite = this.liteSumaroon();
+      untracked(() => {
+        const t = this.form.controls.title;
+        if (lite && t.enabled) t.disable({ emitEvent: false });
+        else if (!lite && t.disabled) t.enable({ emitEvent: false });
+        this.form.updateValueAndValidity({ emitEvent: false });
+      });
+    });
+
+    // Inline sumaroon titles: required in the full style; the small style makes them from the content.
+    effect(() => {
+      const lite = this.liteStyle();
+      untracked(() => {
+        for (const row of this.form.controls.sumaroons.controls) {
+          row.controls.title.setValidators(lite ? null : [Validators.required, Validators.maxLength(200)]);
+          row.controls.title.updateValueAndValidity({ emitEvent: false });
+        }
+        this.form.updateValueAndValidity({ emitEvent: false });
+      });
+    });
+
+    // A new running summary comes with its first sumaroon; otherwise the rows are off.
+    effect(() => {
+      const inline = this.inlineSumaroons();
+      untracked(() => {
+        const rows = this.form.controls.sumaroons;
+        if (inline) {
+          if (!rows.length) rows.push(this.sumaroonRow(), { emitEvent: false });
+          rows.enable({ emitEvent: false });
+        } else rows.disable({ emitEvent: false });
+        this.form.updateValueAndValidity({ emitEvent: false });
+      });
+    });
+
+    // A new range: inline sumaroons without a date (or with one outside it) start on its first day.
+    this.form.controls.range.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(([from, to]) => {
+      if (!from || !to) return;
+      for (const row of this.form.controls.sumaroons.controls) {
+        const d = row.controls.eventDate.value;
+        if (!d || this.outsideOwnRange(d)) row.controls.eventDate.setValue(from);
+      }
     });
 
     // Opened from a running summary ("add sumaroon"): start inside it.
@@ -418,7 +596,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
       .tree()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((list) => {
-        this.allFolders.set(folderPaths(list));
+        this.allFolders.set(list);
         this.managedFolders.set(managedFolderPaths(list, this.users.userId() ?? ''));
       });
 
@@ -451,10 +629,23 @@ export class CreateSummaryComponent implements HasPendingChanges {
       .pipe(
         debounceTime(250),
         distinctUntilChanged(),
-        switchMap((t) => this.users.byName(t)),
+        switchMap((t) => (t ? this.users.byName(t) : of([]))),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((list) => this.userOptions.update((cur) => mergeById(cur.filter((u) => this.form.controls.taggedUsers.value.includes(u._id)), list)));
+      .subscribe((list) => {
+        this.userResults.set(list);
+        this.userOptions.update((cur) => mergeById(cur.filter((u) => this.form.controls.taggedUsers.value.includes(u._id)), list));
+      });
+
+    this.userGroups.ensureLoaded();
+    this.userSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((t) => (t ? this.userGroups.shared(t) : of([]))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((list) => this.sharedUserGroups.set(list));
 
     this.labelSearch$.next('');
     this.templates.load();
@@ -494,7 +685,7 @@ export class CreateSummaryComponent implements HasPendingChanges {
   restoreDraft() {
     const d = this.restorable();
     if (!d) return;
-    const { typeFields, extraFields, kind, contentType, ...rest } = reviveDates(d.value);
+    const { typeFields, extraFields, sumaroons, kind, contentType, ...rest } = reviveDates(d.value);
     // Same order as fill(): kind and type first, so the type-field group is rebuilt with the saved values.
     this.pendingTypeValues = typeFields;
     this.form.controls.kind.setValue(kind);
@@ -503,9 +694,15 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.form.patchValue(rest);
     this.form.controls.extraFields.clear();
     for (const e of extraFields) this.addExtraRow(e.field, e.value);
+    if (sumaroons?.length) {
+      const rows = this.form.controls.sumaroons;
+      const enabled = rows.enabled;
+      rows.clear();
+      for (const r of sumaroons) rows.push(this.sumaroonRow(r));
+      if (!enabled) rows.disable();
+    }
     this.labelOptions.update((l) => this.withSelected(l, rest.labels));
     this.userOptions.update((u) => mergeById(d.users, u));
-    this.notesOpen.set(!!rest.notes);
     this.form.markAsDirty();
     this.restorable.set(null);
     this.message.success('העבודה שוחזרה');
@@ -570,7 +767,6 @@ export class CreateSummaryComponent implements HasPendingChanges {
     this.currentFolders.set(s.folders);
     this.userOptions.set(s.taggedUsers);
     this.existingFiles.set([...s.files]);
-    this.notesOpen.set(!!s.notes);
     this.form.markAsPristine();
   }
 
@@ -707,6 +903,38 @@ export class CreateSummaryComponent implements HasPendingChanges {
     );
   }
 
+  // ---- inline sumaroons (new running summary) ----
+  private sumaroonRow(v?: { title?: string; eventDate?: Date | null; link?: string; content?: string }): SumaroonRow {
+    const from = this.form?.controls.range.value[0] ?? null;
+    return this.fb.group({
+      title: this.fb.control(v?.title ?? '', this.liteStyle() ? null : [Validators.required, Validators.maxLength(200)]),
+      eventDate: this.fb.control<Date | null>(v?.eventDate ?? from, Validators.required),
+      link: this.fb.control(v?.link ?? '', Validators.pattern(LINK_PATTERN)),
+      content: this.fb.control(v?.content ?? '', Validators.required),
+    }) as SumaroonRow;
+  }
+
+  addSumaroon() {
+    this.form.controls.sumaroons.push(this.sumaroonRow());
+    this.form.markAsDirty();
+  }
+
+  /** The first sumaroon is required, so only the ones after it can be removed. */
+  removeSumaroon(i: number) {
+    if (i === 0) return;
+    this.form.controls.sumaroons.removeAt(i);
+    this.form.markAsDirty();
+  }
+
+  /** Added rows left completely empty are dropped instead of blocking the publish. */
+  private dropEmptySumaroons() {
+    const rows = this.form.controls.sumaroons;
+    for (let i = rows.length - 1; i > 0; i--) {
+      const r = rows.at(i).getRawValue();
+      if (!plainText.transform(r.content) && !r.link.trim() && !r.title.trim()) rows.removeAt(i);
+    }
+  }
+
   removeExtraField(i: number) {
     this.form.controls.extraFields.removeAt(i);
     this.form.markAsDirty();
@@ -747,8 +975,10 @@ export class CreateSummaryComponent implements HasPendingChanges {
   }
 
   onUserSearch(text: string) {
+    if (text.trim() !== this.userQuery()) this.userResults.set([]);
     this.userQuery.set(text.trim());
-    if (text.trim()) this.userSearch$.next(text.trim());
+    this.userSearch$.next(text.trim());
+    if (!text.trim()) this.sharedUserGroups.set([]);
   }
 
   isPinned(kind: 'pinnedLabels' | 'pinnedPermissions', id: string) {
@@ -797,8 +1027,9 @@ export class CreateSummaryComponent implements HasPendingChanges {
     else {
       this.form.reset();
       this.form.controls.extraFields.clear();
+      const rows = this.form.controls.sumaroons;
+      while (rows.length > 1) rows.removeAt(rows.length - 1);
       this.fileList.set([]);
-      this.notesOpen.set(false);
     }
     this.submitted.set(false);
     this.duplicates.set([]);
@@ -826,14 +1057,18 @@ export class CreateSummaryComponent implements HasPendingChanges {
   submit(isDraft: boolean) {
     this.submitted.set(true);
     const c = this.form.controls;
+    if (c.sumaroons.enabled) this.dropEmptySumaroons();
     // Drafts only need a title (plus what their kind can't exist without); publishing validates everything.
+    // A small sumaroon's title is made from its content, so its draft needs content instead.
     const kindValid = c.parent.valid && c.range.valid && (this.kind() !== SummaryKind.Sumaroon || c.eventDate.valid);
-    const valid = isDraft ? c.title.valid && kindValid : this.form.valid;
+    const titleValid = this.liteSumaroon() ? c.content.valid : c.title.valid;
+    const valid = isDraft ? titleValid && kindValid && (c.sumaroons.disabled || c.sumaroons.valid) : this.form.valid;
     if (!valid) {
       this.form.markAllAsTouched();
       for (const ctrl of Object.values(c.typeFields.controls)) ctrl.markAsDirty();
       for (const ctrl of [c.title, c.content, c.permissions, c.labels, c.folders, c.parent, c.range, c.eventDate]) ctrl.markAsDirty();
-      this.message.warning(isDraft ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
+      for (const row of c.sumaroons.controls) for (const ctrl of Object.values(row.controls)) ctrl.markAsDirty();
+      this.message.warning(isDraft && !this.liteSumaroon() ? 'חובה למלא כותרת' : 'יש להשלים את שדות החובה המסומנים');
       this.scrollToFirstError();
       return;
     }
@@ -855,8 +1090,9 @@ export class CreateSummaryComponent implements HasPendingChanges {
       rangeStart: kind === SummaryKind.Running && v.range.length === 2 ? format(v.range[0], DAY) : undefined,
       rangeEnd: kind === SummaryKind.Running && v.range.length === 2 ? format(v.range[1], DAY) : undefined,
       link: kind === SummaryKind.Sumaroon ? v.link.trim() || undefined : undefined,
-      title: v.title.trim(),
-      contentHtml: v.content,
+      title: this.liteSumaroon() ? this.liteTitleFor(v.content, v.eventDate) : v.title.trim(),
+      // A new running summary has no content: its sumaroons are the content. (Older ones keep theirs when edited.)
+      contentHtml: kind === SummaryKind.Running && !this.isEdit() ? '' : v.content,
       notesHtml: v.notes,
       contentType: v.contentType,
       // A running summary is dated by its range.
@@ -874,18 +1110,25 @@ export class CreateSummaryComponent implements HasPendingChanges {
       isDraft,
     };
     const files = this.fileList().map((f) => (f.originFileObj ?? f) as unknown as File);
+    const inline = c.sumaroons.enabled ? v.sumaroons : [];
 
     this.saving.set(true);
-    const req = this.isEdit() ? this.summaries.update(payload, files) : this.summaries.create(payload, files);
+    const saved$ = this.isEdit() ? this.summaries.update(payload, files) : this.summaries.create(payload, files);
+    // Inline sumaroons need the running summary's id, so they are written after it, in order.
+    const req = inline.length
+      ? saved$.pipe(switchMap((running) => concat(...inline.map((r) => this.summaries.create(this.inlineSumaroonPayload(running, r), []))).pipe(toArray(), map(() => running))))
+      : saved$;
     req.subscribe({
       next: (s) => {
         this.saved = true;
         this.saving.set(false);
         this.clearLocalDraft();
+        if (inline.length) this.message.success(inline.length === 1 ? 'נוספה תמציתונית אחת' : `נוספו ${inline.length} תמציתוניות`);
         if (isDraft && v.folders.length && kind !== SummaryKind.Sumaroon)
           this.message.info('טיוטות לא נכנסות לתיקיות — אפשר לשייך לתיקייה אחרי הפרסום');
         this.message.success(isDraft ? 'הטיוטה נשמרה' : SAVED_TEXT[kind][this.isEdit() ? 1 : 0]);
-        if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });
+        if (this.modalRef) this.modalRef.close(s);
+        else if (isDraft) this.router.navigate(['/profile', this.users.userId()], { queryParams: { tab: 'DRAFT' } });
         // Running summaries have their own page; a sumaroon opens in its running summary's panel.
         else if (s.kind === SummaryKind.Running) this.router.navigate(['/running', s._id]);
         else if (s.parentId) this.router.navigate(['/running', s.parentId], { queryParams: { summaryId: s._id } });
@@ -893,6 +1136,38 @@ export class CreateSummaryComponent implements HasPendingChanges {
       },
       error: () => this.saving.set(false),
     });
+  }
+
+  /**
+   * A small sumaroon's title: the start of its content. Editing a sumaroon written with a title of its own (full style)
+   * keeps that title.
+   */
+  private liteTitleFor(contentHtml: string, date: Date | null): string {
+    const s = this.summary();
+    if (s && s.title !== liteTitle(s.content, s.eventDate ? new Date(s.eventDate) : null)) return s.title;
+    return liteTitle(contentHtml, date);
+  }
+
+  /** A sumaroon of the running summary just saved: its title, date, link and content; the rest is the running summary's. */
+  private inlineSumaroonPayload(running: ISummary, r: FormValue['sumaroons'][number]): SummaryPayload {
+    return {
+      kind: SummaryKind.Sumaroon,
+      parentId: running._id,
+      link: r.link.trim() || undefined,
+      title: this.liteStyle() ? liteTitle(r.content, r.eventDate) : r.title.trim(),
+      contentHtml: r.content,
+      notesHtml: '',
+      contentType: running.contentType._id,
+      eventDate: r.eventDate ? format(r.eventDate, DAY) : undefined,
+      department: running.department,
+      labels: [],
+      permissions: [],
+      taggedUsers: [],
+      taggedPermissions: [],
+      summaryFields: [],
+      files: [],
+      isDraft: false,
+    };
   }
 
   private withSelected(list: string[], selected: string[]) {
@@ -926,7 +1201,7 @@ function reviveDates<T>(value: T): T {
 }
 
 function matchesUser(u: UserRef, lowerText: string): boolean {
-  return u.fullName.toLowerCase().includes(lowerText) || u.username.toLowerCase().startsWith(lowerText);
+  return u.fullName.toLowerCase().includes(lowerText) || u.username.toLowerCase().includes(lowerText);
 }
 
 function mergeById<T extends { _id: string }>(a: T[], b: T[]): T[] {

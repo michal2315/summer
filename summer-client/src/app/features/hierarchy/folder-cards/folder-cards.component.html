@@ -1,7 +1,7 @@
 <div class="cards">
   @for (f of shown(); track f._id) {
     @let count = totals().get(f._id) ?? 0;
-    <a class="card" routerLink="/summaries" [queryParams]="{ folderId: f._id }">
+    <a class="card" routerLink="/summaries" [queryParams]="cardParams(f._id)">
       <span class="icon" nz-icon nzType="folder"></span>
       <span class="text">
         <span class="name">{{ f.name }}</span>

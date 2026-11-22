@@ -16,14 +16,22 @@ export interface INotification {
   createdBy?: Pick<IUser, '_id' | 'username' | 'fullName'>;
 }
 
+/** What raised a notification: a query's alert matched, or another user's activity. */
+export type NotificationKind = 'alert' | 'comment' | 'mention' | 'tag' | 'follow';
+
+/** A notifications-page feed entry: the notification, the query whose alert raised it (if any), and its summary. */
+export interface INotificationFeedItem extends INotification {
+  kind: NotificationKind;
+  query?: { _id: string; name: string };
+  summary: ISummary;
+}
+
 export interface IUser {
   _id: string;
   username: string;
   fullName: string;
   department?: string;
   isSystem?: boolean;
-  /** saved searches, newest first */
-  pinnedSearches: ISavedSearch[];
   pinnedLabels: string[];
   favoriteLabels: string[];
   pinnedPermissions: string[];
@@ -31,16 +39,77 @@ export interface IUser {
   pinnedUsers: UserRef[];
   following: string[];
   recentExtraField: string[];
+  /** Missing keys mean the default (PreferencesService). */
+  preferences?: UserPreferences;
 }
 
-/** A search the user saved; unnamed ones are shown by `describeSearch`. */
-export interface ISavedSearch {
-  _id: string;
-  name: string | null;
-  search: ISummarySearch;
+/** Personal preferences, set in the preferences dialog. Every key is optional; PreferencesService has the defaults. */
+export interface UserPreferences {
+  /** Moving to another folder: keep the current search there, or start without one. */
+  folderSearch?: 'keep' | 'reset';
+  /** Times shown as "3 hours ago", or as the date and hour. */
+  dates?: 'relative' | 'exact';
 }
+
+/** How a query is edited: the search box text only (simple), or with the condition builder too (advanced). */
+export type QueryKind = 'simple' | 'advanced';
+
+/** The caller's alert on a query: notifications (and e-mails) about summaries it finds later. */
+export interface IQueryAlert {
+  _id: string;
+  /** off pauses the alert */
+  isActive: boolean;
+  /** also e-mail each match right away */
+  isMail: boolean;
+  /** also list matches in the daily digest e-mail */
+  isDigest: boolean;
+  creationDate: string;
+}
+
+/** A query: a named search. Every query is one of the user's saved searches, and may alert. */
+export interface IQuery {
+  _id: string;
+  name: string;
+  kind: QueryKind;
+  search: ISummarySearch;
+  /** The owner's own flag (false on others' queries). */
+  isFavorite: boolean;
+  /** Others can find, run, copy and alert on it. */
+  isShared: boolean;
+  isMine: boolean;
+  owner: UserRef;
+  /** How many people other than the owner alert on it. */
+  followers: number;
+  creationDate: string;
+  updateDate: string;
+  /** The current user's alert on it. */
+  alert: IQueryAlert | null;
+}
+
+/** Alert settings as they are sent. */
+export type QueryAlertSettings = Pick<IQueryAlert, 'isActive' | 'isMail' | 'isDigest'>;
 
 export type UserRef = Pick<IUser, '_id' | 'username' | 'fullName' | 'department' | 'isSystem'>;
+
+/** A user group: users and permission groups tagged together. Picking it in a tag field tags all of them. */
+export interface IUserGroup {
+  _id: string;
+  name: string;
+  /** Active users only, in the order they were added. */
+  users: UserRef[];
+  /** Permission (group) ids. */
+  permissions: string[];
+  /** The owner's own flag (false on others' groups). */
+  isFavorite: boolean;
+  /** Others can find, use and copy it. */
+  isShared: boolean;
+  isMine: boolean;
+  owner: UserRef;
+  creationDate: string;
+  updateDate: string;
+}
+
+export type UserGroupPayload = Pick<IUserGroup, 'name' | 'isFavorite' | 'isShared'> & { users: string[]; permissions: string[] };
 
 export enum FieldsType {
   String = 'string',
@@ -264,11 +333,13 @@ export interface ISummarySearch {
 }
 
 export type QueryTextField = 'text' | 'title' | 'content' | 'notes' | 'comments' | 'labels';
-export type QueryField = QueryTextField | 'author' | 'contentType' | 'folder' | 'color' | 'eventDate' | 'createdDate';
-export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between';
+/** `field`: a content-type catalog field, named by the condition's `fieldId`. */
+export type QueryField = QueryTextField | 'author' | 'contentType' | 'folder' | 'color' | 'eventDate' | 'createdDate' | 'field';
+/** eq / gt / lt / range compare a number catalog field (eq and gt read `from`, lt reads `to`). */
+export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between' | 'eq' | 'gt' | 'lt' | 'range';
 
 /**
- * Capsule (כמוסה): a named word list from the external capsules service, usable in searches and notification rules.
+ * Capsule (כמוסה): a named word list from the external capsules service, usable in searches and alerts.
  * must: every one has to appear · mustNot: none may appear ·
  * optional: with no must words, at least one has to appear; otherwise they only add highlights.
  */
@@ -289,12 +360,14 @@ export interface ICapsule {
 export interface IQueryCondition {
   type: 'cond';
   field: QueryField;
+  /** the catalog field, for `field: 'field'` */
+  fieldId?: string;
   op: QueryOp;
   /** text fields; a capsule is the word `#cap:<id>` */
   words?: string[];
-  /** author / folder ids, content type names, color hexes */
+  /** author / folder ids, content type names, color hexes; list catalog fields: the items */
   values?: string[];
-  /** date fields: ISO instants of local midnight */
+  /** date fields: ISO instants of local midnight; number catalog fields: the bounds, as numbers in text */
   from?: string;
   to?: string;
 }
@@ -319,9 +392,83 @@ export interface IFolder {
   permissions: IPermission[];
   /** user ids */
   managers: string[];
+  /** The legacy root (collections from the old Summer), a collection in it, or neither. Nothing can be added to either. */
+  legacy: 'root' | 'collection' | null;
   createdBy: UserRef;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A collection from the old Summer, waiting in the legacy root (GET /legacy). */
+export interface ILegacyCollection {
+  folder: IFolder;
+  /** placements when it was imported */
+  total: number;
+  /** placements still in it, including folder.hiddenCount the user cannot see */
+  left: number;
+}
+
+export interface ILegacyOverview {
+  /** null: nothing was imported */
+  rootId: string | null;
+  /** dev only: the staging page may offer "reset the demo" */
+  demo?: boolean;
+  /** collections still waiting that the user manages */
+  collections: ILegacyCollection[];
+  /**
+   * the user's own summaries the old Summer had in no collection, waiting in the legacy root itself: shown like a
+   * collection (folder = the root); null when none are left
+   */
+  unfiled: ILegacyCollection | null;
+  /** collections others manage that hold the user's own summaries: left / total count only those, which the user sorts */
+  authored: ILegacyAuthored[];
+  /** over every collection the user manages or managed, including ones already moved out or deleted */
+  progress: { total: number; left: number; collections: number; done: number };
+}
+
+export interface ILegacyAuthored extends ILegacyCollection {
+  managers: UserRef[];
+  /** the user's own summaries already taken out of it (by its managers or the user), and where they are now */
+  sorted: ILegacySorted[];
+}
+
+export interface ILegacySorted {
+  _id: string;
+  name: string;
+  kind: SummaryKind;
+  /** folders outside the legacy root it is in now (that the user can see) */
+  folders: { _id: string; name: string }[];
+  /** folders it is in that the user can't see; none of either = in no folder */
+  hiddenFolders: number;
+}
+
+export interface ILegacyItem extends IFolderItem {
+  /** folders outside the legacy root it is already in */
+  alsoIn: { _id: string; name: string }[];
+  /** other legacy collections it also waits in */
+  alsoLegacy: { _id: string; name: string }[];
+  /** its own permissions (viewing needs all of them) */
+  permissions: IPermission[];
+}
+
+/** POST /legacy/search: which summaries in the user's collections match a search. */
+export interface ILegacySearch {
+  /** collection id → its matching summary ids (only collections with a match) */
+  matches: Record<string, string[]>;
+  /** more matched than the server returns: some may be missing */
+  capped: boolean;
+}
+
+export interface ILegacyResult {
+  applied: string[];
+  /** placements left in the collection */
+  left: number;
+}
+
+export interface ILegacyMoveResult extends IBulkResult {
+  /** of applied, the ones that were not in the target before */
+  added: string[];
+  left: number;
 }
 
 /** A summary placed in a folder (each sits in at most one; sumaroons never do). */
@@ -329,6 +476,8 @@ export interface IFolderItem {
   _id: string;
   name: string;
   kind: SummaryKind;
+  /** The current user wrote it (only those can be dragged to another folder in the tree). */
+  mine: boolean;
 }
 
 export interface FolderPayload {
@@ -339,54 +488,11 @@ export interface FolderPayload {
   managers: string[];
 }
 
-/** Comparison operators for notification-rule conditions, offered per field type (spec §8.1). */
-export enum NotificationsFunctionsOptions {
-  StringContains = 'stringContains',
-  StringNotContains = 'stringNotContains',
-  NumberBigger = 'numberBigger',
-  NumberSmaller = 'numberSmaller',
-  NumberEqual = 'numberEqual',
-  NumberBetween = 'numberBetween',
-  DateAfter = 'dateAfter',
-  DateBefore = 'dateBefore',
-  DateBetween = 'dateBetween',
-  ArrayContains = 'arrayContains',
-  ArrayNotContains = 'arrayNotContains',
-  /** content: [capsule id, capsule name] (the name is only for display) */
-  CapsuleMatches = 'capsuleMatches',
-  CapsuleNotMatches = 'capsuleNotMatches',
-}
-
-export interface INotificationSettingsCondition {
-  field: IField;
-  funcName: NotificationsFunctionsOptions;
-  /** operand(s); two entries for *Between. An open-ended bound is the UI's Infinity sentinel, sent as null (JSON has no Infinity). */
-  content: (string | number | null)[];
-}
-
-export interface INotificationSettings {
-  _id?: string;
-  name: string;
-  /** empty for a search alert */
-  conditions: INotificationSettingsCondition[];
-  /** any one condition is enough, instead of all of them */
-  matchAny?: boolean;
-  /** a saved search: notify about published summaries it finds (instead of conditions) */
-  search?: ISummarySearch;
-  /** also e-mail each match right away */
-  isMail: boolean;
-  /** also list matches in the daily digest e-mail */
-  isDigest: boolean;
-  /** the rule is active (matches reach the bell, and the e-mails); off pauses it */
-  isNotify: boolean;
-  creationDate?: string;
-}
-
 /** The user's e-mail switches (GET/PUT /notifications/preferences). */
 export interface IMailPreferences {
   /** null when the identity provider has no address: nothing can be mailed */
   email: string | null;
-  /** rule matches (each rule also picks immediate and/or digest) */
+  /** alert matches (each alert also picks immediate and/or digest) */
   mailAlerts: boolean;
   /** tags, comments, mentions, followed users publishing */
   mailActivity: boolean;

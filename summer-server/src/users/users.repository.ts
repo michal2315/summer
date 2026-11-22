@@ -9,12 +9,12 @@ import {
   userFollows,
   userPinnedLabels,
   userPinnedPermissions,
-  userPinnedSearches,
   userPinnedUsers,
   users,
 } from '../database/schema';
 import { VerifiedIdentity } from '../auth/identity-provider';
 import { textLike } from '../common/sql';
+import { UserPreferences, readPreferences } from '../common/preferences';
 
 export type UserRow = typeof users.$inferSelect;
 
@@ -88,9 +88,8 @@ export class UsersRepository {
     return rows.map((r) => r.id);
   }
 
-  /** Mention / tag autocomplete: username prefix or name substring. */
-  async search(text: string, usernamePrefix: boolean): Promise<UserRef[]> {
-    const nameMatch = textLike(users.fullName, text);
+  /** User autocomplete: name substring, or username as a prefix (mentions) or a substring (pickers). */
+  async search(text: string, username: 'prefix' | 'contains'): Promise<UserRef[]> {
     const rows = await this.db
       .select(refColumns)
       .from(users)
@@ -98,12 +97,20 @@ export class UsersRepository {
         and(
           eq(users.isActive, true),
           eq(users.isSystem, false),
-          usernamePrefix ? or(textLike(users.username, text, 'prefix'), nameMatch) : nameMatch,
+          or(textLike(users.username, text, username), textLike(users.fullName, text)),
         ),
       )
       .orderBy(asc(users.fullName))
       .limit(LOOKUP_LIMIT);
     return rows.map(toRef);
+  }
+
+  /** Merge `patch` into the user's stored preferences (keys it leaves out stay). */
+  async setPreferences(userId: string, patch: UserPreferences): Promise<void> {
+    const user = await this.findById(userId);
+    if (!user) return;
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    await this.db.update(users).set({ preferences: { ...readPreferences(user.preferences), ...defined }, updatedAt: new Date() }).where(eq(users.id, userId));
   }
 
   /** The full IUser document the client caches (pins, favourites, follows). */
@@ -122,13 +129,7 @@ export class UsersRepository {
           .orderBy(asc(table.createdAt))
       ).map((r) => r.name);
 
-    const [pinnedSearches, pinnedLabels, favoriteLabels, pinnedPermissions, pinnedUsers, following] = await Promise.all([
-      this.db
-        .select({ _id: userPinnedSearches.id, name: userPinnedSearches.name, search: userPinnedSearches.search })
-        .from(userPinnedSearches)
-        .where(eq(userPinnedSearches.userId, userId))
-        .orderBy(asc(userPinnedSearches.createdAt))
-        .then((rows) => rows.reverse()),
+    const [pinnedLabels, favoriteLabels, pinnedPermissions, pinnedUsers, following] = await Promise.all([
       labelNames(userPinnedLabels),
       labelNames(userFavLabels),
       ids(userPinnedPermissions, userPinnedPermissions.permissionId),
@@ -149,13 +150,13 @@ export class UsersRepository {
 
     return {
       ...toRef(user),
-      pinnedSearches,
       pinnedLabels,
       favoriteLabels,
       pinnedPermissions,
       pinnedUsers,
       following,
       recentExtraField: [],
+      preferences: readPreferences(user.preferences),
     };
   }
 }

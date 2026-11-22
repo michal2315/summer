@@ -1,0 +1,235 @@
+@use 'tokens' as *;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// The sky: its colours follow the day (set from the component), with the sun, its path and the sea in it.
+.sky {
+  position: relative;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 12px;
+  // Four bands that blend: high sky, below it, the middle, and the warm haze at the horizon.
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-upper) 34%, var(--sky-middle) 68%, var(--sky-horizon) 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+}
+
+// The sun's light on the sky: a soft halo that follows it, plus a wide haze along the horizon.
+.glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at var(--sun-x) calc(var(--sun-y) * 0.77 + 8px), color-mix(in srgb, var(--glow) 85%, transparent) 0, transparent 70px),
+    radial-gradient(120% 60% at var(--sun-x) 100%, color-mix(in srgb, var(--glow) 45%, transparent) 0, transparent 70%);
+  pointer-events: none;
+}
+
+// Soft clouds drifting across, made of overlapping round puffs.
+.cloud {
+  position: absolute;
+  width: 46px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  filter: blur(0.5px);
+  animation: cloud-drift 38s linear infinite;
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: inherit;
+  }
+  &::before {
+    width: 20px;
+    height: 20px;
+    top: -10px;
+    left: 8px;
+  }
+  &::after {
+    width: 16px;
+    height: 16px;
+    top: -7px;
+    left: 22px;
+  }
+  &.one {
+    top: 22px;
+    left: 15%;
+  }
+  &.two {
+    top: 44px;
+    left: 60%;
+    transform: scale(0.75);
+    opacity: 0.8;
+    animation-duration: 52s;
+    animation-delay: -20s;
+  }
+}
+
+.path {
+  position: absolute;
+  inset: 8px 0 14px;
+  width: 100%;
+  height: calc(100% - 22px);
+  overflow: visible;
+  path {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+  }
+  .track {
+    stroke: rgba(255, 255, 255, 0.55);
+    stroke-width: 2;
+    stroke-dasharray: 1 3;
+  }
+  .travelled {
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 3;
+    stroke-dasharray: 100;
+    transition: stroke-dashoffset 0.6s ease;
+  }
+}
+
+// The path's box (8px from the top, 14px above the bottom); Summy is centred on its spot in it.
+.orbit {
+  position: absolute;
+  z-index: 1;
+  inset: 8px 0 14px;
+}
+.sun {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 0.6s ease, top 0.6s ease;
+  filter: drop-shadow(0 0 10px rgba(255, 214, 102, 0.85));
+}
+
+.sea {
+  position: absolute;
+  z-index: 2;
+  // Wider than the sky on both sides, so the drift never shows a wave's end.
+  left: -24px;
+  bottom: 0;
+  width: calc(100% + 48px);
+  height: 22px;
+  .wave {
+    animation: drift 6s ease-in-out infinite alternate;
+  }
+  .back {
+    fill: rgba(56, 189, 248, 0.55);
+  }
+  .front {
+    fill: rgba(14, 116, 189, 0.75);
+    animation-duration: 4.5s;
+    animation-direction: alternate-reverse;
+  }
+}
+
+// How far along, in the sky's top corner (the end of the day, away from sunrise).
+.percent {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  left: 10px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(4px);
+  color: $dark-blue;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+}
+
+// Night (all sorted): stars twinkle and the moon is out.
+.star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 4px #fff;
+  animation: twinkle 1.8s ease-in-out infinite alternate;
+}
+.moon {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 30px;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 220, 0.7));
+}
+:host(.night) .percent {
+  background: rgba(255, 255, 255, 0.15);
+  color: $white;
+}
+:host(.night) .sea .back {
+  fill: rgba(56, 100, 180, 0.5);
+}
+:host(.night) .sea .front {
+  fill: rgba(20, 40, 100, 0.85);
+}
+
+.caption {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+}
+.phase {
+  font-weight: 700;
+  color: $dark-blue;
+}
+.spacer {
+  flex: 1;
+}
+.counts {
+  color: $dark-gray;
+}
+.left-count {
+  font-weight: 700;
+  color: $dark-blue;
+}
+
+@keyframes drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-12px);
+  }
+}
+@keyframes cloud-drift {
+  from {
+    translate: 0 0;
+  }
+  50% {
+    translate: -60px 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+@keyframes twinkle {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sun,
+  .path .travelled {
+    transition: none;
+  }
+  .wave,
+  .star,
+  .cloud {
+    animation: none;
+  }
+}

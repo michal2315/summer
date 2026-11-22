@@ -1,25 +1,81 @@
 @use 'tokens' as *;
 
-:host { display: block; padding: 14px 18px; }
-.page { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+// The page fills the shell's content area; the panel and the feed each scroll on their own.
+:host { display: block; height: 100%; }
+.spacer { flex: 1; }
+
+// RTL: the panel comes first, so it sits on the right.
+.layout { display: grid; grid-template-columns: 400px minmax(0, 1fr); height: 100%; transition: grid-template-columns 0.2s ease; }
+// A card of its own, inset so the gray page shows between it and the side nav (and above and below it).
+.panel { box-sizing: border-box; height: calc(100% - 20px); margin: 10px; margin-inline-end: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: $white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08); }
+// Collapsed: a thin strip at the side, and the feed grows into the room it leaves.
+.layout.collapsed { grid-template-columns: 32px minmax(0, 1fr); }
+.layout.collapsed .main-inner { max-width: 1400px; }
+.panel.slim { all: unset; box-sizing: border-box; height: calc(100% - 20px); margin: 10px 10px 10px 0; display: flex; justify-content: center; padding-top: 14px; background: $white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08); color: $gray; cursor: pointer; }
+.panel.slim:hover { color: $black; background: $surface-subtle; }
+.panel.slim:focus-visible { box-shadow: $focus-ring; }
+.main { height: 100%; overflow: auto; }
+.main-inner { max-width: 860px; margin: 0 auto; padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 12px; }
+.main-inner[hidden] { display: none; }
+.back { padding: 0; align-self: flex-start; }
 .header { display: flex; align-items: center; gap: 10px; }
 .page-title { display: inline-flex; gap: 6px; align-items: center; }
-.spacer { flex: 1; }
-.intro { margin: 0; font-size: 13px; }
-.filter { max-width: 360px; border-radius: 20px; }
-.list { list-style: none; margin: 0; padding: 0; background: #fff; border-radius: 12px; box-shadow: 0 2px 20px rgba(0,0,0,.08); overflow: hidden; }
-.item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #f3f3f3; }
-.text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.rule-name { font-weight: 700; }
-.desc { font-size: 13px; color: #666; }
-.channels { display: flex; gap: 4px; }
-.item.paused .text { opacity: 0.6; }
-.mail-prefs { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: $white; border-radius: 10px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07); }
+
+.panel-header { display: flex; align-items: center; gap: 8px; }
+.panel-title { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; }
+.intro { margin: 0; font-size: 12px; }
+.filter { border-radius: 20px; }
+
+.mail-prefs { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: $surface-subtle; border-radius: 10px; }
 .mail-title { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .mail-address { font-weight: 400; font-size: 13px; color: $dark-gray; }
 .mail-warning { display: flex; align-items: center; gap: 6px; font-size: 13px; color: $dark-gray; }
 .mail-warning [nz-icon] { color: $warning-color; }
 .pref { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; }
 .pref nz-switch { margin-top: 2px; flex-shrink: 0; }
-.row-actions { display: flex; }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.item { display: flex; align-items: flex-start; gap: 4px; padding: 8px; border-radius: 8px; border-bottom: 1px solid #f3f3f3; }
+.item:hover { background: $surface-subtle; }
+.item.picked { background: $background-soft; box-shadow: inset -3px 0 0 $primary-orange; }
+.text { all: unset; box-sizing: border-box; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+.text:focus-visible { box-shadow: $focus-ring; border-radius: 6px; }
+.rule-name { font-weight: 700; }
+.desc { font-size: 12px; color: #666; }
+.channels { display: flex; flex-wrap: wrap; gap: 4px; }
+.channels nz-tag { margin: 0; }
+.item.paused .text { opacity: 0.6; }
+.row-actions { display: flex; flex-shrink: 0; }
 .sentinel { height: 1px; }
+
+// Narrow screens: one column that scrolls as a whole, panel first.
+@media (max-width: 900px) {
+  :host { height: auto; }
+  .layout { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .panel, .main { height: auto; overflow: visible; }
+  .panel { margin-inline-end: 10px; margin-bottom: 0; }
+}
+
+.add-alert { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: $surface-subtle; border-radius: 10px; }
+.add-title { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.add-select { width: 100%; }
+.add-option { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.add-name { flex-shrink: 0; }
+.add-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: $gray; }
+.fav { color: $star; }
+.list-title { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-top: 4px; }
+.count { font-weight: 400; font-size: 12px; color: $gray; }
+.kind { color: $gray; }
+.row-actions { align-items: center; gap: 2px; }
+
+// Tabs: alerts · my searches · shared.
+.tabs { display: flex; gap: 2px; padding: 3px; background: $surface-subtle; border-radius: 10px; }
+.tab { all: unset; box-sizing: border-box; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 8px; border-radius: 8px; font-size: 13px; color: $dark-gray; cursor: pointer; white-space: nowrap; transition: background $transition, color $transition; }
+.tab:hover { color: $dark-blue; }
+.tab.active { color: $dark-blue; font-weight: 600; background: $white; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
+.tab:focus-visible { box-shadow: $focus-ring; }
+.tab-count { min-width: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; line-height: 18px; text-align: center; color: $dark-gray; background: $border-color; }
+.tab.active .tab-count { color: $white; background: $primary-orange; }
+.owner { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #9e1068; }
+.channel-pop { display: flex; flex-direction: column; gap: 6px; }
+.channel-pop label { margin: 0; }

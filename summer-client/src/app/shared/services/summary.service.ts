@@ -2,10 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, map, tap } from 'rxjs';
 import { IAccessStats, IBulkResult, ISummariesLength, ISummariesResponse, ISummary, ISummarySearch, SummaryPayload } from '../models';
+import { StorageService } from '../../core/storage/storage.service';
 import { DOCX_MIME, XLSX_MIME, saveFile } from '../utils/save-file';
 import { toHttpParams } from './http-params';
 
 const BASE = '/api/summary';
+/** Session-storage key of the summary last open in the detail panel. */
+export const SUMMARY_SNAPSHOT_KEY = 'currSummary';
 
 const EMPTY_LENGTHS: ISummariesLength = { summary: 0, draft: 0, tagged: 0, favorite: 0 };
 
@@ -16,6 +19,24 @@ export class SummaryService {
   /** Emits after any mutation so open lists/panels patch in place instead of refetching. */
   readonly changed$ = new Subject<ISummary>();
   readonly removed$ = new Subject<string>();
+  /** These summaries changed on the server in a way callers can't patch locally (bulk edits): refetch them if shown. */
+  readonly stale$ = new Subject<string[]>();
+
+  constructor() {
+    // The detail panel's last-open snapshot (rendered instantly on reopen) must not show a version from before an edit.
+    const storage = inject(StorageService);
+    this.changed$.subscribe((s) => {
+      const snap = storage.get<ISummary>(SUMMARY_SNAPSHOT_KEY, 'session');
+      if (snap?._id === s._id) storage.set(SUMMARY_SNAPSHOT_KEY, { ...snap, ...s }, 'session');
+    });
+    this.stale$.subscribe((ids) => {
+      if (ids.includes(storage.get<ISummary>(SUMMARY_SNAPSHOT_KEY, 'session')?._id ?? '')) storage.remove(SUMMARY_SNAPSHOT_KEY, 'session');
+    });
+  }
+
+  stale(ids: string[]): void {
+    if (ids.length) this.stale$.next(ids);
+  }
 
   get(id: string, isMine = false): Observable<ISummary> {
     return this.http.get<ISummary>(`${BASE}/${id}/${isMine}`);

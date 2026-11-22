@@ -3,5 +3,7 @@ export * from './catalog';
 export * from './summaries';
 export * from './folders';
 export * from './user-state';
+export * from './queries';
+export * from './user-groups';
 export * from './notifications';
 export * from './relations';

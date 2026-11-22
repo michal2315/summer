@@ -1,9 +1,13 @@
-import { IQueryCondition, IQueryGroup, QueryField, QueryOp } from '../../../shared/models';
+import { FieldsType, IQueryCondition, IQueryGroup, QueryField, QueryOp } from '../../../shared/models';
 import { isCapsuleToken } from '../../../shared/utils/capsules';
 
-/** Query builder vocabulary and tree helpers. The server (summary-search.ts) validates the same fields and operators. */
-export type FieldKind = 'text' | 'value' | 'date';
+/**
+ * Query builder vocabulary and tree helpers. The server (summary-search.ts) validates the same fields and operators.
+ * number and list are catalog fields only (a content type's number / array fields).
+ */
+export type FieldKind = 'text' | 'value' | 'date' | 'number' | 'list';
 
+/** `field` is a catalog field: its label and kind come from the field itself (catalogKind). */
 export const FIELDS: Record<QueryField, { label: string; kind: FieldKind; icon: string }> = {
   text: { label: 'כל מקום', kind: 'text', icon: 'search' },
   title: { label: 'כותרת', kind: 'text', icon: 'file-text' },
@@ -17,8 +21,10 @@ export const FIELDS: Record<QueryField, { label: string; kind: FieldKind; icon: 
   color: { label: 'צבע', kind: 'value', icon: 'star' },
   eventDate: { label: 'תאריך האירוע', kind: 'date', icon: 'calendar' },
   createdDate: { label: 'תאריך יצירה', kind: 'date', icon: 'field-time' },
+  field: { label: 'שדה', kind: 'text', icon: 'profile' },
 };
-export const FIELD_KEYS = Object.keys(FIELDS) as QueryField[];
+/** The built-in fields, in picker order (catalog fields are listed after them). */
+export const FIELD_KEYS = (Object.keys(FIELDS) as QueryField[]).filter((f) => f !== 'field');
 
 export const OPS: Record<QueryOp, string> = {
   all: 'מכיל את כל המילים',
@@ -29,14 +35,54 @@ export const OPS: Record<QueryOp, string> = {
   after: 'אחרי',
   before: 'לפני',
   between: 'בין',
+  eq: 'שווה ל־',
+  gt: 'גדול מ־',
+  lt: 'קטן מ־',
+  range: 'בין',
 };
+/** List fields read their two operators differently. */
+const LIST_OPS: Partial<Record<QueryOp, string>> = { isOneOf: 'כולל אחד מ־', isNot: 'לא כולל אף אחד מ־' };
+export const opLabel = (op: QueryOp, kind: FieldKind) => (kind === 'list' ? LIST_OPS[op] : undefined) ?? OPS[op];
+
 export const OPS_BY_KIND: Record<FieldKind, QueryOp[]> = {
   text: ['all', 'any', 'none'],
   value: ['isOneOf', 'isNot'],
   date: ['after', 'before', 'between'],
+  number: ['eq', 'gt', 'lt', 'range'],
+  list: ['isOneOf', 'isNot'],
 };
 /** must / optional / exclusion — colors the operator in the row */
 export const opTone = (op: QueryOp) => (op === 'none' || op === 'isNot' ? 'not' : op === 'any' ? 'opt' : 'must');
+
+/** How a catalog field of this type is searched (hour fields read as text). */
+export function catalogKind(type: FieldsType): FieldKind {
+  if (type === FieldsType.Number) return 'number';
+  if (type === FieldsType.Date) return 'date';
+  if (type === FieldsType.Array) return 'list';
+  return 'text';
+}
+
+const OP_KIND: Record<QueryOp, FieldKind> = {
+  all: 'text',
+  any: 'text',
+  none: 'text',
+  eq: 'number',
+  gt: 'number',
+  lt: 'number',
+  range: 'number',
+  after: 'date',
+  before: 'date',
+  between: 'date',
+  isOneOf: 'list',
+  isNot: 'list',
+};
+
+/** A condition's kind: a built-in field's own; a catalog field's follows from its operator (each kind has its own). */
+export const kindOf = (c: Pick<IQueryCondition, 'field' | 'op'>): FieldKind => (c.field === 'field' ? OP_KIND[c.op] : FIELDS[c.field].kind);
+
+/** Which bounds an operator reads: eq / gt / after read `from`, lt / before read `to`, range / between both. */
+export const readsFrom = (op: QueryOp) => op !== 'lt' && op !== 'before';
+export const readsTo = (op: QueryOp) => op !== 'eq' && op !== 'gt' && op !== 'after';
 
 // ---------------------------------------------------------------- editable tree (nodes carry ids for tracking)
 
@@ -75,11 +121,21 @@ export function toEditable(q: IQueryGroup | undefined): EditGroup {
   return walk(q) as EditGroup;
 }
 
+/** A condition on a catalog field, starting with the first operator of its kind. */
+export const newCatalogCondition = (fieldId: string, type: FieldsType): EditCondition => ({
+  ...newCondition('field'),
+  fieldId,
+  op: OPS_BY_KIND[catalogKind(type)][0],
+});
+
+const filled = (v: string | undefined) => !!v && v.trim() !== '';
+
 export function isEmptyCondition(c: IQueryCondition): boolean {
-  const kind = FIELDS[c.field].kind;
+  if (c.field === 'field' && !c.fieldId) return true;
+  const kind = kindOf(c);
   if (kind === 'text') return !c.words?.some((w) => w.trim());
-  if (kind === 'value') return !c.values?.length;
-  return !(c.op !== 'before' && c.from) && !(c.op !== 'after' && c.to);
+  if (kind === 'value' || kind === 'list') return !c.values?.length;
+  return !(readsFrom(c.op) && filled(c.from)) && !(readsTo(c.op) && filled(c.to));
 }
 
 /** Editable tree → what is sent: no ids, no empty conditions or groups, only the keys each field uses. Undefined if nothing is left. */
@@ -88,11 +144,11 @@ export function toQuery(g: EditGroup): IQueryGroup | undefined {
     .map((c): IQueryGroup | IQueryCondition | undefined => {
       if (c.type === 'group') return toQuery(c);
       if (isEmptyCondition(c)) return undefined;
-      const kind = FIELDS[c.field].kind;
-      const base = { type: 'cond' as const, field: c.field, op: c.op };
+      const kind = kindOf(c);
+      const base = { type: 'cond' as const, field: c.field, ...(c.field === 'field' ? { fieldId: c.fieldId } : {}), op: c.op };
       if (kind === 'text') return { ...base, words: c.words.map((w) => w.trim()).filter(Boolean) };
-      if (kind === 'value') return { ...base, values: c.values };
-      return { ...base, ...(c.op !== 'before' && c.from ? { from: c.from } : {}), ...(c.op !== 'after' && c.to ? { to: c.to } : {}) };
+      if (kind === 'value' || kind === 'list') return { ...base, values: c.values };
+      return { ...base, ...(readsFrom(c.op) && filled(c.from) ? { from: c.from!.trim() } : {}), ...(readsTo(c.op) && filled(c.to) ? { to: c.to!.trim() } : {}) };
     })
     .filter((c) => !!c);
   return children.length ? { type: 'group', op: g.op, children } : undefined;
@@ -131,7 +187,7 @@ export interface SentencePart {
   color?: string;
 }
 
-/** Display names for ids and names held in conditions (and for `#cap:<id>` words). */
+/** Display names for ids and names held in conditions (and for `#cap:<id>` words); `('field', fieldId)` names a catalog field. */
 export type ValueName = (field: QueryField, value: string) => string;
 
 const LEADS: Partial<Record<QueryOp, [string, SentenceClass]>> = {
@@ -155,7 +211,8 @@ export function conditionSentence(c: IQueryCondition, name: ValueName): Sentence
       if (i) out.push({ text: sep, cls: 'dim' });
       out.push(p);
     });
-  const kind = FIELDS[c.field].kind;
+  const kind = kindOf(c);
+  const fieldName = c.field === 'field' ? name('field', c.fieldId ?? '') : FIELDS[c.field].label;
 
   if (kind === 'text') {
     const [lead, cls] = LEADS[c.op]!;
@@ -164,7 +221,24 @@ export function conditionSentence(c: IQueryCondition, name: ValueName): Sentence
       c.words!.filter(Boolean).map((w): SentencePart => (isCapsuleToken(w) ? { text: `#${name(c.field, w)}`, cls: 'capsule' } : { text: `"${w}"`, cls: 'term' })),
       c.op === 'all' ? '+' : '/',
     );
-    if (c.field !== 'text') out.push({ text: `ב${FIELDS[c.field].label}`, cls: 'dim' });
+    if (c.field !== 'text') out.push({ text: `ב${fieldName}`, cls: 'dim' });
+  } else if (c.field === 'field') {
+    // A catalog field: «ש־<field> <op> <value>».
+    out.push({ text: `ש־${fieldName}`, cls: 'dim' });
+    if (kind === 'list') {
+      out.push({ text: opLabel(c.op, kind), cls: c.op === 'isNot' ? 'not' : 'lead' });
+      list(
+        c.values!.map((v) => ({ text: `"${v}"`, cls: 'term' })),
+        '/',
+      );
+    } else {
+      const fmt = kind === 'date' ? fmtDate : (v: string | undefined) => v?.trim() || '…';
+      if (c.op === 'range' || c.op === 'between') {
+        if (filled(c.from) && filled(c.to)) out.push({ text: 'בין', cls: 'lead' }, { text: fmt(c.from), cls: 'term' }, { text: 'ל־', cls: 'lead' }, { text: fmt(c.to), cls: 'term' });
+        else if (filled(c.from)) out.push({ text: kind === 'date' ? 'מ־' : 'לפחות', cls: 'lead' }, { text: fmt(c.from), cls: 'term' });
+        else out.push({ text: kind === 'date' ? 'עד' : 'לכל היותר', cls: 'lead' }, { text: fmt(c.to), cls: 'term' });
+      } else out.push({ text: OPS[c.op], cls: 'lead' }, { text: fmt(readsFrom(c.op) ? c.from : c.to), cls: 'term' });
+    }
   } else if (kind === 'value') {
     const [yes, no] = VALUE_LEADS[c.field];
     out.push({ text: c.op === 'isNot' ? no : yes, cls: c.op === 'isNot' ? 'not' : 'lead' });

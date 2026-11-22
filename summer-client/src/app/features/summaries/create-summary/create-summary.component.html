@@ -29,10 +29,14 @@
         <div class="muted hint">
           @switch (kind()) {
             @case (K.Running) {
-              סדרה ממוקדת (למשל "ספר 1, פרק 3") עם טווח תאריכים, שאליה מוסיפים תמציתוניות.
+              סדרה ממוקדת (למשל "ספר 1, פרק 3") עם טווח תאריכים. אין לה תוכן משלה — התמציתוניות הן התוכן, ולכן כותבים כאן לפחות אחת.
             }
             @case (K.Sumaroon) {
-              חלק אחד מתוך תמצית רצף — יורש ממנה את סוג התוכן, התגיות וההרשאות.
+              @if (liteSumaroon()) {
+                רשומה קצרה בתוך תמצית רצף: רק תאריך, קישור ותוכן — כל השאר מגיע מתמצית הרצף.
+              } @else {
+                חלק אחד מתוך תמצית רצף — יורש ממנה את סוג התוכן, התגיות וההרשאות.
+              }
             }
             @default {
               תמצית רגילה, שאפשר לסדר בתיקייה.
@@ -78,6 +82,8 @@
   <!-- 2. Details: content type and its fields, event date/time (or the running summary's range), link, department -->
   <div class="section">
     <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="calendar"></span> פרטים</div>
+    <!-- A small sumaroon takes its content type (and its fields) from the running summary: only date and link here. -->
+    @if (!liteSumaroon()) {
     <div class="field-label" id="type-label"><span class="req" aria-hidden="true">*</span> סוג תוכן</div>
     <div class="types" role="radiogroup" aria-labelledby="type-label" [class.no-selection-error]="submitted() && c.contentType.invalid" [class.locked]="contentTypeLocked()">
       @for (t of contentTypes.list(); track t._id) {
@@ -101,44 +107,46 @@
       <div class="error-text">חובה לבחור סוג תוכן</div>
     }
 
-    <!-- Content-type fields — always a single row -->
-    @if (typeFieldDefs().length) {
-      <div class="type-fields" formGroupName="typeFields">
-        @for (def of typeFieldDefs(); track def.field._id) {
-          @let dup = duplicateFor(def.field._id);
-          <nz-form-item>
-            <nz-form-label [nzRequired]="def.required" [nzFor]="'tf-' + def.field._id">{{ def.field.name }}</nz-form-label>
-            <nz-form-control nzErrorTip="חסר ערך">
-              @switch (def.field.type) {
-                @case (FT.Number) {
-                  <nz-input-number [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" (nzBlur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
-                }
-                @case (FT.Date) {
-                  <nz-date-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="dd/MM/yyyy" />
-                }
-                @case (FT.Hour) {
-                  <nz-time-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="HH:mm" />
-                }
-                @default {
-                  <input nz-input [id]="'tf-' + def.field._id" [formControlName]="def.field._id" (blur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
-                }
+    <!-- Content-type fields — one row, always there (empty or not), so switching types doesn't move the form -->
+    <div class="type-fields" formGroupName="typeFields">
+      @if (!typeFieldDefs().length) {
+        <div class="type-fields-empty muted">{{ contentType() ? 'לסוג התוכן הזה אין שדות ייעודיים' : 'בחרו סוג תוכן כדי לראות את השדות שלו' }}</div>
+      }
+      @for (def of typeFieldDefs(); track def.field._id) {
+        @let dup = duplicateFor(def.field._id);
+        <nz-form-item>
+          <nz-form-label [nzRequired]="def.required" [nzFor]="'tf-' + def.field._id">{{ def.field.name }}</nz-form-label>
+          <nz-form-control nzErrorTip="חסר ערך">
+            @switch (def.field.type) {
+              @case (FT.Number) {
+                <nz-input-number [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" (nzBlur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
               }
-              @if (dup) {
-                <div class="dup" nz-popover [nzPopoverContent]="dupList" nzPopoverTrigger="hover">
-                  <span nz-icon nzType="exclamation-circle"></span> קיימת תמצית למזהה זה (ניתן ליצור בכל זאת) — {{ dup.summaries.length }} תמציות
-                </div>
-                <ng-template #dupList>
-                  <ul class="dup-list">
-                    @for (s of dup.summaries; track s._id) {
-                      <li><a [routerLink]="['/summaries', s._id]" target="_blank">{{ s.title }}</a></li>
-                    }
-                  </ul>
-                </ng-template>
+              @case (FT.Date) {
+                <nz-date-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="dd/MM/yyyy" />
               }
-            </nz-form-control>
-          </nz-form-item>
-        }
-      </div>
+              @case (FT.Hour) {
+                <nz-time-picker [nzId]="'tf-' + def.field._id" [formControlName]="def.field._id" nzFormat="HH:mm" />
+              }
+              @default {
+                <input nz-input [id]="'tf-' + def.field._id" [formControlName]="def.field._id" (blur)="checkDuplicate(def.field, typeFields.controls[def.field._id].value)" />
+              }
+            }
+            @if (dup) {
+              <div class="dup" nz-popover [nzPopoverContent]="dupList" nzPopoverTrigger="hover">
+                <span nz-icon nzType="exclamation-circle"></span> קיימת תמצית למזהה זה (ניתן ליצור בכל זאת) — {{ dup.summaries.length }} תמציות
+              </div>
+              <ng-template #dupList>
+                <ul class="dup-list">
+                  @for (s of dup.summaries; track s._id) {
+                    <li><a [routerLink]="['/summaries', s._id]" target="_blank">{{ s.title }}</a></li>
+                  }
+                </ul>
+              </ng-template>
+            }
+          </nz-form-control>
+        </nz-form-item>
+      }
+    </div>
     }
 
     <div class="grid">
@@ -156,10 +164,12 @@
             <nz-date-picker formControlName="eventDate" nzFormat="dd/MM/yyyy" [nzDisabledDate]="outsideParentRange" />
           </nz-form-control>
         </nz-form-item>
-        <nz-form-item>
-          <nz-form-label>שעה</nz-form-label>
-          <nz-form-control><nz-time-picker formControlName="eventSecTime" nzFormat="HH:mm" nzPlaceHolder="בחירת שעה" /></nz-form-control>
-        </nz-form-item>
+        @if (!liteSumaroon()) {
+          <nz-form-item>
+            <nz-form-label>שעה</nz-form-label>
+            <nz-form-control><nz-time-picker formControlName="eventSecTime" nzFormat="HH:mm" nzPlaceHolder="בחירת שעה" /></nz-form-control>
+          </nz-form-item>
+        }
       }
       @if (kind() === K.Sumaroon) {
         <nz-form-item>
@@ -169,38 +179,106 @@
           </nz-form-control>
         </nz-form-item>
       }
-      <nz-form-item>
-        <nz-form-label nzFor="department">מחלקה / פקולטה</nz-form-label>
-        <nz-form-control><input nz-input id="department" formControlName="department" /></nz-form-control>
-      </nz-form-item>
+      @if (!liteSumaroon()) {
+        <nz-form-item>
+          <nz-form-label nzFor="department">מחלקה / פקולטה</nz-form-label>
+          <nz-form-control><input nz-input id="department" formControlName="department" /></nz-form-control>
+        </nz-form-item>
+      }
     </div>
   </div>
 
-  <!-- 3. Content: title + body -->
+  <!-- 3. Content: title + body (a small sumaroon has no title: it's made from the content) -->
   <div class="section">
     <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="file-text"></span> תוכן</div>
-    <nz-form-item>
-      <nz-form-label nzRequired nzFor="title">כותרת</nz-form-label>
-      <nz-form-control nzErrorTip="חובה למלא כותרת">
-        <input nz-input id="title" formControlName="title" placeholder="כותרת התמצית" />
-      </nz-form-control>
-    </nz-form-item>
-    <nz-form-item>
-      <nz-form-label nzRequired>תוכן</nz-form-label>
-      <nz-form-control nzErrorTip="חובה למלא את תוכן התמצית">
-        <quill-editor
-          formControlName="content"
-          [placeholder]="editorPlaceholder"
-          [styles]="{ minHeight: '260px' }"
-          (onEditorCreated)="onEditorCreated($event)"
-          class="editor"
-          [class.invalid]="c.content.invalid && c.content.dirty"
-        />
-      </nz-form-control>
-    </nz-form-item>
+    @if (!liteSumaroon()) {
+      <nz-form-item>
+        <nz-form-label nzRequired nzFor="title">כותרת</nz-form-label>
+        <nz-form-control nzErrorTip="חובה למלא כותרת">
+          <input nz-input id="title" formControlName="title" placeholder="כותרת התמצית" />
+        </nz-form-control>
+      </nz-form-item>
+    }
+    <!-- A running summary has no content of its own: its sumaroons (below, when it's new) are the content. -->
+    @if (kind() !== K.Running) {
+      <nz-form-item>
+        <nz-form-label nzRequired>תוכן</nz-form-label>
+        <nz-form-control nzErrorTip="חובה למלא את תוכן התמצית">
+          <quill-editor
+            formControlName="content"
+            [placeholder]="editorPlaceholder"
+            [styles]="{ minHeight: '260px' }"
+            (onEditorCreated)="onEditorCreated($event)"
+            class="editor"
+            [class.invalid]="c.content.invalid && c.content.dirty"
+          />
+        </nz-form-control>
+      </nz-form-item>
+    }
   </div>
 
-  <!-- 4. Sharing & organizing: permissions, tagged users, labels, folder -->
+  <!-- 3b. New running summary: its sumaroons, in place of content. The first is required; more are optional. -->
+  @if (inlineSumaroons()) {
+    <div class="section" formArrayName="sumaroons">
+      <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="unordered-list"></span> תמציתוניות</div>
+      <div class="muted hint">
+        {{ liteStyle() ? 'כל תמציתונית היא רק תאריך, קישור ותוכן' : 'כל תמציתונית עם כותרת, תאריך, קישור ותוכן' }} — סוג התוכן, התגיות וההרשאות מגיעים מתמצית הרצף. צריך לפחות אחת.
+      </div>
+      @for (row of c.sumaroons.controls; track row; let i = $index) {
+        <div class="inline-sumaroon" [formGroupName]="i" role="group" [attr.aria-label]="'תמציתונית ' + (i + 1)">
+          <div class="inline-head">
+            <span class="inline-number">{{ i + 1 }}</span>
+            <span class="inline-title">{{ i === 0 ? 'תמציתונית ראשונה' : 'תמציתונית ' + (i + 1) }}</span>
+            <span class="spacer"></span>
+            @if (i > 0) {
+              <button nz-button nzType="text" nzSize="small" type="button" (click)="removeSumaroon(i)" [attr.aria-label]="'הסרת תמציתונית ' + (i + 1)">
+                <span nz-icon nzType="delete"></span>
+              </button>
+            }
+          </div>
+          @if (!liteStyle()) {
+            <nz-form-item>
+              <nz-form-label nzRequired [nzFor]="'st-' + i">כותרת</nz-form-label>
+              <nz-form-control nzErrorTip="חובה למלא כותרת">
+                <input nz-input [id]="'st-' + i" formControlName="title" placeholder="כותרת התמציתונית" />
+              </nz-form-control>
+            </nz-form-item>
+          }
+          <div class="grid">
+            <nz-form-item>
+              <nz-form-label nzRequired>תאריך</nz-form-label>
+              <nz-form-control nzErrorTip="חובה לבחור תאריך בתוך הטווח">
+                <nz-date-picker formControlName="eventDate" nzFormat="dd/MM/yyyy" [nzDisabledDate]="outsideOwnRange" />
+              </nz-form-control>
+            </nz-form-item>
+            <nz-form-item>
+              <nz-form-label [nzFor]="'sl-' + i">קישור</nz-form-label>
+              <nz-form-control nzErrorTip="קישור צריך להתחיל ב-http:// או https://">
+                <input nz-input [id]="'sl-' + i" formControlName="link" placeholder="https://" dir="ltr" />
+              </nz-form-control>
+            </nz-form-item>
+          </div>
+          <nz-form-item>
+            <nz-form-label nzRequired>תוכן</nz-form-label>
+            <nz-form-control nzErrorTip="חובה למלא תוכן">
+              <quill-editor
+                formControlName="content"
+                placeholder="מה קרה?"
+                [styles]="{ minHeight: '100px' }"
+                (onEditorCreated)="onEditorCreated($event)"
+                class="editor"
+                [class.invalid]="row.controls.content.invalid && row.controls.content.dirty"
+              />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      }
+      <button nz-button nzType="dashed" type="button" class="add-sumaroon" (click)="addSumaroon()"><span nz-icon nzType="plus"></span> עוד תמציתונית</button>
+    </div>
+  }
+
+  <!-- 4. Sharing & organizing: permissions, tagged users, labels, folder (a small sumaroon has none of its own) -->
+  @if (!liteSumaroon()) {
   <div class="section">
     <div class="section-head">
       <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="team"></span> שיתוף ושיוך</div>
@@ -270,37 +348,88 @@
           <ng-template #permTag let-selected><span class="perm-tag"><span class="dot" [style.background]="permissionColor(selected.nzValue)"></span>{{ selected.nzLabel }}</span></ng-template>
         </nz-form-control>
       </nz-form-item>
+      <!-- One field tags users and groups; it feeds the taggedUsers / taggedPermissions controls (tagsChange). -->
       <nz-form-item>
-        <nz-form-label>תיוג משתמשים</nz-form-label>
-        <nz-form-control nzExtra="משתמשים מתויגים מקבלים התראה">
-          <nz-select formControlName="taggedUsers" nzMode="multiple" nzShowSearch nzServerSearch nzPlaceHolder="חיפוש לפי שם" nzDropdownClassName="no-check" (nzOnSearch)="onUserSearch($event)">
-            @for (u of sortedUsers(); track u._id) {
-              <nz-option nzCustomContent [nzValue]="u._id" [nzLabel]="u.fullName">
-                <span class="opt">
-                  <app-avatar [user]="u" [size]="24" />
-                  <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
-                  <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinUser.bind(this, u._id))" [attr.aria-label]="'נעיצה ' + u.fullName">
-                    <span nz-icon nzType="pushpin" [nzTheme]="users.isPinnedUser(u._id) ? 'fill' : 'outline'"></span>
-                  </button>
-                </span>
-              </nz-option>
+        <nz-form-label nzFor="tags">תיוג</nz-form-label>
+        <nz-form-control nzExtra="מתויגים מקבלים התראה; בקבוצה — רק מי שיכול לצפות בתמצית">
+          <div class="tag-row">
+            <nz-select
+              nzId="tags"
+              nzMode="multiple"
+              nzShowSearch
+              nzServerSearch
+              nzPlaceHolder="חיפוש משתמש או קבוצה"
+              nzDropdownClassName="no-check"
+              [nzCustomTemplate]="tagTag"
+              [ngModel]="tagValue()"
+              (ngModelChange)="tagsChange($event)"
+              [ngModelOptions]="{ standalone: true }"
+              (nzOnSearch)="onUserSearch($event)"
+            >
+              @if (sortedUsers().length) {
+                <nz-option-group nzLabel="משתמשים">
+                  @for (u of sortedUsers(); track u._id) {
+                    <nz-option nzCustomContent [nzValue]="'u:' + u._id" [nzLabel]="u.fullName">
+                      <span class="opt">
+                        <app-avatar [user]="u" [size]="24" />
+                        <span class="opt-label">{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
+                        <span class="opt-username">{{ u.username }}</span>
+                        <button type="button" class="opt-btn" (mousedown)="$event.preventDefault()" (click)="optionAction($event, pinUser.bind(this, u._id))" [attr.aria-label]="'נעיצה ' + u.fullName">
+                          <span nz-icon nzType="pushpin" [nzTheme]="users.isPinnedUser(u._id) ? 'fill' : 'outline'"></span>
+                        </button>
+                      </span>
+                    </nz-option>
+                  }
+                </nz-option-group>
+              }
+              @if (tagUserGroups().length) {
+                <nz-option-group nzLabel="קבוצות משתמשים שמורות (מתייגות את כל החברים)">
+                  @for (t of tagUserGroups(); track t._id) {
+                    <nz-option nzCustomContent [nzValue]="'t:' + t._id" [nzLabel]="t.name">
+                      <span class="opt">
+                        <span class="group-icon user-group"><span nz-icon nzType="usergroup-add"></span></span>
+                        <span class="opt-label">{{ t.name }}{{ t.isMine ? '' : ' - ' + t.owner.fullName }}</span>
+                        <span class="opt-count">{{ t.users.length + t.permissions.length }}</span>
+                      </span>
+                    </nz-option>
+                  }
+                </nz-option-group>
+              }
+              @if (tagGroups().length) {
+                <nz-option-group nzLabel="קבוצות">
+                  @for (p of tagGroups(); track p._id) {
+                    <nz-option nzCustomContent [nzValue]="'g:' + p._id" [nzLabel]="p.name">
+                      <span class="opt">
+                        <span class="group-icon" [style.background]="p.color"><span nz-icon nzType="team"></span></span>
+                        <span class="opt-label">{{ p.name }}</span>
+                      </span>
+                    </nz-option>
+                  }
+                </nz-option-group>
+              }
+            </nz-select>
+            @if (tagValue().length > 1) {
+              <button
+                type="button"
+                class="save-tags-btn"
+                (click)="saveTagsAsGroup()"
+                nz-tooltip="שמירת התיוג כקבוצת משתמשים"
+                aria-label="שמירת התיוג כקבוצת משתמשים"
+              >
+                <span nz-icon nzType="usergroup-add"></span>
+              </button>
             }
-          </nz-select>
-        </nz-form-control>
-      </nz-form-item>
-      <nz-form-item>
-        <nz-form-label>תיוג קבוצות</nz-form-label>
-        <nz-form-control nzExtra="חברי הקבוצה שיכולים לצפות בתמצית מקבלים התראה">
-          <nz-select formControlName="taggedPermissions" nzMode="multiple" nzShowSearch nzPlaceHolder="בחירת קבוצות הרשאה" [nzCustomTemplate]="permTag">
-            @for (p of taggablePermissions(); track p._id) {
-              <nz-option nzCustomContent [nzValue]="p._id" [nzLabel]="p.name">
-                <span class="opt">
-                  <span class="dot" [style.background]="p.color"></span>
-                  <span class="opt-label">{{ p.name }}</span>
-                </span>
-              </nz-option>
-            }
-          </nz-select>
+          </div>
+          <ng-template #tagTag let-selected>
+            <span class="perm-tag">
+              @if (selected.nzValue.startsWith('g:')) {
+                <span nz-icon nzType="team" class="tag-kind" [style.color]="permissionColor(selected.nzValue.slice(2))"></span>
+              } @else {
+                <span nz-icon nzType="user" class="tag-kind"></span>
+              }
+              {{ selected.nzLabel }}
+            </span>
+          </ng-template>
         </nz-form-control>
       </nz-form-item>
     </div>
@@ -339,31 +468,50 @@
         <nz-form-item>
           <nz-form-label nzFor="folders" [nzRequired]="folderRequired()">תיקיות</nz-form-label>
           <nz-form-control nzErrorTip="לסוג 'כללי' חובה לבחור תיקייה" [nzExtra]="folderHint()">
-            <nz-select nzId="folders" formControlName="folders" nzMode="multiple" nzShowSearch nzPlaceHolder="חיפוש תיקייה">
-              @for (f of folderOptions(); track f._id) {
-                <nz-option [nzValue]="f._id" [nzLabel]="f.path" [nzDisabled]="!!f.locked" />
-              }
-            </nz-select>
+            <nz-tree-select
+              nzId="folders"
+              formControlName="folders"
+              [nzNodes]="folderNodes()"
+              nzMultiple
+              nzShowSearch
+              nzHideUnMatched
+              [nzTreeTemplate]="folderNode"
+              [nzDisplayWith]="folderTag"
+              nzPlaceHolder="חיפוש תיקייה"
+              nzNotFoundContent="אין תיקיות שאפשר לשייך אליהן"
+              nzDropdownClassName="folder-picker"
+              [nzDropdownStyle]="{ 'max-height': '360px', overflow: 'auto' }"
+            />
+            <!-- A folder row: click to add/remove it; picked rows are tinted with a check at the end. -->
+            <ng-template #folderNode let-node>
+              <span class="folder-node" [class.picked]="node.isSelected" [class.passage]="!node.isSelectable" [class.locked]="node.isDisabled">
+                <span nz-icon class="folder-icon" [nzType]="node.isExpanded && !node.isLeaf ? 'folder-open' : 'folder'" [nzTheme]="node.isSelected ? 'fill' : 'outline'"></span>
+                <span class="folder-name">{{ node.title }}</span>
+                @if (node.isDisabled) {
+                  <span nz-icon nzType="lock" class="folder-mark" nz-tooltip="רק מנהלי התיקייה יכולים להוציא ממנה את התמצית"></span>
+                } @else if (node.isSelected) {
+                  <span nz-icon nzType="check" class="folder-mark"></span>
+                }
+              </span>
+            </ng-template>
           </nz-form-control>
         </nz-form-item>
       }
     </div>
   </div>
+  }
 
-  <!-- 5. More: notes, extra fields, files -->
+  <!-- 5. More: notes, extra fields, files (not for a small sumaroon) -->
+  @if (!liteSumaroon()) {
   <div class="section">
     <div class="section-title" role="heading" aria-level="2"><span nz-icon nzType="paper-clip"></span> נוספים ונספחים</div>
 
-    @if (notesOpen()) {
-      <nz-form-item>
-        <nz-form-label>הערות</nz-form-label>
-        <nz-form-control>
-          <quill-editor formControlName="notes" placeholder="הערות נוספות" [styles]="{ minHeight: '100px' }" (onEditorCreated)="onEditorCreated($event)" class="editor" />
-        </nz-form-control>
-      </nz-form-item>
-    } @else {
-      <button nz-button nzType="dashed" type="button" class="add-notes" (click)="notesOpen.set(true)"><span nz-icon nzType="plus"></span> הוספת הערות</button>
-    }
+    <nz-form-item>
+      <nz-form-label>הערות</nz-form-label>
+      <nz-form-control>
+        <quill-editor formControlName="notes" placeholder="הערות נוספות" [styles]="{ minHeight: '100px' }" (onEditorCreated)="onEditorCreated($event)" class="editor" />
+      </nz-form-control>
+    </nz-form-item>
 
     <div class="field-label">שדות נוספים</div>
     <div class="extra-add">
@@ -415,6 +563,7 @@
       </div>
     </nz-upload>
   </div>
+  }
 
   <!-- Sticky action bar: what's still missing, then save -->
   <div class="actions">
@@ -429,7 +578,9 @@
     } @else if (autosavedAt()) {
       <span class="autosaved muted"><span nz-icon nzType="check"></span> נשמר אוטומטית {{ autosavedAt() | dateFormat: 'HH:mm' }}</span>
     }
-    <button nz-button type="button" [nzLoading]="saving()" (click)="submit(true)">שמירה כטיוטה</button>
+    @if (!inModal) {
+      <button nz-button type="button" [nzLoading]="saving()" (click)="submit(true)">שמירה כטיוטה</button>
+    }
     <button nz-button nzType="primary" type="submit" [nzLoading]="saving()">{{ isEdit() ? 'עדכון' : 'פרסום' }}</button>
   </div>
 </form>

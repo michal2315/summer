@@ -1,0 +1,36 @@
+@if (list().length) {
+  <ul class="cards">
+    @for (g of list(); track g._id) {
+      <li class="card" (contextmenu)="openMenu($event, menu)">
+        <button type="button" class="open" (click)="edit(g)" nz-tooltip="עריכת הקבוצה · קליק ימני לפעולות">
+          <span class="name-row">
+            <span class="name">{{ g.name }}</span>
+            <span class="marks">
+              @if (g.isFavorite) {
+                <span nz-icon nzType="star" nzTheme="fill" class="mark-fav" aria-label="מועדפת"></span>
+              }
+              @if (g.isShared) {
+                <span nz-icon nzType="team" class="mark-shared" aria-label="משותפת"></span>
+              }
+            </span>
+          </span>
+          <span class="desc">{{ describe(g) }}</span>
+        </button>
+
+        <nz-dropdown-menu #menu="nzDropdownMenu">
+          <ul nz-menu class="shelf-menu">
+            <li nz-menu-item (click)="toggleFavorite(g)"><span nz-icon nzType="star" [nzTheme]="g.isFavorite ? 'fill' : 'outline'"></span> {{ g.isFavorite ? 'הסרה מהמועדפות' : 'סימון כמועדפת' }}</li>
+            <li nz-menu-item (click)="toggleShared(g)"><span nz-icon nzType="team"></span> {{ g.isShared ? 'הפסקת השיתוף' : 'שיתוף עם כולם' }}</li>
+            <li nz-menu-item (click)="edit(g)"><span nz-icon nzType="edit"></span> עריכה</li>
+            <li nz-menu-divider></li>
+            <li nz-menu-item class="danger" (click)="remove(g)"><span nz-icon nzType="delete"></span> מחיקה</li>
+          </ul>
+        </nz-dropdown-menu>
+      </li>
+    }
+  </ul>
+} @else if (filter()) {
+  <div class="empty">אין קבוצת משתמשים בשם הזה.</div>
+} @else if (groups.list() !== null) {
+  <div class="empty">אין עדיין קבוצות משתמשים. קבוצה שומרת כמה אנשים וקבוצות שמתייגים יחד, ובחירה בה בשדה התיוג מתייגת את כולם.</div>
+}

@@ -1,0 +1,193 @@
+@use 'tokens' as *;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: 16px;
+  background: $input-color;
+  input {
+    all: unset;
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+  }
+}
+.search-icon {
+  color: $gray;
+}
+.head-action,
+.twisty,
+.more {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 6px;
+  color: $gray;
+  cursor: pointer;
+  &:hover {
+    color: $dark-blue;
+    background: $input-color;
+  }
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+}
+span.twisty {
+  cursor: default;
+  &:hover {
+    background: none;
+  }
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 13px;
+  color: $gray;
+}
+
+.branch {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  .branch {
+    padding-inline-start: 16px;
+  }
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: $border-radius;
+  transition: background $transition, box-shadow $transition, opacity $transition;
+  &:hover {
+    background: $surface-subtle;
+  }
+  .more {
+    opacity: 0;
+  }
+  &:hover .more,
+  .more:focus-visible {
+    opacity: 1;
+  }
+  // The target: where the next "move" goes.
+  &.picked {
+    background: $orange-50;
+    box-shadow: inset -3px 0 0 $primary-orange;
+    .label {
+      font-weight: 700;
+      color: $orange-strong;
+    }
+  }
+  &.drop {
+    background: $orange-100;
+    box-shadow: inset 0 0 0 2px $primary-orange;
+  }
+  &.landed {
+    animation: landed 1.2s ease;
+  }
+  &.dimmed {
+    opacity: 0.45;
+  }
+  &.readonly .link {
+    color: $dark-gray;
+  }
+}
+
+// "Without folder": pink and dashed, like "summaries in no folder" in the side nav.
+.node.no-folder {
+  margin-bottom: 4px;
+  border: 1px dashed rgba($primary-pink, 0.35);
+  .icon,
+  .label {
+    color: $primary-pink;
+  }
+  &.picked {
+    background: rgba($primary-pink, 0.08);
+    box-shadow: inset -3px 0 0 $primary-pink;
+    .label {
+      color: $pink-strong;
+    }
+  }
+  &.drop {
+    background: rgba($primary-pink, 0.15);
+    box-shadow: inset 0 0 0 2px $primary-pink;
+  }
+}
+
+.link {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+}
+.icon {
+  flex: none;
+  color: $primary-orange;
+}
+.readonly .icon {
+  color: $gray;
+}
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.count {
+  flex: none;
+  margin-inline-start: auto;
+  font-size: 11px;
+  color: $gray;
+}
+.lock {
+  flex: none;
+  font-size: 11px;
+  color: $gray;
+}
+
+@keyframes landed {
+  0% {
+    background: rgba($success-color, 0.35);
+  }
+  100% {
+    background: transparent;
+  }
+}

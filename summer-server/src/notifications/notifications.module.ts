@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { APP_CONFIG, AppConfig } from '../config/app-config';
-import { ContentTypesModule } from '../content-types/content-types.module';
 import { PermissionsModule } from '../permissions/permissions.module';
 import { MailWorker } from './mail-worker';
 import { Mailer, createMailer } from './mailer';
@@ -9,7 +8,7 @@ import { NotificationsRepository } from './notifications.repository';
 import { NotificationsService } from './notifications.service';
 
 @Module({
-  imports: [ContentTypesModule, PermissionsModule],
+  imports: [PermissionsModule],
   controllers: [NotificationsController],
   providers: [
     NotificationsRepository,

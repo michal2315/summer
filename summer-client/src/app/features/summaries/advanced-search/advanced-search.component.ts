@@ -3,6 +3,11 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
+import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
+import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -10,23 +15,32 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { UserService } from '../../../core/auth/user.service';
 import { CapsuleWordsInputComponent } from '../../../shared/components/capsules/capsule-words-input/capsule-words-input.component';
-import { IQueryGroup, ISummarySearch, QueryField, QueryOp, UserRef } from '../../../shared/models';
+import { IField, IQuery, IQueryGroup, ISummarySearch, QueryField, QueryOp, UserRef } from '../../../shared/models';
 import { SUMMARY_COLORS } from '../../../shared/models/colors';
 import { CapsuleService } from '../../../shared/services/capsule.service';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { FolderPath, FolderService, folderPaths } from '../../../shared/services/folder.service';
+import { QueryService } from '../../../shared/services/query.service';
 import { stripPaging } from '../../../shared/services/search-history.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { capsuleTokenId, isCapsuleToken, treeCapsuleIds } from '../../../shared/utils/capsules';
+import { QUERY_KIND_LABEL, describeSearch } from '../search-query';
 import {
   EditCondition,
   EditGroup,
   EditNode,
   FIELDS,
   FIELD_KEYS,
+  FieldKind,
   OPS,
   OPS_BY_KIND,
   addChild,
+  catalogKind,
+  kindOf,
+  newCatalogCondition,
+  opLabel,
+  readsFrom,
+  readsTo,
   newCondition,
   newGroup,
   opTone,
@@ -55,7 +69,7 @@ const COLOR_NAMES: Record<string, string> = {
  */
 @Component({
   selector: 'app-advanced-search',
-  imports: [NgTemplateOutlet, FormsModule, NzButtonModule, NzDatePickerModule, NzIconModule, NzSelectModule, NzToolTipModule, CapsuleWordsInputComponent],
+  imports: [NgTemplateOutlet, FormsModule, NzButtonModule, NzCheckboxModule, NzDatePickerModule, NzIconModule, NzInputModule, NzInputNumberModule, NzPopoverModule, NzSelectModule, NzToolTipModule, CapsuleWordsInputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './advanced-search.component.html',
   styleUrl: './advanced-search.component.scss',
@@ -66,18 +80,44 @@ export class AdvancedSearchComponent {
   private readonly folders = inject(FolderService);
   private readonly contentTypes = inject(ContentTypeService);
   private readonly capsules = inject(CapsuleService);
+  private readonly message = inject(NzMessageService);
+  readonly queries = inject(QueryService);
 
   /** The applied search; its `query` seeds the builder. */
   readonly search = input<ISummarySearch>({});
   /** What is typed in the search box right now (counted together with the tree). */
   readonly text = input('');
+  /**
+   * Inside a form that edits a saved search: no close / search / save buttons, and every change of the tree is
+   * reported through `queryChange` instead.
+   */
+  readonly embedded = input(false);
   readonly run = output<IQueryGroup | undefined>();
   readonly closed = output<void>();
+  readonly queryChange = output<IQueryGroup | undefined>();
+  /** A saved query was picked to build on: its tree is now in the builder; the parent takes its text and filters. */
+  readonly loaded = output<IQuery>();
+
+  readonly saveOpen = signal(false);
+  readonly saveName = signal('');
+  readonly saveAlert = signal(false);
+  readonly saveBusy = signal(false);
+
+  /** The "start from a saved search" picker. */
+  readonly loadText = signal('');
+  readonly loadOptions = computed(() => this.queries.search(this.loadText(), 12));
+  readonly kindLabel = QUERY_KIND_LABEL;
 
   readonly fields = FIELDS;
   readonly fieldKeys = FIELD_KEYS;
+  /** Content-type fields, offered after the built-in ones. */
+  readonly catalogFields = this.contentTypes.fields;
   readonly ops = OPS;
   readonly opTone = opTone;
+  readonly kindOf = kindOf;
+  readonly opLabel = opLabel;
+  readonly readsFrom = readsFrom;
+  readonly readsTo = readsTo;
   readonly colors = SUMMARY_COLORS;
   readonly colorNames = COLOR_NAMES;
   readonly maxDepth = MAX_DEPTH;
@@ -98,6 +138,7 @@ export class AdvancedSearchComponent {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
+    this.queries.ensureLoaded();
 
     effect(() => {
       const q = this.search().query;
@@ -138,6 +179,11 @@ export class AdvancedSearchComponent {
       )
       .subscribe((n) => this.hits.set(n));
     effect(() => {
+      const q = this.query();
+      if (untracked(this.embedded)) untracked(() => this.queryChange.emit(q));
+    });
+
+    effect(() => {
       const s = { ...stripPaging(this.search()), text: this.text().trim() || undefined, query: this.query(), sort: undefined };
       untracked(() => this.count$.next(s));
     });
@@ -149,8 +195,47 @@ export class AdvancedSearchComponent {
     this.tree.update((t) => updateNode(t, node.id, patch));
   }
 
-  setField(c: EditCondition, field: QueryField) {
-    this.update(c, { field, op: OPS_BY_KIND[FIELDS[field].kind][0], words: [], values: [], from: undefined, to: undefined });
+  /** The field picker's value: a built-in field, or `field:<id>` for a catalog field. */
+  fieldKey(c: EditCondition): string {
+    return c.field === 'field' ? `field:${c.fieldId}` : c.field;
+  }
+
+  setField(c: EditCondition, key: string) {
+    const clear = { words: [], values: [], from: undefined, to: undefined };
+    if (key.startsWith('field:')) {
+      const field = this.contentTypes.fieldsById().get(key.slice(6));
+      if (!field) return;
+      const { id: _, ...fresh } = newCatalogCondition(field._id, field.type);
+      this.update(c, { ...fresh, ...clear });
+      return;
+    }
+    const field = key as QueryField;
+    this.update(c, { field, fieldId: undefined, op: OPS_BY_KIND[FIELDS[field].kind][0], ...clear });
+  }
+
+  /** A catalog operator change within the same kind keeps the value; the bounds an operator doesn't read are dropped on send. */
+  setOp(c: EditCondition, op: QueryOp) {
+    this.update(c, { op });
+  }
+
+  setNumber(c: EditCondition, key: 'from' | 'to', n: number | null) {
+    this.update(c, { [key]: n === null || n === undefined || Number.isNaN(n) ? undefined : String(n) });
+  }
+
+  asNumber(v: string | undefined): number | null {
+    return v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
+  }
+
+  // ---- saved queries
+
+  /** Builds on a saved search: its tree replaces the builder's, and the parent takes its text and filters. */
+  loadQuery(id: string | null) {
+    const q = this.queries.byId(id);
+    if (!q) return;
+    this.tree.set(toEditable(q.search.query));
+    this.loadNames(q.search.query);
+    this.loadText.set('');
+    this.loaded.emit(q);
   }
 
   flip(g: EditGroup) {
@@ -186,10 +271,54 @@ export class AdvancedSearchComponent {
     this.run.emit(this.query());
   }
 
+  /** What saving from here keeps: the box text, the other applied filters and the tree. */
+  private searchToSave(): ISummarySearch {
+    return { ...stripPaging(this.search()), text: this.text().trim() || undefined, query: this.query() };
+  }
+
+  /** The saved query that already finds what the builder would save, if any. */
+  readonly savedMatch = computed(() => this.queries.matching(this.searchToSave()));
+
+  onSavePopover(open: boolean) {
+    this.saveOpen.set(open);
+    if (open) {
+      this.saveName.set(describeSearch(this.searchToSave()));
+      this.saveAlert.set(false);
+    }
+  }
+
+  /** Saves the tree (with the box text) as an advanced query, optionally alerting on it right away. */
+  save() {
+    const name = this.saveName().trim();
+    if (this.saveBusy() || !name || !this.query() || this.savedMatch()) return;
+    this.saveBusy.set(true);
+    const done = () => this.saveBusy.set(false);
+    this.queries.create(name, 'advanced', this.searchToSave(), this.saveAlert() ? { isActive: true } : undefined).subscribe({
+      next: () => {
+        this.saveOpen.set(false);
+        this.message.success(this.saveAlert() ? 'החיפוש נשמר, ותתקבל התראה על תמציות חדשות שמתאימות לו' : 'החיפוש המתקדם נשמר — אפשר למצוא אותו גם בעמוד הפרופיל');
+      },
+      complete: done,
+      error: done,
+    });
+  }
+
   // ---- template helpers
 
+  /** A catalog field offers its type's operators (one kind), a built-in field its own. */
   opsFor(c: EditCondition): QueryOp[] {
-    return OPS_BY_KIND[FIELDS[c.field].kind];
+    return OPS_BY_KIND[this.condKind(c)];
+  }
+
+  /** The kind the value input follows; a catalog field's comes from its type when it is known. */
+  condKind(c: EditCondition): FieldKind {
+    if (c.field !== 'field') return FIELDS[c.field].kind;
+    const f = c.fieldId ? this.contentTypes.fieldsById().get(c.fieldId) : undefined;
+    return f ? catalogKind(f.type) : kindOf(c);
+  }
+
+  catalogField(c: EditCondition): IField | undefined {
+    return c.fieldId ? this.contentTypes.fieldsById().get(c.fieldId) : undefined;
   }
 
   asDate(iso: string | undefined): Date | null {
@@ -233,6 +362,7 @@ export class AdvancedSearchComponent {
 
   private valueName(field: QueryField, value: string): string {
     if (isCapsuleToken(value)) return this.capsules.byId(capsuleTokenId(value))?.name ?? '…';
+    if (field === 'field') return this.contentTypes.fieldsById().get(value)?.name ?? 'שדה';
     if (field === 'contentType') return this.contentTypes.list().find((t) => t.name === value)?.displayName ?? value;
     if (field === 'color') return COLOR_NAMES[value] ?? value;
     return this.names().get(value) ?? '…';

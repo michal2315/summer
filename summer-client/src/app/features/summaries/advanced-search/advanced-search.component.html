@@ -5,8 +5,45 @@
       <span class="hits">{{ hits() }} תוצאות</span>
     }
     <span class="spacer"></span>
-    <button type="button" class="icon-btn" (click)="closed.emit()" nz-tooltip="סגירה (Esc)" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+    @if (!embedded()) {
+      <button type="button" class="icon-btn" (click)="closed.emit()" nz-tooltip="סגירה (Esc)" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
+    }
   </div>
+
+  @if (queries.queries().length) {
+    <!-- Start from a saved search: its conditions (and text, filters) come in to build on. -->
+    <div class="load">
+      <span class="load-label"><span nz-icon nzType="save"></span> התחלה מחיפוש שמור</span>
+      <nz-select
+        class="load-select"
+        nzSize="small"
+        nzShowSearch
+        nzServerSearch
+        nzAllowClear
+        nzPlaceHolder="הקלידו שם של חיפוש שמור"
+        [nzDropdownMatchSelectWidth]="false"
+        [ngModel]="null"
+        (ngModelChange)="loadQuery($event)"
+        (nzOnSearch)="loadText.set($event)"
+        aria-label="טעינת חיפוש שמור"
+      >
+        @for (q of loadOptions(); track q._id) {
+          <nz-option nzCustomContent [nzValue]="q._id" [nzLabel]="q.name">
+            <span class="load-option">
+              @if (q.isFavorite) {
+                <span class="load-fav" nz-icon nzType="star" nzTheme="fill"></span>
+              }
+              <span nz-icon [nzType]="q.kind === 'advanced' ? 'apartment' : 'search'" [attr.aria-label]="kindLabel[q.kind]"></span>
+              {{ q.name }}
+              @if (q.alert?.isActive) {
+                <span class="load-bell" nz-icon nzType="bell" nzTheme="fill" aria-label="יש התראה"></span>
+              }
+            </span>
+          </nz-option>
+        }
+      </nz-select>
+    </div>
+  }
 
   <div class="sentence">
     <span class="sentence-pre">תמציות ש־</span>
@@ -30,12 +67,52 @@
   </div>
 
   <div class="foot">
-    <button nz-button nzType="primary" type="button" (click)="submit()"><span nz-icon nzType="search"></span> חיפוש</button>
+    @if (!embedded()) {
+      <button nz-button nzType="primary" type="button" (click)="submit()"><span nz-icon nzType="search"></span> חיפוש</button>
+      <button
+        nz-button
+        type="button"
+        [disabled]="!query()"
+        nz-popover
+        nzPopoverTrigger="click"
+        nzPopoverTitle="שמירת החיפוש המתקדם"
+        nzPopoverPlacement="top"
+        [nzPopoverContent]="saveTpl"
+        [nzPopoverVisible]="saveOpen()"
+        (nzPopoverVisibleChange)="onSavePopover($event)"
+        [nz-tooltip]="query() ? 'שמירה כחיפוש מתקדם' : 'הוסיפו תנאי כדי לשמור'"
+      >
+        <span nz-icon nzType="save"></span> שמירה
+      </button>
+    }
     <button nz-button type="button" (click)="reset()" nz-tooltip="ניקוי כל התנאים"><span nz-icon nzType="undo"></span> ניקוי</button>
     <span class="spacer"></span>
     <span class="foot-hint">נבנה יחד עם הטקסט שבתיבת החיפוש</span>
   </div>
 </div>
+
+<ng-template #saveTpl>
+  <div class="save-search">
+    <input
+      nz-input
+      placeholder="שם החיפוש"
+      maxlength="120"
+      aria-label="שם החיפוש"
+      [ngModel]="saveName()"
+      (ngModelChange)="saveName.set($event)"
+      (keydown.enter)="$event.preventDefault(); save()"
+    />
+    <label class="save-alert" nz-checkbox [ngModel]="saveAlert()" (ngModelChange)="saveAlert.set($event)">
+      <span nz-icon nzType="bell"></span> התראה על תמציות חדשות שמתאימות
+    </label>
+    @if (savedMatch(); as m) {
+      <div class="save-clash">החיפוש הזה כבר שמור בשם "{{ m.name }}"</div>
+    }
+    <div class="save-actions">
+      <button nz-button nzType="primary" type="button" [nzLoading]="saveBusy()" [disabled]="!saveName().trim() || !!savedMatch()" (click)="save()">שמירה</button>
+    </div>
+  </div>
+</ng-template>
 
 <!-- A group: the operator sits on the bracket rail and flips with a click; children are conditions or nested groups. -->
 <ng-template #groupTpl let-node let-depth="depth">
@@ -82,21 +159,47 @@
   @let c = asCondition(node);
   <div class="cond" [class]="'tone-' + opTone(c.op)">
     <span class="cond-icon" nz-icon [nzType]="fields[c.field].icon"></span>
-    <nz-select class="cond-field" nzSize="small" [ngModel]="c.field" (ngModelChange)="setField(c, $event)" [nzDropdownMatchSelectWidth]="false" aria-label="שדה">
-      @for (f of fieldKeys; track f) {
-        <nz-option [nzValue]="f" [nzLabel]="fields[f].label" />
+    <nz-select class="cond-field" nzSize="small" nzShowSearch [ngModel]="fieldKey(c)" (ngModelChange)="setField(c, $event)" [nzDropdownMatchSelectWidth]="false" aria-label="שדה">
+      <nz-option-group nzLabel="תמצית">
+        @for (f of fieldKeys; track f) {
+          <nz-option [nzValue]="f" [nzLabel]="fields[f].label" />
+        }
+      </nz-option-group>
+      @if (catalogFields().length) {
+        <nz-option-group nzLabel="שדות של סוגי תוכן">
+          @for (f of catalogFields(); track f._id) {
+            <nz-option [nzValue]="'field:' + f._id" [nzLabel]="f.name" />
+          }
+        </nz-option-group>
       }
     </nz-select>
-    <nz-select class="cond-op" nzSize="small" [ngModel]="c.op" (ngModelChange)="update(c, { op: $event })" [nzDropdownMatchSelectWidth]="false" aria-label="תנאי">
+    @let kind = condKind(c);
+    <nz-select class="cond-op" nzSize="small" [ngModel]="c.op" (ngModelChange)="setOp(c, $event)" [nzDropdownMatchSelectWidth]="false" aria-label="תנאי">
       @for (o of opsFor(c); track o) {
-        <nz-option [nzValue]="o" [nzLabel]="ops[o]" />
+        <nz-option [nzValue]="o" [nzLabel]="opLabel(o, kind)" />
       }
     </nz-select>
 
     <div class="cond-value">
-      @switch (fields[c.field].kind) {
+      @switch (kind) {
         @case ('text') {
           <app-capsule-words-input placeholder="מילה או ביטוי + Enter, # לכמוסה" [ngModel]="c.words" (ngModelChange)="update(c, { words: $event })" />
+        }
+        @case ('number') {
+          <div class="dates">
+            @if (readsFrom(c.op)) {
+              <nz-input-number nzSize="small" [nzPlaceHolder]="c.op === 'range' ? 'מ־ (ריק = ללא הגבלה)' : 'ערך'" [ngModel]="asNumber(c.from)" (ngModelChange)="setNumber(c, 'from', $event)" />
+            }
+            @if (c.op === 'range') {
+              <span class="dates-sep">עד</span>
+            }
+            @if (readsTo(c.op)) {
+              <nz-input-number nzSize="small" [nzPlaceHolder]="c.op === 'range' ? 'עד (ריק = ללא הגבלה)' : 'ערך'" [ngModel]="asNumber(c.to)" (ngModelChange)="setNumber(c, 'to', $event)" />
+            }
+          </div>
+        }
+        @case ('list') {
+          <nz-select nzMode="tags" nzSize="small" nzPlaceHolder="ערכים + Enter" [nzOpen]="false" [ngModel]="c.values" (ngModelChange)="update(c, { values: $event })" aria-label="ערכים" />
         }
         @case ('value') {
           @switch (c.field) {

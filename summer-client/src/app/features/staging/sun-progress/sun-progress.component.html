@@ -1,0 +1,56 @@
+<div
+  class="sky"
+  [style.--sky-top]="sky().top"
+  [style.--sky-upper]="sky().upper"
+  [style.--sky-middle]="sky().middle"
+  [style.--sky-horizon]="sky().horizon"
+  [style.--glow]="sky().glow"
+  [style.--sun-x.%]="sun().left"
+  [style.--sun-y.%]="sun().top"
+>
+  <!-- Light round the sun, and soft clouds drifting by (gone at night). -->
+  <div class="glow"></div>
+  @if (!done()) {
+    <span class="cloud one"></span>
+    <span class="cloud two"></span>
+  }
+
+  @if (done()) {
+    @for (s of stars; track $index) {
+      <span class="star" [style.left.%]="s[0]" [style.top.%]="s[1]" [style.animation-delay.ms]="$index * 230"></span>
+    }
+    <span class="moon">🌙</span>
+  }
+
+  <!-- The sun's path through the sky; the part already travelled is solid. -->
+  <svg class="path" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+    <path class="track" d="M94 36 Q50 -26 6 36" pathLength="100" />
+    <path class="travelled" d="M94 36 Q50 -26 6 36" pathLength="100" [style.stroke-dashoffset]="100 - percent()" />
+  </svg>
+
+  @if (!done()) {
+    <!-- Same box as the path, so the sun's percentages land on it. -->
+    <div class="orbit">
+      <div class="sun" [style.left.%]="sun().left" [style.top.%]="sun().top">
+        <app-summy mood="empty" [size]="44" />
+      </div>
+    </div>
+  }
+
+  <!-- The sea at the horizon: the sun rises out of it and sets into it. -->
+  <svg class="sea" viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true">
+    <path class="wave back" d="M0 8 Q12.5 2 25 8 T50 8 T75 8 T100 8 T125 8 T150 8 T175 8 T200 8 V20 H0 Z" />
+    <path class="wave front" d="M0 12 Q12.5 7 25 12 T50 12 T75 12 T100 12 T125 12 T150 12 T175 12 T200 12 V20 H0 Z" />
+  </svg>
+
+  <div class="percent" aria-hidden="true">{{ percent() }}%</div>
+</div>
+
+<div class="caption">
+  <span class="phase">{{ phase() }}</span>
+  <span class="spacer"></span>
+  <span class="counts">
+    <span class="left-count">נותרו {{ left() }} מתוך {{ total() }}</span>
+    · {{ collectionsDone() }} מתוך {{ collections() }} לקטים מוינו
+  </span>
+</div>

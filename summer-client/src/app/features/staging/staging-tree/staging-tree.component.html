@@ -1,0 +1,118 @@
+<div class="head">
+  <div class="search">
+    <span class="search-icon" nz-icon nzType="search" aria-hidden="true"></span>
+    <input type="search" placeholder="חיפוש תיקייה" aria-label="חיפוש תיקייה לפי שם" [value]="query()" (input)="query.set($any($event.target).value)" (keydown.escape)="query.set('')" />
+  </div>
+  <button type="button" class="head-action" (click)="collapseAll()" nz-tooltip="כיווץ הכל" aria-label="כיווץ הכל">
+    <span nz-icon nzType="minus-square"></span>
+  </button>
+  <button type="button" class="head-action" (click)="create(null)" nz-tooltip="תיקייה חדשה ברמה העליונה" aria-label="תיקייה חדשה ברמה העליונה">
+    <span nz-icon nzType="folder-add"></span>
+  </button>
+</div>
+
+<div class="scroller" [class.dragging]="dragging()">
+  <!-- Out of the collection without going into a folder (only summaries; they show under "summaries in no folder"). -->
+  @if (!term()) {
+    <div
+      class="node no-folder"
+      [class.picked]="target() === NO_FOLDER_TARGET"
+      [class.drop]="dropOver() === NO_FOLDER_TARGET"
+      [class.dimmed]="dragging() === 'collection'"
+      (dragover)="onNoFolderDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onNoFolderDrop($event)"
+    >
+      <span class="twisty"></span>
+      <button
+        type="button"
+        class="link"
+        nz-popconfirm
+        [nzPopconfirmTitle]="question(null)"
+        [nzCondition]="!pending()"
+        nzOkText="הוצאה"
+        nzCancelText="ביטול"
+        nzPopconfirmPlacement="left"
+        (nzOnConfirm)="chooseNoFolder()"
+        [attr.aria-pressed]="target() === NO_FOLDER_TARGET"
+        nz-tooltip="מוציא מהלקט בלי לשים בתיקייה. תמצית שלא נמצאת באף תיקייה תופיע תחת 'תמציות ללא שיוך'."
+      >
+        <span class="icon" nz-icon nzType="inbox"></span>
+        <span class="label">ללא תיקייה</span>
+      </button>
+    </div>
+  }
+  @if (!store.treeLoaded()) {
+    <div class="empty">טוען…</div>
+  } @else if (!childFolders(null).length) {
+    <div class="empty">
+      @if (term()) {
+        לא נמצאו תיקיות בשם הזה
+      } @else {
+        עוד אין תיקיות. צרו תיקייה ראשונה עם <span nz-icon nzType="folder-add"></span> למעלה.
+      }
+    </div>
+  } @else {
+    <ng-container *ngTemplateOutlet="branch; context: { $implicit: null }" />
+  }
+</div>
+
+<ng-template #branch let-parent>
+  <ul class="branch" [attr.role]="parent ? 'group' : 'tree'" [attr.aria-label]="parent ? null : 'תיקיות יעד'">
+    @for (f of childFolders(parent); track f._id) {
+      @let open = !!term() || expanded().has(f._id);
+      @let kids = hasChildren(f);
+      @let takes = canTake(f);
+      <li role="treeitem" [attr.aria-expanded]="kids ? open : null" [attr.aria-selected]="target() === f._id">
+        <div
+          class="node"
+          [class.picked]="target() === f._id"
+          [class.drop]="dropOver() === f._id"
+          [class.landed]="landed() === f._id"
+          [class.readonly]="!takes"
+          [class.dimmed]="dragging() && !takes"
+          (dragover)="onDragOver($event, f)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event, f)"
+        >
+          @if (kids && !term()) {
+            <button type="button" class="twisty" (click)="toggle(f._id)" [attr.aria-label]="open ? 'כיווץ' : 'הרחבה'">
+              <span nz-icon [nzType]="open ? 'down' : 'left'"></span>
+            </button>
+          } @else {
+            <span class="twisty"></span>
+          }
+          <button
+            type="button"
+            class="link"
+            nz-popconfirm
+            [nzPopconfirmTitle]="question(f.name)"
+            [nzCondition]="!takes || !pending()"
+            nzOkText="העברה"
+            nzCancelText="ביטול"
+            nzPopconfirmPlacement="left"
+            (nzOnConfirm)="choose(f)"
+            [attr.aria-pressed]="takes ? target() === f._id : null"
+          >
+            <span class="icon" nz-icon [nzType]="open && kids ? 'folder-open' : 'folder'"></span>
+            <span class="label" [innerHTML]="mark(f.name)"></span>
+            @if (f.subtreeCount) {
+              <span class="count">{{ f.subtreeCount }}</span>
+            }
+            @if (!takes) {
+              <span class="lock" nz-icon nzType="lock" nz-tooltip="אינך מנהל/ת של התיקייה הזו"></span>
+            }
+          </button>
+          @if (takes) {
+            <button type="button" class="more" (click)="create(f)" nz-tooltip="תיקיית משנה" [attr.aria-label]="'תיקיית משנה ב' + f.name">
+              <span nz-icon nzType="folder-add"></span>
+            </button>
+          }
+        </div>
+        @if (kids && open) {
+          <ng-container *ngTemplateOutlet="branch; context: { $implicit: f._id }" />
+        }
+      </li>
+    }
+  </ul>
+</ng-template>

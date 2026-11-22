@@ -3,8 +3,8 @@
 // Token colors, shared by the box, and the popup titles.
 $tok-user: #1d39c4;
 $tok-user-bg: #e8edff;
-$tok-type: #08793a;
-$tok-type-bg: #e3f6ea;
+$tok-field: #08793a;
+$tok-field-bg: #e3f6ea;
 $tok-and: $accent;
 $tok-and-bg: #e4e4f4;
 $tok-or: #b54d00;
@@ -13,6 +13,8 @@ $tok-not: #c41d3a;
 $tok-not-bg: #fde3e8;
 $tok-phrase: #8a6400;
 $tok-phrase-bg: #fff3bf;
+$tok-saved: #9e1068;
+$tok-saved-bg: #ffe6f2;
 
 :host {
   display: block;
@@ -59,6 +61,64 @@ $tok-phrase-bg: #fff3bf;
   color: $gray;
 }
 
+// The applied search is a saved one: its name as a pill before the text, and the box tinted to match.
+.box.saved {
+  border-color: rgba($tok-saved, 0.45);
+  background: linear-gradient(270deg, rgba($tok-saved-bg, 0.7), $white 45%);
+
+  .search-icon {
+    color: $tok-saved;
+  }
+  &.open,
+  &.focused {
+    border-color: $tok-saved;
+    box-shadow: 0 0 0 3px rgba($tok-saved, 0.12);
+  }
+}
+
+.saved-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 45%;
+  height: 26px;
+  padding-inline: 10px;
+  border-radius: 13px;
+  font-size: 13px;
+  font-weight: 600;
+  color: $white;
+  background: $tok-saved;
+  cursor: default;
+  animation: pill-in 0.2s ease both;
+
+  &.advanced {
+    background: linear-gradient(137deg, $tok-saved 0%, #6b0f9e 100%);
+  }
+  [nz-icon] {
+    font-size: 12px;
+  }
+}
+
+.saved-pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saved-pill {
+    animation: none;
+  }
+}
+
 // The mirror and the input must lay out text identically: same font, no padding, no per-token spacing.
 .field {
   position: relative;
@@ -83,6 +143,12 @@ $tok-phrase-bg: #fff3bf;
   overflow: hidden;
   pointer-events: none;
   color: $dark-blue;
+}
+
+// The mirror's only flex item: its spans flow inline, so the bidi algorithm orders them together, like the input's
+// text (separate flex items would each be laid out right-to-left as blocks).
+.mirror-line {
+  flex: none;
 }
 
 .input {
@@ -117,8 +183,8 @@ $tok-phrase-bg: #fff3bf;
 .tok-user {
   @include pill($tok-user, $tok-user-bg);
 }
-.tok-type {
-  @include pill($tok-type, $tok-type-bg);
+.tok-field {
+  @include pill($tok-field, $tok-field-bg);
 }
 .tok-and {
   @include pill($tok-and, $tok-and-bg);
@@ -132,9 +198,15 @@ $tok-phrase-bg: #fff3bf;
 .tok-phrase {
   @include pill($tok-phrase, $tok-phrase-bg);
 }
+.tok-saved {
+  @include pill($tok-saved, $tok-saved-bg);
+}
 .tok-capsule {
   @include pill($capsule, $capsule-bg);
-  // The name's underscores keep their width but read as spaces.
+}
+// A capsule name's / field value's underscores keep their width but read as spaces.
+.tok-capsule,
+.tok-field {
   .us {
     color: transparent;
   }
@@ -189,7 +261,8 @@ $tok-phrase-bg: #fff3bf;
 }
 
 .cheat-example {
-  flex: 0 0 130px;
+  flex: 0 0 auto;
+  min-width: 130px;
   font-size: 13px;
   white-space: pre;
 }
@@ -292,6 +365,34 @@ $tok-phrase-bg: #fff3bf;
   color: $gray;
 }
 
+// A saved search: favourite star and kind, in the $ list and the saved chips.
+.fav {
+  color: $star;
+}
+.option-bell {
+  color: $accent;
+  font-size: 11px;
+}
+.kind-tag {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: $gray;
+  background: $gray-tag;
+  &.advanced {
+    color: $accent;
+    background: #e4e4f4;
+  }
+}
+.chip-kind {
+  font-size: 11px;
+  color: $gray;
+}
+.popup-title-hint {
+  font-weight: 400;
+  color: $gray;
+}
+
 .empty {
   padding: 8px;
   color: $gray;
@@ -349,4 +450,21 @@ $tok-phrase-bg: #fff3bf;
   .spacer {
     flex: 1;
   }
+}
+
+// Why a $saved search can't be used here.
+.blocked-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
 }

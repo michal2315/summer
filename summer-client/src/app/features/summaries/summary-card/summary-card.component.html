@@ -8,6 +8,7 @@
   [attr.draggable]="placeable() ? 'true' : null"
   (dragstart)="placeable() && onDragStart($event)"
   (click)="onCardClick($event)"
+  (dblclick)="onCardDblClick($event)"
 >
   @if (s.kind === K.Running) {
     <div class="running-banner">
@@ -28,7 +29,7 @@
     @if (selectable()) {
       <label nz-checkbox [nzChecked]="selected()" (nzCheckedChange)="selectToggle.emit(s._id)" aria-label="בחירת התמצית"></label>
       @if (!s.canEdit) {
-        <span class="no-edit" nz-icon nzType="lock" nz-tooltip="אין לך הרשאת עריכה — פעולות עריכה ידלגו עליה" aria-label="ללא הרשאת עריכה"></span>
+        <span class="no-edit" nz-icon nzType="lock" nz-tooltip="אין לך הרשאת עריכה — תגיות ידלגו עליה" aria-label="ללא הרשאת עריכה"></span>
       }
     }
     <app-avatar [user]="s.user" [isDraft]="s.isDraft" [size]="24" />
