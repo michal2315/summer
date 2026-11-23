@@ -67,6 +67,31 @@ export interface ApiUserGroup {
   updateDate: string;
 }
 
+/** A personal export format ("pouch"): a Tiptap document with field placeholders that an export fills in. */
+export interface ApiPouchFormat {
+  _id: string;
+  name: string;
+  mode: 'perSummary' | 'combined';
+  /** Tiptap JSON */
+  doc: Record<string, unknown>;
+  page: { orientation: 'portrait' | 'landscape'; margins: 'narrow' | 'normal' | 'wide' };
+  /** only the owner's own flag; false on others' formats */
+  isFavorite: boolean;
+  /** others can find, use and copy it */
+  isShared: boolean;
+  /** the caller owns it */
+  isMine: boolean;
+  /** the caller's relation: owner, shared with them personally (viewer: use/copy · editor: also change), or only via "everyone" */
+  role: 'owner' | 'editor' | 'viewer' | 'public';
+  /** owner or editor */
+  canEdit: boolean;
+  owner: UserRef;
+  /** people it's shared with and their roles (active users); others than the owner see only their own entry */
+  members: { user: UserRef; role: 'viewer' | 'editor' }[];
+  creationDate: string;
+  updateDate: string;
+}
+
 export interface ApiUser extends UserRef {
   pinnedLabels: string[];
   favoriteLabels: string[];
@@ -204,12 +229,15 @@ export interface ApiNotification {
   creationDate: string;
   isViewed: boolean;
   createdBy?: Pick<UserRef, '_id' | 'username' | 'fullName'>;
+  /** The query whose alert it came from (opening it highlights by that search). */
+  queryId?: string;
 }
 
 /** A notifications-page feed entry: the notification, the query whose alert raised it (if any), and its summary. */
 export interface ApiNotificationFeedItem extends ApiNotification {
   kind: 'alert' | 'comment' | 'mention' | 'tag' | 'follow';
-  query?: { _id: string; name: string };
+  /** The alert it came from (also when it rode on a tag or follow notification), and its search in words. */
+  query?: { _id: string; name: string; why: string[] };
   summary: ApiSummary;
 }
 

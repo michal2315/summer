@@ -1,0 +1,61 @@
+<div class="sidebar">
+  <div class="head">
+    <div class="title">בלוקים ושדות</div>
+    <div class="hint">לחיצה מוסיפה במקום הסמן · אפשר גם לגרור אל הדף</div>
+    <nz-input-group nzSize="small" [nzPrefix]="searchIcon" class="search">
+      <input nz-input type="search" placeholder="חיפוש שדה" aria-label="חיפוש שדה" [ngModel]="text()" (ngModelChange)="text.set($event)" />
+    </nz-input-group>
+    <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
+  </div>
+
+  <div class="groups">
+    @if (!text().trim()) {
+      <div class="group blocks">
+        <button type="button" class="group-toggle" [attr.aria-expanded]="blocksOpen()" (click)="blocksOpen.set(!blocksOpen())">
+          <span nz-icon [nzType]="blocksOpen() ? 'down' : 'left'" class="chevron"></span>
+          <span class="group-name">בלוקים מוכנים</span>
+        </button>
+        @if (blocksOpen()) {
+          <div class="tiles">
+            @for (b of blocks; track b.key) {
+              <button type="button" class="tile" draggable="true" (dragstart)="blockDragStart($event, b)" (click)="pickBlock.emit(b)" [title]="b.hint">
+                <span class="glyph" aria-hidden="true">{{ b.glyph }}</span>
+                <span class="tile-label">{{ b.label }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
+    @for (g of shown(); track g.id) {
+      <div class="group" [class.core]="g.id === 'core'">
+        @if (g.id === 'core') {
+          <div class="group-title">{{ g.label }}</div>
+        } @else {
+          <button type="button" class="group-toggle" [attr.aria-expanded]="g.expanded" (click)="toggle(g.id)">
+            <span nz-icon [nzType]="g.expanded ? 'down' : 'left'" class="chevron"></span>
+            <span class="group-name">{{ g.label }}</span>
+            <span class="count">{{ text().trim() ? g.fields.length : g.total }}</span>
+          </button>
+        }
+        @if (g.expanded) {
+          <div class="fields">
+            @for (f of g.fields; track f.key) {
+              <button type="button" class="field" draggable="true" (dragstart)="dragStart($event, f)" (click)="pick.emit(f)" [title]="'הוספת «' + f.label + '»'">
+                <span class="grip" aria-hidden="true">⋮⋮</span>
+                <span class="label">{{ f.label }}</span>
+                @if (f.rich) {
+                  <span class="rich" title="נשמר עם העיצוב">עשיר</span>
+                }
+              </button>
+            } @empty {
+              <div class="empty">אין שדות</div>
+            }
+          </div>
+        }
+      </div>
+    } @empty {
+      <div class="empty">אין שדה בשם הזה</div>
+    }
+  </div>
+</div>

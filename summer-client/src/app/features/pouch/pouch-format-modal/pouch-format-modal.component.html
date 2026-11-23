@@ -1,0 +1,50 @@
+<div class="pouch">
+  <div class="bar">
+    <div class="brand" aria-hidden="true"><span class="mark">P</span></div>
+    <div class="titles">
+      <div class="kicker">Pouch · {{ !existing ? 'פורמט חדש' : canEdit ? 'עריכת פורמט' : 'צפייה בפורמט' }}</div>
+      <input
+        [readonly]="!canEdit"
+        class="name"
+        [ngModel]="name()"
+        (ngModelChange)="name.set($event); dirty.set(true)"
+        maxlength="80"
+        placeholder="שם הפורמט"
+        aria-label="שם הפורמט"
+        [attr.autofocus]="existing ? null : ''"
+      />
+    </div>
+
+    <div class="mode">
+      <nz-segmented nzSize="small" [nzDisabled]="!canEdit" [nzOptions]="modes" [ngModel]="mode()" (ngModelChange)="setMode($event)" aria-label="אופן המילוי" />
+      <span
+        nz-icon
+        nzType="info-circle"
+        class="mode-info"
+        nz-tooltip
+        [nzTooltipTitle]="
+          mode() === 'perSummary'
+            ? 'הבלוק המסומן חוזר פעם אחת לכל תמצית, בין הפתיחה לסיום. שדה מחוץ לבלוק מציג את ערכי כל התמציות, מופרדים בפסיקים.'
+            : 'המסמך נכתב פעם אחת, וכל שדה מציג את ערכי כל התמציות, מופרדים בפסיקים.'
+        "
+      ></span>
+    </div>
+
+    <span class="spacer"></span>
+    @if (existing && !existing.isMine) {
+      <span class="owner-note">הפורמט של {{ existing.owner.fullName }} · {{ canEdit ? 'יש לך הרשאת עריכה' : 'יש לך הרשאת שימוש' }}</span>
+    }
+    @if (existing?.isMine) {
+      <button nz-button type="button" (click)="share()"><span nz-icon nzType="team"></span> שיתוף</button>
+    }
+    @if (canEdit) {
+      <button nz-button type="button" (click)="cancel()">ביטול</button>
+      <button nz-button nzType="primary" type="button" [nzLoading]="saving()" (click)="save()"><span nz-icon nzType="save"></span> שמירה</button>
+    } @else {
+      <button nz-button type="button" [nzLoading]="copying()" (click)="copyToMine()"><span nz-icon nzType="copy"></span> העתקה אליי</button>
+      <button nz-button nzType="primary" type="button" (click)="cancel()">סגירה</button>
+    }
+  </div>
+
+  <app-pouch-editor class="editor" [editable]="canEdit" [doc]="doc" [mode]="mode()" [page]="page()" (pageChange)="setPage($event)" (changed)="dirty.set(true)" />
+</div>

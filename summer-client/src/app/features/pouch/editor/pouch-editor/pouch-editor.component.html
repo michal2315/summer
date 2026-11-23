@@ -1,0 +1,27 @@
+<div class="pouch-editor">
+  @if (!editable()) {
+    <div class="pouch-readonly">תצוגה בלבד · יש לך הרשאת שימוש בפורמט הזה, לא עריכה</div>
+  } @else if (editor()) {
+    <app-pouch-ribbon [editor]="editor()!" [tick]="tick()" [(page)]="page" [(zoom)]="zoom" />
+  } @else {
+    <div class="pouch-ribbon-placeholder"></div>
+  }
+
+  <div class="pouch-workspace">
+    @if (fields() && editable()) {
+      <app-pouch-field-sidebar (pick)="insertField($event)" (pickBlock)="insertBlock($event)" />
+    }
+    <div class="pouch-canvas" (mousedown)="focusEnd($event)">
+      <div
+        class="pouch-page"
+        [class.landscape]="page().orientation === 'landscape'"
+        [class.margins-narrow]="page().margins === 'narrow'"
+        [class.margins-wide]="page().margins === 'wide'"
+        [class.per-summary]="fields() && mode() === 'perSummary'"
+        [style.zoom]="zoomFactor()"
+      >
+        <div #host class="pouch-host"></div>
+      </div>
+    </div>
+  </div>
+</div>

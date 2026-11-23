@@ -97,6 +97,28 @@
         <span nz-icon nzType="file-excel"></span>&nbsp;Excel – {{ store.selectedCount() ? 'הנבחרות' : 'כל תוצאות החיפוש' }}
       </li>
       <li nz-menu-item (click)="exportWord()"><span nz-icon nzType="file-word"></span>&nbsp;Word…</li>
+      @if (pouchLauncher.enabled) {
+        <!-- Pouch: the user's own formats (a new one can be made right here, then used). -->
+        <li nz-submenu nzTitle="פורמט אישי" nzIcon="file-text">
+          <ul>
+            @for (f of pouchFormats(); track f._id) {
+              <li nz-menu-item (click)="exportPouch(f)">
+                @if (f.isFavorite) {
+                  <span nz-icon nzType="star" nzTheme="fill" class="menu-fav"></span>&nbsp;
+                }
+                {{ f.name }}
+                @if (!f.isMine) {
+                  <span class="menu-count">· {{ f.owner.fullName }}</span>
+                }
+              </li>
+            }
+            @if (pouchFormats().length) {
+              <li nz-menu-divider></li>
+            }
+            <li nz-menu-item (click)="newPouch()"><span nz-icon nzType="plus"></span>&nbsp;פורמט חדש…</li>
+          </ul>
+        </li>
+      }
     </ul>
   </nz-dropdown-menu>
   <button nz-button nzSize="small" nzType="text" type="button" nz-dropdown [nzDropdownMenu]="moreMenu" nzTrigger="click" nz-tooltip="פעולות נוספות" aria-label="פעולות נוספות">

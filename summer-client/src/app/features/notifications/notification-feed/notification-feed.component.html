@@ -37,6 +37,11 @@
       <div class="alert" [nz-tooltip]="details" nzTooltipPlacement="topRight" [nzTooltipMouseEnterDelay]="0.4">
         <span class="alert-icon" nz-icon [nzType]="kindIcon(n.kind)"></span>
         @if (n.query; as r) {
+          @if (n.kind !== 'alert') {
+            <span class="alert-label">{{ shortLabel(n) }}</span>
+            <span class="alert-plus" nz-icon nzType="bell"></span>
+          }
+          <span class="alert-kind">התראה</span>
           <button type="button" class="alert-label rule" (click)="pickQuery.emit(r._id)" [attr.aria-label]="'הצגת ההתראות מהחיפוש ' + r.name">{{ r.name }}</button>
         } @else {
           <span class="alert-label">{{ shortLabel(n) }}</span>
@@ -49,11 +54,14 @@
       </div>
       <ng-template #details>
         <div>{{ n.text }}</div>
-        @if (info) {
-          <div class="tip-why">התאים כי: {{ info.why }}</div>
+        @if (n.query?.why?.length) {
+          <div class="tip-why">ההתראה "{{ n.query!.name }}" מתריעה על תמציות: {{ n.query!.why.join(' · ') }}</div>
         }
         <div class="tip-time">{{ n.creationDate | dateFormat }}</div>
       </ng-template>
+      @if (n.query?.why?.length) {
+        <div class="why" dir="auto"><span class="why-lead">תמציות: </span>{{ n.query!.why.join(' · ') }}</div>
+      }
       <app-summary-card [summary]="n.summary" [search]="info?.highlight ?? null" (toggleOpen)="open(n)" />
     </li>
   }

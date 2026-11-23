@@ -1,4 +1,4 @@
-import { MARK as M, QueryGroup, capsuleRefs, colorValue, parseQuery, summarySearchSchema } from './summary-search';
+import { MARK as M, QueryGroup, capsuleRefs, colorValue, colorsMatching, parseQuery, summarySearchSchema } from './summary-search';
 
 describe('search query', () => {
   const terms = (text: string) => parseQuery(text).groups.map((g) => g.map((t) => (t.neg ? '-' : '') + t.term));
@@ -165,5 +165,43 @@ describe('search request', () => {
     expect(q({ fieldId: ID, op: 'range', from: '1', to: '2.5' })).toBe(true);
     expect(q({ fieldId: ID, op: 'gt', from: '' })).toBe(true);
     expect(q({ fieldId: ID, op: 'lt', to: 'ten' })).toBe(false);
+  });
+});
+
+describe('search regex', () => {
+  const ok = (v: object) => summarySearchSchema.safeParse(v).success;
+  const r = String.raw;
+
+  it('reads a marked /regex/ (spaces and \\/ allowed, unclosed to the end) as a regex term; unmarked it is a word', () => {
+    expect(parseQuery(M + r`/שיעור \d+/ ` + M + 'or ' + M + r`/a\/b c`).groups).toEqual([
+      [{ term: r`שיעור \d+`, regex: true, neg: false }],
+      [{ term: r`a\/b c`, regex: true, neg: false }],
+    ]);
+    expect(parseQuery('/x/').groups).toEqual([[{ term: '/x/', neg: false }]]);
+    expect(parseQuery(`${M}//`).groups).toEqual([]);
+  });
+
+  it('reads :field:/regex/ and negates regex terms like words', () => {
+    expect(parseQuery(`${M}:כותרת:/^מבוא .*/ ${M}not ${M}/טיוטה/`).groups).toEqual([
+      [
+        { term: '^מבוא .*', regex: true, field: 'title', neg: false },
+        { term: 'טיוטה', regex: true, neg: true },
+      ],
+    ]);
+  });
+
+  it('rejects regexes that are invalid or use what Postgres lacks', () => {
+    expect(ok({ text: M + r`/(a|b)\d{2}/` })).toBe(true);
+    expect(ok({ text: `${M}/(a/` })).toBe(false);
+    expect(ok({ text: M + r`/(?<y>\d+)/` })).toBe(false);
+    expect(ok({ text: M + r`/[\W]/` })).toBe(false);
+    const tree = (words: string[]) => ({ type: 'group', op: 'AND', children: [{ type: 'cond', field: 'title', op: 'regex', words }] });
+    expect(ok({ query: tree(['^a+$']) })).toBe(true);
+    expect(ok({ query: tree(['a[']) })).toBe(false);
+  });
+
+  it('colors by a regex over their names', () => {
+    expect(colorsMatching('^(red|כחול)$')).toEqual(['#ff0000', '#0000c9']);
+    expect(colorsMatching('(')).toEqual([]);
   });
 });

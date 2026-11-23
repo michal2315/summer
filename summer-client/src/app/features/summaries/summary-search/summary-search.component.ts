@@ -27,6 +27,7 @@ import {
   MARK,
   SEARCH_FIELDS,
   SearchField,
+  badRegexes,
   capsuleRanges,
   cleanMarks,
   deleteCapsule,
@@ -46,6 +47,7 @@ import { EasterEggsService } from '../../../shared/easter-eggs/easter-eggs.servi
 import { AltKeyDirective } from '../../../shared/keyboard/alt-key.directive';
 import { AdvancedSearchComponent } from '../advanced-search/advanced-search.component';
 import { countConditions } from '../advanced-search/query-tree';
+import { DatesPatch, SearchDatesComponent } from '../search-dates/search-dates.component';
 import { QUERY_KIND_LABEL, activeFilterCount, alertSearch, describeSearch, searchToParams } from '../search-query';
 
 /** How many saved searches the box suggests while typing. */
@@ -71,6 +73,9 @@ const SHORTCUTS: { example: string; hint: string }[] = [
   { example: `${M}:כותרת:מבוא_לביולוגיה`, hint: 'חיפוש בשדה (_ במקום רווח; רווח מסיים את השדה)' },
   { example: `${M}:סוג:שיעור`, hint: 'גם כותב, תווית, צבע, תוכן, הערות, תגובות' },
   { example: `${M}:כותרת:"מבוא לביולוגיה"`, hint: 'בתוך שדה: "מירכאות" להתאמה מדויקת' },
+  { example: `${M}/שיעור \\d+/`, hint: 'ביטוי רגולרי (רווחים מותרים, \\/ ללוכסן)' },
+  { example: `${M}/\\bמבוא\\b/`, hint: '\\b גבול מילה, \\w אות או ספרה — גם בעברית' },
+  { example: `${M}:כותרת:/^מבוא/`, hint: 'ביטוי רגולרי בשדה אחד' },
   { example: `${M}#כמוסה`, hint: 'כמוסה: קבוצת מילים שמורה' },
   { example: `${M}#שם_עם_רווחים`, hint: '_ במקום רווח בשמות כמוסות' },
   { example: `${M}$חיפוש_שמור`, hint: 'הרצת חיפוש שמור (בחירה מהרשימה) — רק לבד בתיבה' },
@@ -103,7 +108,7 @@ const capsuleNames = (text: string | undefined) => (text ? parseQuery(text).grou
     NzPopoverModule,
     NzTagModule,
     NzToolTipModule,
-    AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent, NotificationBellComponent, PreferencesButtonComponent],
+    AdvancedSearchComponent, AltKeyDirective, CapsuleChipComponent, CapsuleSuggestComponent, NotificationBellComponent, PreferencesButtonComponent, SearchDatesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './summary-search.component.html',
   styleUrl: './summary-search.component.scss',
@@ -132,6 +137,8 @@ export class SummarySearchComponent {
   readonly placeholder = input('חיפוש תמציות');
   /** The advanced-search button; off where only the text is edited (a simple saved search). */
   readonly advancedSearch = input(true);
+  /** The time-range button (event date / date written). */
+  readonly dateFilter = input(true);
   readonly searchChange = output<ISummarySearch>();
   /** The text as it is typed (before Enter), for forms that save it. */
   readonly textInput = output<string>();
@@ -439,6 +446,11 @@ export class SummarySearchComponent {
   }
 
   submit() {
+    const [bad] = badRegexes(this.text());
+    if (bad) {
+      this.message.error(`${bad.problem}: /${bad.pattern}/`);
+      return;
+    }
     this.eggs.onSearch(this.text());
     this.capsules.ensure({ names: capsuleNames(this.text()) });
     this.apply({ ...this.search(), text: this.text().trim() || undefined });
@@ -465,6 +477,11 @@ export class SummarySearchComponent {
     const base = this.advancedBase() ?? this.search();
     this.toggleAdvanced(false);
     this.apply({ ...base, text: this.text().trim() || undefined, query });
+  }
+
+  /** A time range picked (or cleared): applies with the typed text, like Enter. */
+  applyDates(patch: DatesPatch) {
+    this.apply({ ...this.search(), text: this.text().trim() || undefined, ...patch });
   }
 
   apply(s: ISummarySearch, sort = this.search().sort) {

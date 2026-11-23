@@ -1,0 +1,13 @@
+<div class="colors">
+  <button type="button" class="none" (click)="pick.emit('')">
+    <span class="swatch empty" aria-hidden="true"></span>
+    {{ noneLabel() }}
+  </button>
+  <div class="grid" role="listbox" aria-label="צבעים">
+    @for (row of rows; track $index) {
+      @for (c of row; track c) {
+        <button type="button" role="option" class="swatch" [class.current]="c === current().toLowerCase()" [style.background]="c" [attr.aria-label]="c" [title]="c" (click)="pick.emit(c)"></button>
+      }
+    }
+  </div>
+</div>

@@ -1,5 +1,6 @@
 import { FieldsType, IQueryCondition, IQueryGroup, QueryField, QueryOp } from '../../../shared/models';
 import { isCapsuleToken } from '../../../shared/utils/capsules';
+import { regexProblem } from '../../../shared/utils/search-syntax';
 
 /**
  * Query builder vocabulary and tree helpers. The server (summary-search.ts) validates the same fields and operators.
@@ -30,6 +31,7 @@ export const OPS: Record<QueryOp, string> = {
   all: 'מכיל את כל המילים',
   any: 'מכיל לפחות אחת',
   none: 'לא מכיל אף אחת',
+  regex: 'תואם ביטוי רגולרי',
   isOneOf: 'הוא אחד מ־',
   isNot: 'אינו',
   after: 'אחרי',
@@ -45,7 +47,7 @@ const LIST_OPS: Partial<Record<QueryOp, string>> = { isOneOf: 'כולל אחד �
 export const opLabel = (op: QueryOp, kind: FieldKind) => (kind === 'list' ? LIST_OPS[op] : undefined) ?? OPS[op];
 
 export const OPS_BY_KIND: Record<FieldKind, QueryOp[]> = {
-  text: ['all', 'any', 'none'],
+  text: ['all', 'any', 'none', 'regex'],
   value: ['isOneOf', 'isNot'],
   date: ['after', 'before', 'between'],
   number: ['eq', 'gt', 'lt', 'range'],
@@ -66,6 +68,7 @@ const OP_KIND: Record<QueryOp, FieldKind> = {
   all: 'text',
   any: 'text',
   none: 'text',
+  regex: 'text',
   eq: 'number',
   gt: 'number',
   lt: 'number',
@@ -154,6 +157,15 @@ export function toQuery(g: EditGroup): IQueryGroup | undefined {
   return children.length ? { type: 'group', op: g.op, children } : undefined;
 }
 
+/** The first regex condition the server would reject, as a message; undefined when there is none. */
+export function treeRegexProblem(g: IQueryGroup | undefined): string | undefined {
+  for (const c of g?.children ?? []) {
+    const problem = c.type === 'group' ? treeRegexProblem(c) : c.op === 'regex' ? c.words?.map(regexProblem).find(Boolean) : undefined;
+    if (problem) return problem;
+  }
+  return undefined;
+}
+
 export function countConditions(g: IQueryGroup): number {
   return g.children.reduce((n, c) => n + (c.type === 'group' ? countConditions(c) : isEmptyCondition(c) ? 0 : 1), 0);
 }
@@ -194,6 +206,7 @@ const LEADS: Partial<Record<QueryOp, [string, SentenceClass]>> = {
   all: ['מכילות את', 'lead'],
   any: ['מכילות אחת מ־', 'lead'],
   none: ['לא מכילות', 'not'],
+  regex: ['תואמות את הביטוי', 'lead'],
 };
 const VALUE_LEADS: Record<string, [string, string]> = {
   author: ['נכתבו על ידי', 'לא נכתבו על ידי'],
@@ -217,10 +230,16 @@ export function conditionSentence(c: IQueryCondition, name: ValueName): Sentence
   if (kind === 'text') {
     const [lead, cls] = LEADS[c.op]!;
     out.push({ text: lead, cls });
-    list(
-      c.words!.filter(Boolean).map((w): SentencePart => (isCapsuleToken(w) ? { text: `#${name(c.field, w)}`, cls: 'capsule' } : { text: `"${w}"`, cls: 'term' })),
-      c.op === 'all' ? '+' : '/',
-    );
+    if (c.op === 'regex')
+      list(
+        c.words!.filter(Boolean).map((w) => ({ text: `/${w}/`, cls: 'term' })),
+        'או',
+      );
+    else
+      list(
+        c.words!.filter(Boolean).map((w): SentencePart => (isCapsuleToken(w) ? { text: `#${name(c.field, w)}`, cls: 'capsule' } : { text: `"${w}"`, cls: 'term' })),
+        c.op === 'all' ? '+' : '/',
+      );
     if (c.field !== 'text') out.push({ text: `ב${fieldName}`, cls: 'dim' });
   } else if (c.field === 'field') {
     // A catalog field: «ש־<field> <op> <value>».

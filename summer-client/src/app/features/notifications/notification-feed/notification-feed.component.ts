@@ -15,7 +15,6 @@ import { CapsuleService } from '../../../shared/services/capsule.service';
 import { SummaryCardComponent } from '../../summaries/summary-card/summary-card.component';
 import { QueryService } from '../../../shared/services/query.service';
 import { treeCapsuleIds } from '../../../shared/utils/capsules';
-import { describeSearch } from '../../summaries/search-query';
 
 interface FeedPage {
   items: INotificationFeedItem[];
@@ -77,9 +76,9 @@ export class NotificationFeedComponent {
   readonly unread = computed(() => this.items().some((n) => !n.isViewed));
   private request?: Subscription;
 
-  /** Per query: what its alerts highlight in the summary (its search), and why it matched (in words). */
+  /** Per query: what its alerts highlight in the summary (its search). Why it matched comes with each item. */
   readonly queryInfo = computed(
-    () => new Map(this.queries.all().map((q) => [q._id, { highlight: q.search, why: describeSearch(q.search) }])),
+    () => new Map(this.queries.all().map((q) => [q._id, { highlight: q.search }])),
   );
 
   constructor() {

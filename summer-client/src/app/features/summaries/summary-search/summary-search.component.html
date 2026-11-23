@@ -280,6 +280,11 @@
     }
   </form>
 
+  <!-- Between the box and the bell: the time range, "כל הזמנים" until one is picked. -->
+  @if (dateFilter()) {
+    <app-search-dates [search]="search()" (changed)="applyDates($event)" />
+  }
+
   <ng-template #cheatsTpl>
     <div class="cheats">
       @for (c of shortcuts; track c.example) {

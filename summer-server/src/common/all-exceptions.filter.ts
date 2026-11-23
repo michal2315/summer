@@ -13,6 +13,7 @@ const PG_STATUS: Record<string, number> = {
   '23514': HttpStatus.BAD_REQUEST, // check_violation (incl. min-one-permission triggers)
   '23502': HttpStatus.BAD_REQUEST, // not_null_violation
   '22P02': HttpStatus.BAD_REQUEST, // invalid_text_representation
+  '2201B': HttpStatus.BAD_REQUEST, // invalid_regular_expression (a search regex pgRegex let through)
   '40001': HttpStatus.CONFLICT, // serialization_failure
   '40P01': HttpStatus.CONFLICT, // deadlock_detected
 };

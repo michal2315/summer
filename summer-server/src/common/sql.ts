@@ -48,6 +48,69 @@ export function textWholeWord(col: SQLWrapper, text: string): SQL {
   return sql`translate(${col}, ${FOLD_FROM}, ${FOLD_TO}) ~* ${`(^|${NON_WORD})${escaped}(${NON_WORD}|$)`}`;
 }
 
+// ---------------------------------------------------------------- regex search (`/pattern/`)
+
+/** Letters, digits and _ (Hebrew spelled out, like NON_WORD), as bracket-expression content. */
+const WORD_CHARS = '[:alnum:]א-ת_';
+/** \b / \B: Postgres' own (\y / \Y) follow the database's ctype, which may not class Hebrew as letters. */
+const BOUNDARY = `(?:(?<=[${WORD_CHARS}])(?![${WORD_CHARS}])|(?<![${WORD_CHARS}])(?=[${WORD_CHARS}]))`;
+const NON_BOUNDARY = `(?:(?<=[${WORD_CHARS}])(?=[${WORD_CHARS}])|(?<![${WORD_CHARS}])(?![${WORD_CHARS}]))`;
+
+export const MAX_REGEX = 200;
+
+/**
+ * A search regex as typed (JavaScript-style, the common subset) → Postgres ARE, folded like textLike. `\b`, `\B`, `\w`
+ * and `\W` become Hebrew-aware classes (in Postgres `\b` is a backspace). Returns the problem instead when the pattern
+ * isn't valid or uses what Postgres lacks (named groups, \p{…}, \W / \S / \D inside […]).
+ */
+export function pgRegex(pattern: string): { source: string } | { problem: string } {
+  if (pattern.length > MAX_REGEX) return { problem: `ביטוי רגולרי ארוך מ-${MAX_REGEX} תווים` };
+  try {
+    new RegExp(pattern);
+  } catch {
+    return { problem: 'ביטוי רגולרי לא תקין' };
+  }
+  if (/\(\?<(?![=!])|\\k<|\\[pP]\{/.test(pattern)) return { problem: 'קבוצות עם שם ו-\\p{…} אינם נתמכים' };
+  let out = '';
+  let inClass = false;
+  /** Just after `[` or `[^`, where a `]` is literal. */
+  let classStart = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    const wasStart = classStart;
+    classStart = false;
+    if (c === '\\' && i + 1 < pattern.length) {
+      const n = pattern[++i];
+      if (inClass) {
+        if (n === 'W' || n === 'S' || n === 'D') return { problem: `\\${n} בתוך […] אינו נתמך` };
+        out += n === 'w' ? WORD_CHARS : `\\${n}`;
+      } else out += n === 'b' ? BOUNDARY : n === 'B' ? NON_BOUNDARY : n === 'w' ? `[${WORD_CHARS}]` : n === 'W' ? `[^${WORD_CHARS}]` : `\\${foldText(n)}`;
+      continue;
+    }
+    if (!inClass && c === '[') {
+      inClass = classStart = true;
+      if (pattern[i + 1] === '^') out += '[' + pattern[++i];
+      else out += '[';
+      continue;
+    }
+    if (inClass && c === ']' && !wasStart) inClass = false;
+    out += foldText(c);
+  }
+  return { source: out };
+}
+
+/** The problem with a search regex, if any (see pgRegex). */
+export const regexProblem = (pattern: string): string | undefined => {
+  const r = pgRegex(pattern);
+  return 'problem' in r ? r.problem : undefined;
+};
+
+/** `pattern` (a search regex, see pgRegex) matches somewhere in `col`, case-insensitive, folded like textLike. Invalid → no match. */
+export function textRegex(col: SQLWrapper, pattern: string): SQL {
+  const r = pgRegex(pattern);
+  return 'source' in r ? sql`translate(${col}, ${FOLD_FROM}, ${FOLD_TO}) ~* ${r.source}` : sql`false`;
+}
+
 /** A literal uuid[] — built element by element because drizzle expands JS arrays into `($1, $2)` lists. */
 export function uuidArray(ids: string[]): SQL {
   if (!ids.length) return sql`ARRAY[]::uuid[]`;

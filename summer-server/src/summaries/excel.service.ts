@@ -30,6 +30,8 @@ const importFields = z.object({
 });
 
 const EXPORT_CHUNK = 200;
+/** A Pouch export fills an editable preview in the browser, so it takes fewer summaries than Excel. */
+const POUCH_MAX = 500;
 const BASE_KEYS = new Set(['title', 'content', 'labels', 'eventDate', 'notes', 'department']);
 
 @Injectable()
@@ -49,17 +51,31 @@ export class ExcelService {
     return this.workbook(await this.rows(me, parse(exportBody, body)));
   }
 
+  /** The requested summaries the caller may see, in order, at most `cap` (default: the export maximum). */
+  async exportIds(me: CurrentUser, req: ExportRequest, cap = this.config.excel.exportMax): Promise<string[]> {
+    if (req.all) return this.summaries.searchAllIds(me, req.search ?? parse(summarySearchSchema, {}), cap);
+    const wanted = unique(req.summariesId).slice(0, cap);
+    const visible = await this.repo.visibleIds(me, wanted);
+    return wanted.filter((id) => visible.has(id));
+  }
+
+  /**
+   * The requested summaries themselves, for the Pouch export (the client fills a format with them). At most
+   * POUCH_MAX; `capped` says there were more.
+   */
+  async exportSummaries(me: CurrentUser, body: unknown): Promise<{ summaries: ApiSummary[]; capped: boolean }> {
+    const ids = await this.exportIds(me, parse(exportBody, body), POUCH_MAX + 1);
+    const summaries: ApiSummary[] = [];
+    const wanted = ids.slice(0, POUCH_MAX);
+    for (let i = 0; i < wanted.length; i += EXPORT_CHUNK) summaries.push(...(await this.summaries.hydrate(me, wanted.slice(i, i + EXPORT_CHUNK))));
+    const order = new Map(wanted.map((id, i) => [id, i]));
+    summaries.sort((x, y) => (order.get(x._id) ?? 0) - (order.get(y._id) ?? 0));
+    return { summaries, capped: ids.length > POUCH_MAX };
+  }
+
   /** Header row + one row per requested visible summary (shared with the Word export). */
   async rows(me: CurrentUser, req: ExportRequest): Promise<string[][]> {
-    const cap = this.config.excel.exportMax;
-    let ids: string[];
-    if (req.all) {
-      ids = await this.summaries.searchAllIds(me, req.search ?? parse(summarySearchSchema, {}), cap);
-    } else {
-      const wanted = unique(req.summariesId).slice(0, cap);
-      const visible = await this.repo.visibleIds(me, wanted);
-      ids = wanted.filter((id) => visible.has(id));
-    }
+    const ids = await this.exportIds(me, req);
 
     const rows: string[][] = [['כותרת', 'מחבר', 'סוג', 'תאריך האירוע', 'תגיות', 'תוכן']];
     for (let i = 0; i < ids.length; i += EXPORT_CHUNK) {

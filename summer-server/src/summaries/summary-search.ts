@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zBoolString, zId, zList } from '../common/validation';
 import { capsuleTokenId, isCapsuleToken } from '../capsules/capsule';
 import { SUMMARY_KINDS } from '../database/schema';
+import { regexProblem } from '../common/sql';
 
 export const SEARCH_TYPES = ['TITLE', 'LABEL', 'CONTENT', 'NOTES', 'COMMENTS', 'COLOR'] as const;
 export const BUCKETS = ['SUMMARY', 'DRAFT', 'TAGGED', 'FAVORITE'] as const;
@@ -16,7 +17,8 @@ export const VALUE_FIELDS = ['author', 'contentType', 'folder', 'color'] as cons
 export const DATE_FIELDS = ['eventDate', 'createdDate'] as const;
 /** A content-type catalog field (`fieldId`); which operators apply depends on the field's type. */
 export const CATALOG_FIELD = 'field';
-const OPS_BY_KIND = { text: ['all', 'any', 'none'], value: ['isOneOf', 'isNot'], date: ['after', 'before', 'between'] } as const;
+/** `regex`: matches any of `words`, each a search regex (common/sql.ts pgRegex). */
+const OPS_BY_KIND = { text: ['all', 'any', 'none', 'regex'], value: ['isOneOf', 'isNot'], date: ['after', 'before', 'between'] } as const;
 /**
  * Operators on a catalog field: text ones (string / hour fields, by words or capsules), number ones (`from` / `to` as
  * numbers: eq and gt read `from`, lt reads `to`), date ones (`from` / `to` as ISO instants) and list ones (array fields:
@@ -47,6 +49,11 @@ const conditionSchema = z
     to: z.string().max(40).optional(),
   })
   .superRefine((c, ctx) => {
+    if (c.op === 'regex')
+      for (const w of c.words) {
+        const problem = regexProblem(w);
+        if (problem) ctx.addIssue({ code: 'custom', message: `${problem}: ${w}` });
+      }
     if (c.field === CATALOG_FIELD) {
       if (!c.fieldId) ctx.addIssue({ code: 'custom', message: 'a catalog field condition needs fieldId' });
       if (!(CATALOG_OPS as readonly string[]).includes(c.op)) ctx.addIssue({ code: 'custom', message: `"${c.op}" does not apply to a catalog field` });
@@ -103,7 +110,16 @@ const querySchema = z.preprocess(
 
 /** ISummarySearch from the client, as query params (feed) or JSON (Excel export). Unknown keys are dropped. */
 export const summarySearchSchema = z.object({
-  text: z.string().max(200).default(''),
+  text: z
+    .string()
+    .max(200)
+    .default('')
+    .superRefine((text, ctx) => {
+      for (const t of parseQuery(text).groups.flat()) {
+        const problem = t.regex ? regexProblem(t.term) : undefined;
+        if (problem) ctx.addIssue({ code: 'custom', message: `${problem}: /${t.term}/` });
+      }
+    }),
   searchTypes: zList.pipe(z.array(z.enum(SEARCH_TYPES))),
   dates: zList,
   createdDates: zList,
@@ -205,11 +221,30 @@ export function colorValue(v: string): string | undefined {
   return /^#?[0-9a-f]{6}$/.test(k) ? (k.startsWith('#') ? k : `#${k}`) : undefined;
 }
 
+/** A palette color's Hebrew name (the first one listed); the hex itself when it isn't in the palette. */
+export function colorLabel(hex: string): string {
+  const k = hex.trim().toLowerCase();
+  return Object.entries(COLOR_NAMES).find(([name, v]) => v === k && /[א-ת]/.test(name))?.[0] ?? hex;
+}
+
+/** The palette colors whose name (Hebrew or English) matches a `:color:/regex/`. */
+export function colorsMatching(pattern: string): string[] {
+  let re: RegExp;
+  try {
+    re = new RegExp(pattern, 'i');
+  } catch {
+    return [];
+  }
+  return [...new Set(Object.entries(COLOR_NAMES).flatMap(([name, hex]) => (re.test(name) ? [hex] : [])))];
+}
+
 export interface QueryTerm {
   term: string;
   neg: boolean;
   /** Came from "quotes": whole words only (otherwise matched anywhere, also inside words). */
   exact?: boolean;
+  /** Written /pattern/: `term` is a regex (common/sql.ts pgRegex). */
+  regex?: boolean;
   /** Written as `#name`: a capsule when one has that name, otherwise the plain word. */
   capsule?: boolean;
   /** `@user` (author) or `:field:value`: the term applies to this field only. */
@@ -223,8 +258,13 @@ export interface ParsedQuery {
   capsules: string[];
 }
 
-/** A :field:value token (MARK, `:name:`, then a "phrase" or a word), a "phrase", or a word. */
-const TOKEN_RE = /(?<!\S)\u2063:[^\s:]*(?::(?:"[^"]*"?|\S*))?|"([^"]*)"?|\S+/g;
+/**
+ * A :field:value token (MARK, `:name:`, then a "phrase", a /regex/ or a word), a marked /regex/ (spaces allowed, `\/`
+ * for a slash; an unclosed one runs to the end), a "phrase", or a word.
+ */
+const TOKEN_RE = /(?<!\S)\u2063:[^\s:]*(?::(?:"[^"]*"?|\/(?:\\.?|[^\\/])*\/?|\S*))?|(?<!\S)\u2063\/(?:\\.?|[^\\/])*\/?|"([^"]*)"?|\S+/g;
+/** A /regex/, its pattern in group 1. */
+const REGEX_RE = /^\/((?:\\.?|[^\\/])*)\/?$/;
 
 const strip = (s: string) => s.replaceAll(MARK, '');
 
@@ -274,6 +314,8 @@ function fieldTerms(body: string, leaf: (t: Omit<QueryTerm, 'neg'>) => Terms | u
   if (!field) return undefined;
   const value = strip(body.slice(head![0].length));
   const phrase = /^"([^"]*)"?$/.exec(value);
+  const regex = REGEX_RE.exec(value);
+  if (regex) return leaf({ term: regex[1], regex: true, field });
   return leaf(phrase ? { term: phrase[1].trim(), exact: true, field } : { term: value.replace(/_/g, ' ').trim(), field });
 }
 
@@ -304,6 +346,7 @@ export function parseQuery(text: string): ParsedQuery {
   for (const m of text.matchAll(TOKEN_RE)) {
     const raw = m[0];
     if (raw.startsWith(MARK + ':')) items.push({ terms: fieldTerms(raw.slice(1), leaf) });
+    else if (raw.startsWith(MARK + '/')) items.push({ terms: leaf({ term: REGEX_RE.exec(strip(raw))?.[1] ?? '', regex: true }) });
     else if (m[1] !== undefined) items.push({ terms: leaf({ term: strip(m[1]).trim(), exact: true }) });
     else if (raw.startsWith(MARK)) {
       const parsed = markedWord(strip(raw));

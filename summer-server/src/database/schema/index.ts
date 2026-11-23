@@ -6,4 +6,5 @@ export * from './user-state';
 export * from './queries';
 export * from './user-groups';
 export * from './notifications';
+export * from './pouch';
 export * from './relations';

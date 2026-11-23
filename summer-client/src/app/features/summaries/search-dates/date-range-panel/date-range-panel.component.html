@@ -1,0 +1,70 @@
+<div class="panel">
+  <div class="modes" role="tablist" aria-label="איך לבחור">
+    @for (m of modes; track m.label; let i = $index) {
+      <button type="button" role="tab" class="mode" [class.selected]="tab() === i" [attr.aria-selected]="tab() === i" (click)="onTab(i)">
+        <span nz-icon [nzType]="m.icon"></span>
+        {{ m.label }}
+      </button>
+    }
+  </div>
+
+  <div class="tab-body" role="tabpanel">
+    @if (tab() === 0) {
+      <div class="presets">
+        <button nz-button nzSize="small" type="button" [nzType]="current() ? 'default' : 'primary'" (click)="allTimes()">כל הזמנים</button>
+        @for (p of presets; track p.label) {
+          <button nz-button nzSize="small" type="button" (click)="preset(p)">{{ p.label }}</button>
+        }
+      </div>
+      <div class="calendar">
+        <nz-range-picker nzInline nzFormat="dd/MM/yyyy" [ngModel]="picked()" (ngModelChange)="onPick($event)" aria-label="טווח תאריכים" />
+      </div>
+    } @else {
+      <input
+        #wordsInput
+        nz-input
+        class="words-input"
+        dir="auto"
+        autocomplete="off"
+        placeholder="למשל: 3 חודשים אחרונים, מאז מרץ, 1/3 עד 15/4"
+        aria-label="טווח זמן במילים"
+        [ngModel]="words()"
+        (ngModelChange)="onWords($event)"
+        (keydown.enter)="applyWords()"
+      />
+      <div class="words-result" role="status">
+        @if (parsedText()) {
+          <span class="words-ok">{{ parsedText() }}</span>
+        } @else if (words().trim()) {
+          <span class="words-miss">לא הצלחתי להבין את הטווח — אפשר לנסות אחת מהדוגמאות</span>
+        } @else {
+          <span class="muted">אפשר לכתוב בעברית או באנגלית</span>
+        }
+      </div>
+      <div class="examples">
+        @for (e of examples; track e) {
+          <button type="button" class="example" (click)="example(e)">{{ e }}</button>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="footer">
+    <div class="side">
+      <div class="fields" role="radiogroup" aria-label="לפי איזה תאריך">
+        @for (f of fields; track f.key) {
+          <button type="button" role="radio" class="field-opt" [class.selected]="field() === f.key" [attr.aria-checked]="field() === f.key" (click)="field.set(f.key)">
+            {{ f.label }}
+            @if (has(f.key)) {
+              <span class="dot" aria-label="(מוגדר)"></span>
+            }
+          </button>
+        }
+      </div>
+      <span class="summary-value" dir="auto">{{ currentText() }}</span>
+    </div>
+    <span class="spacer"></span>
+    <button nz-button type="button" (click)="cancel()">ביטול</button>
+    <button nz-button nzType="primary" type="button" [disabled]="!changed()" (click)="apply()">החלה</button>
+  </div>
+</div>

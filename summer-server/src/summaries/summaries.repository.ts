@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SQL, SQLWrapper, and, asc, eq, exists, gte, inArray, lte, not, notInArray, or, sql } from 'drizzle-orm';
 import { CurrentUser } from '../auth/identity-provider';
 import { Capsule, CapsuleLookup, NO_CAPSULES, capsuleTokenId, isCapsuleToken, wordsOf } from '../capsules/capsule';
-import { idsWhere, textLike, textWholeWord, uuidArray } from '../common/sql';
+import { idsWhere, textLike, textRegex, textWholeWord, uuidArray } from '../common/sql';
 import { dayRange } from '../common/time';
 import { DatabaseService } from '../database/database.service';
 import {
@@ -26,7 +26,7 @@ import {
 } from '../database/schema';
 import { folderEditable, folderVisible } from '../folders/folder.access';
 import { summaryEditable, summaryVisible } from './summary.access';
-import { Bucket, CATALOG_FIELD, QueryCondition, QueryGroup, QueryTerm, SummarySearch, TEXT_FIELDS, TermField, TextField, colorValue, parseQuery } from './summary-search';
+import { Bucket, CATALOG_FIELD, QueryCondition, QueryGroup, QueryTerm, SummarySearch, TEXT_FIELDS, TermField, TextField, colorValue, colorsMatching, parseQuery } from './summary-search';
 
 type ValueTermField = Extract<TermField, 'author' | 'type' | 'color'>;
 const isValueField = (f: TermField | undefined): f is ValueTermField => f === 'author' || f === 'type' || f === 'color';
@@ -119,8 +119,8 @@ export class SummariesRepository {
     const termMatch = (t: QueryTerm): SQL | undefined => {
       const capsule = t.capsule ? capsules.byName(t.term) : undefined;
       if (capsule) return t.neg ? notTrue(this.capsuleMatch(capsule, textFields)) : this.capsuleMatch(capsule, textFields);
-      if (isValueField(t.field)) return t.neg ? notTrue(this.valueMatch(t.field, t.term)) : this.valueMatch(t.field, t.term);
-      const match = this.textMatch(t.term, t.field ? [t.field] : textFields, t.exact);
+      if (isValueField(t.field)) return t.neg ? notTrue(this.valueMatch(t.field, t.term, t.regex)) : this.valueMatch(t.field, t.term, t.regex);
+      const match = this.textMatch(t.term, t.field ? [t.field] : textFields, t.regex ? 'regex' : t.exact ? 'word' : 'contains');
       return match && t.neg ? not(match) : match;
     };
     const anyGroup = query.groups.map((g) => {
@@ -129,7 +129,7 @@ export class SummariesRepository {
       const rest: (SQL | undefined)[] = [];
       for (const t of g) {
         if (!isValueField(t.field) || t.neg) rest.push(termMatch(t));
-        else byField.set(t.field, [...(byField.get(t.field) ?? []), this.valueMatch(t.field, t.term)]);
+        else byField.set(t.field, [...(byField.get(t.field) ?? []), this.valueMatch(t.field, t.term, t.regex)]);
       }
       return and(...rest, ...[...byField.values()].map((list) => or(...list)));
     });
@@ -163,25 +163,45 @@ export class SummariesRepository {
     return conds;
   }
 
-  /** `@user`, `:type:` or `:color:` from the search text: username or full name / content type name or display name / palette color. */
-  private valueMatch(field: ValueTermField, value: string): SQL {
+  /**
+   * `@user`, `:type:` or `:color:` from the search text: username or full name / content type name or display name /
+   * palette color. With `regex`, the value is a pattern that any of those names may match.
+   */
+  private valueMatch(field: ValueTermField, value: string, regex = false): SQL {
     if (field === 'author')
-      return inArray(summaries.createdBy, this.db.select({ id: users.id }).from(users).where(or(eq(sql`lower(${users.username})`, value.toLowerCase()), eq(users.fullName, value))));
+      return inArray(
+        summaries.createdBy,
+        this.db
+          .select({ id: users.id })
+          .from(users)
+          .where(regex ? or(textRegex(users.username, value), textRegex(users.fullName, value)) : or(eq(sql`lower(${users.username})`, value.toLowerCase()), eq(users.fullName, value))),
+      );
     if (field === 'type')
       return inArray(
         summaries.contentTypeId,
         this.db
           .select({ id: contentTypes.id })
           .from(contentTypes)
-          .where(or(eq(sql`lower(${contentTypes.name})`, value.toLowerCase()), eq(contentTypes.displayName, value))),
+          .where(
+            regex
+              ? or(textRegex(contentTypes.name, value), textRegex(contentTypes.displayName, value))
+              : or(eq(sql`lower(${contentTypes.name})`, value.toLowerCase()), eq(contentTypes.displayName, value)),
+          ),
       );
+    if (regex) {
+      const colors = colorsMatching(value);
+      return colors.length ? inArray(summaries.color, colors) : sql`false`;
+    }
     const color = colorValue(value);
     return color ? eq(summaries.color, color) : sql`false`;
   }
 
-  /** `term` appears (case-insensitive substring; with `exact`, as whole words) in any of `fields`; undefined when no field applies. */
-  private textMatch(term: string, fields: readonly TextField[], exact = false): SQL | undefined {
-    const like = (col: SQLWrapper) => (exact ? textWholeWord(col, term) : textLike(col, term));
+  /**
+   * `term` appears in any of `fields`; undefined when no field applies. `contains`: a case-insensitive substring;
+   * `word`: as whole words; `regex`: `term` is a search regex (common/sql.ts pgRegex).
+   */
+  private textMatch(term: string, fields: readonly TextField[], mode: 'contains' | 'word' | 'regex' = 'contains'): SQL | undefined {
+    const like = (col: SQLWrapper) => (mode === 'regex' ? textRegex(col, term) : mode === 'word' ? textWholeWord(col, term) : textLike(col, term));
     const anyOf: SQL[] = [];
     const has = (f: TextField) => fields.includes('text') || fields.includes(f);
     if (has('title')) anyOf.push(like(summaries.title));
@@ -262,6 +282,10 @@ export class SummariesRepository {
       case 'labels': {
         // A capsule counts as one word; one that no longer exists matches nothing.
         const fields = [c.field as TextField];
+        if (c.op === 'regex') {
+          const patterns = c.words.filter(Boolean).map((w) => this.textMatch(w, fields, 'regex')!);
+          return patterns.length ? or(...patterns) : undefined;
+        }
         const matches = c.words.filter(Boolean).map((w) => {
           if (!isCapsuleToken(w)) return this.textMatch(w, fields)!;
           const capsule = capsules.byId(capsuleTokenId(w));
@@ -323,6 +347,10 @@ export class SummariesRepository {
         if (c.op === 'any') return has(or(...matches)!);
         if (c.op === 'none') return has(notTrue(or(...matches)!));
         return has(and(...matches)!);
+      }
+      case 'regex': {
+        const patterns = c.words.filter(Boolean).map((w) => textRegex(v, w));
+        return patterns.length ? has(or(...patterns)!) : undefined;
       }
       case 'eq':
       case 'gt':

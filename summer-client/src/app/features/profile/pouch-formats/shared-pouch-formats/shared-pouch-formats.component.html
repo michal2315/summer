@@ -1,0 +1,32 @@
+<div class="browser">
+  <input nz-input placeholder="חיפוש לפי שם הפורמט או מי ששיתף" aria-label="חיפוש פורמטים משותפים" [ngModel]="text()" (ngModelChange)="onText($event)" />
+
+  @if (list(); as formats) {
+    @if (formats.length) {
+      <ul class="rows">
+        @for (f of formats; track f._id) {
+          <li class="row">
+            <div class="info">
+              <div class="name">{{ f.name }}</div>
+              <div class="desc">{{ modeLabel[f.mode] }}</div>
+              <div class="owner">שותף על ידי {{ f.owner.fullName }}</div>
+            </div>
+            @if (copied().has(f._id)) {
+              <span class="done"><span nz-icon nzType="check"></span> הועתק</span>
+            } @else {
+              <button nz-button nzSize="small" type="button" [nzLoading]="copying() === f._id" (click)="copy(f)"><span nz-icon nzType="copy"></span> העתקה אליי</button>
+            }
+          </li>
+        }
+      </ul>
+      @if (more()) {
+        <button nz-button nzType="link" type="button" (click)="loadMore()">עוד פורמטים</button>
+      }
+    } @else {
+      <div class="empty">{{ text().trim() ? 'אין פורמט משותף שמתאים לחיפוש.' : 'אף אחד עוד לא שיתף פורמט.' }}</div>
+    }
+  } @else {
+    <div class="empty">טוען…</div>
+  }
+  <div class="hint">העתקה יוצרת פורמט משלכם, פרטי, שאפשר לערוך ולייצא איתו.</div>
+</div>

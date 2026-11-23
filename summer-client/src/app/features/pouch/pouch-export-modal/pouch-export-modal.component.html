@@ -1,0 +1,38 @@
+<div class="export">
+  <div class="bar">
+    <div class="brand" aria-hidden="true"><span class="mark">P</span></div>
+    <div class="titles">
+      <div class="kicker">ייצוא בפורמט אישי · {{ format.name }}</div>
+      <div class="sub">
+        @if (doc()) {
+          {{ count() }} תמציות · תצוגה מקדימה — אפשר לערוך לפני ההורדה (השינויים לא נשמרים בפורמט)
+        } @else if (!failed()) {
+          טוען את התמציות…
+        }
+      </div>
+    </div>
+    <span class="spacer"></span>
+    <label class="file">
+      <span>שם הקובץ</span>
+      <nz-input-group nzSize="small" nzAddOnAfter=".docx">
+        <input nz-input [ngModel]="fileName()" (ngModelChange)="fileName.set($event)" maxlength="150" aria-label="שם הקובץ" />
+      </nz-input-group>
+    </label>
+    <button nz-button type="button" (click)="ref.close(false)">ביטול</button>
+    <button nz-button nzType="primary" type="button" [disabled]="!doc()" [nzLoading]="downloading()" (click)="download()">
+      <span nz-icon nzType="file-word"></span> הורדה ל-Word
+    </button>
+  </div>
+
+  @if (capped()) {
+    <nz-alert nzType="warning" nzBanner [nzMessage]="'נכללו ' + count() + ' התמציות הראשונות בלבד. לייצוא של יותר, צמצמו את הבחירה או השתמשו ב-Excel.'"></nz-alert>
+  }
+
+  @if (doc(); as d) {
+    <app-pouch-editor class="editor" [doc]="d" [mode]="format.mode" [fields]="false" [page]="page()" (pageChange)="page.set($event)" />
+  } @else if (failed()) {
+    <div class="state">לא הצלחנו לטעון את התמציות. נסו שוב.</div>
+  } @else {
+    <div class="state"><span nz-icon nzType="loading"></span> ממלאים את הפורמט…</div>
+  }
+</div>

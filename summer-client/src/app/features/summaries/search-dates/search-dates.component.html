@@ -1,0 +1,37 @@
+<div
+  class="pill"
+  [class.on]="active().length"
+  [class.open]="open()"
+  nz-popover
+  nzPopoverTrigger="click"
+  nzPopoverPlacement="bottom"
+  nzPopoverOverlayClassName="search-dates-overlay"
+  [nzPopoverContent]="panel"
+  [nzPopoverVisible]="open()"
+  (nzPopoverVisibleChange)="open.set($event)"
+>
+  <button
+    type="button"
+    class="pill-main"
+    aria-haspopup="dialog"
+    [attr.aria-expanded]="open()"
+    [attr.aria-label]="'טווח תאריכים: ' + label()"
+    nzTooltipPlacement="bottom"
+    [nz-tooltip]="open() ? null : tooltip()"
+  >
+    <span nz-icon nzType="calendar"></span>
+    <span class="pill-label" dir="auto">{{ label() }}</span>
+    <span class="pill-caret" nz-icon nzType="down"></span>
+  </button>
+  @if (active().length) {
+    <button type="button" class="pill-clear" nzTooltipPlacement="bottom" nz-tooltip="כל הזמנים" aria-label="כל הזמנים (ביטול הטווח)" (click)="$event.stopPropagation(); clearAll()">
+      <span nz-icon nzType="close"></span>
+    </button>
+  }
+</div>
+
+<ng-template #panel>
+  <div class="dates-dropdown" role="dialog" aria-label="טווח תאריכים" (keydown.escape)="open.set(false)">
+    <app-date-range-panel [value]="search()" (closed)="onClosed($event)" />
+  </div>
+</ng-template>

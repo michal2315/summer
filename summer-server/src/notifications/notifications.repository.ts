@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { CurrentUser } from '../auth/identity-provider';
 import { idsWhere } from '../common/sql';
 import { DatabaseService } from '../database/database.service';
-import { NotificationKind, comments, contentTypes, labels, notifications, queries, queryAlertHits, queryAlerts, summaries, summaryLabels, userFollows, users } from '../database/schema';
+import { NotificationKind, comments, contentTypes, fields, folders, labels, notifications, queries, queryAlertHits, queryAlerts, summaries, summaryLabels, userFollows, users } from '../database/schema';
 import { summaryVisible } from '../summaries/summary.access';
 
 /** An active alert as fan-out needs it: whom it notifies, how, and its query. */
@@ -55,7 +55,7 @@ export interface MailRow {
   actorName: string | null;
   mailAttempts: number;
   recipient: Recipient;
-  alert: Pick<AlertRule, 'id' | 'name' | 'isMail' | 'isDigest' | 'isActive'> | null;
+  alert: Pick<AlertRule, 'id' | 'name' | 'isMail' | 'isDigest' | 'isActive' | 'search'> | null;
 }
 
 export interface MailPreferences {
@@ -67,6 +67,8 @@ export interface MailPreferences {
 const INBOX_LIMIT = 100;
 const author = alias(users, 'author');
 const actor = alias(users, 'actor');
+/** These kinds; "alert" also takes in notifications an alert rode on (a tag that also matched an alert is one notification). */
+const kindIn = (kinds: NotificationKind[]) => (kinds.includes('alert') ? or(inArray(notifications.kind, kinds), isNotNull(notifications.alertId)) : inArray(notifications.kind, kinds));
 
 @Injectable()
 export class NotificationsRepository {
@@ -104,11 +106,29 @@ export class NotificationsRepository {
   }
 
   /** An alert matched a summary its user was already notified about in this event: its e-mails ride on that notification. */
-  async addAlertDelivery(notificationId: string, alertId: string, mail: boolean, digest: boolean): Promise<void> {
+  async addAlertDelivery(notificationId: string, alertId: string, mail: boolean, digest: boolean, addText: string): Promise<void> {
     await this.db
       .update(notifications)
-      .set({ alertId: sql`coalesce(${notifications.alertId}, ${alertId}::uuid)`, mail: sql`${notifications.mail} or ${mail}`, digest: sql`${notifications.digest} or ${digest}` })
+      .set({
+        alertId: sql`coalesce(${notifications.alertId}, ${alertId}::uuid)`,
+        text: sql`${notifications.text} || ${addText}::text`,
+        mail: sql`${notifications.mail} or ${mail}`,
+        digest: sql`${notifications.digest} or ${digest}`,
+      })
       .where(eq(notifications.id, notificationId));
+  }
+
+  /** Display names of users, folders, content types and catalog fields (for an alert's search in words). */
+  async names(refs: { userIds: string[]; folderIds: string[]; contentTypes: string[]; fieldIds: string[] }) {
+    const ids = (list: string[]) => [...new Set(list)].filter((v) => /^[0-9a-f-]{36}$/i.test(v));
+    const [u, f, t, fl] = await Promise.all([
+      ids(refs.userIds).length ? this.db.select({ k: users.id, v: users.fullName }).from(users).where(inArray(users.id, ids(refs.userIds))) : [],
+      ids(refs.folderIds).length ? this.db.select({ k: folders.id, v: folders.name }).from(folders).where(inArray(folders.id, ids(refs.folderIds))) : [],
+      refs.contentTypes.length ? this.db.select({ k: contentTypes.name, v: contentTypes.displayName }).from(contentTypes).where(inArray(contentTypes.name, [...new Set(refs.contentTypes)])) : [],
+      ids(refs.fieldIds).length ? this.db.select({ k: fields.id, v: fields.name }).from(fields).where(inArray(fields.id, ids(refs.fieldIds))) : [],
+    ]);
+    const map = (rows: { k: string; v: string }[]) => new Map(rows.map((r) => [r.k, r.v]));
+    return { users: map(u), folders: map(f), contentTypes: map(t), fields: map(fl) };
   }
 
   /**
@@ -155,6 +175,7 @@ export class NotificationsRepository {
           alertIsMail: queryAlerts.isMail,
           alertIsDigest: queryAlerts.isDigest,
           alertIsActive: queryAlerts.isActive,
+          alertSearch: queries.search,
         })
         .from(notifications)
         .innerJoin(users, eq(users.id, notifications.userId))
@@ -179,7 +200,7 @@ export class NotificationsRepository {
           actorName: r.actorName,
           mailAttempts: r.mailAttempts,
           recipient: { id: r.userId, groupKeys: r.groupKeys, email: r.email, mailAlerts: r.mailAlerts, mailActivity: r.mailActivity },
-          alert: r.alertId ? { id: r.alertId, name: r.alertName!, isMail: r.alertIsMail!, isDigest: r.alertIsDigest!, isActive: r.alertIsActive! } : null,
+          alert: r.alertId ? { id: r.alertId, name: r.alertName!, isMail: r.alertIsMail!, isDigest: r.alertIsDigest!, isActive: r.alertIsActive!, search: (r.alertSearch ?? {}) as Record<string, unknown> } : null,
         }));
     });
   }
@@ -211,6 +232,7 @@ export class NotificationsRepository {
         summaryId: notifications.summaryId,
         createdAt: notifications.createdAt,
         viewedAt: notifications.viewedAt,
+        queryId: queryAlerts.queryId,
         authorId: author.id,
         authorUsername: author.username,
         authorFullName: author.fullName,
@@ -218,6 +240,7 @@ export class NotificationsRepository {
       .from(notifications)
       .leftJoin(summaries, eq(summaries.id, notifications.summaryId))
       .leftJoin(author, eq(author.id, notifications.createdBy))
+      .leftJoin(queryAlerts, eq(queryAlerts.id, notifications.alertId))
       .where(and(eq(notifications.userId, me.id), or(isNull(notifications.summaryId), summaryVisible(me))))
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .limit(INBOX_LIMIT);
@@ -237,6 +260,7 @@ export class NotificationsRepository {
         viewedAt: notifications.viewedAt,
         queryId: queries.id,
         queryName: queries.name,
+        querySearch: queries.search,
         kind: notifications.kind,
         authorId: author.id,
         authorUsername: author.username,
@@ -247,7 +271,7 @@ export class NotificationsRepository {
       .leftJoin(author, eq(author.id, notifications.createdBy))
       .leftJoin(queryAlerts, eq(queryAlerts.id, notifications.alertId))
       .leftJoin(queries, eq(queries.id, queryAlerts.queryId))
-      .where(and(eq(notifications.userId, me.id), summaryVisible(me), opts.queryId ? eq(queries.id, opts.queryId) : undefined, opts.kinds.length ? inArray(notifications.kind, opts.kinds) : undefined, opts.unread ? isNull(notifications.viewedAt) : undefined))
+      .where(and(eq(notifications.userId, me.id), summaryVisible(me), opts.queryId ? eq(queries.id, opts.queryId) : undefined, opts.kinds.length ? kindIn(opts.kinds) : undefined, opts.unread ? isNull(notifications.viewedAt) : undefined))
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .offset(opts.offset)
       .limit(opts.limit + 1);

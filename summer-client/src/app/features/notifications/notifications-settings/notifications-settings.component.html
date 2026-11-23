@@ -1,4 +1,4 @@
-  <div class="layout" [class.collapsed]="panelCollapsed()">
+  <div class="layout" [class.collapsed]="panelCollapsed()" [class.reading]="!!summaryId()">
     <!-- Management: e-mail switches and the user's alerts (on saved searches). Picking one narrows the feed to what it raised.
          Collapses to a thin strip at the side (remembered per browser); the feed takes the room. -->
     @if (panelCollapsed()) {

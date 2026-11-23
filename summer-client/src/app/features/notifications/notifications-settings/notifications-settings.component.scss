@@ -11,6 +11,10 @@
 // Collapsed: a thin strip at the side, and the feed grows into the room it leaves.
 .layout.collapsed { grid-template-columns: 32px minmax(0, 1fr); }
 .layout.collapsed .main-inner { max-width: 1400px; }
+// A summary opened (from the feed or the bell) gets the whole width; the panel waits hidden, as it was.
+.layout.reading { grid-template-columns: minmax(0, 1fr); }
+.layout.reading > .panel { display: none; }
+.layout.reading .main-inner { max-width: 1400px; }
 .panel.slim { all: unset; box-sizing: border-box; height: calc(100% - 20px); margin: 10px 10px 10px 0; display: flex; justify-content: center; padding-top: 14px; background: $white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08); color: $gray; cursor: pointer; }
 .panel.slim:hover { color: $black; background: $surface-subtle; }
 .panel.slim:focus-visible { box-shadow: $focus-ring; }

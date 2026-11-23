@@ -14,6 +14,8 @@ export interface INotification {
   creationDate: string;
   isViewed: boolean;
   createdBy?: Pick<IUser, '_id' | 'username' | 'fullName'>;
+  /** The query whose alert it came from (opening it highlights by that search). */
+  queryId?: string;
 }
 
 /** What raised a notification: a query's alert matched, or another user's activity. */
@@ -22,7 +24,8 @@ export type NotificationKind = 'alert' | 'comment' | 'mention' | 'tag' | 'follow
 /** A notifications-page feed entry: the notification, the query whose alert raised it (if any), and its summary. */
 export interface INotificationFeedItem extends INotification {
   kind: NotificationKind;
-  query?: { _id: string; name: string };
+  /** The alert it came from (also when it rode on a tag or follow notification), and its search in words. */
+  query?: { _id: string; name: string; why: string[] };
   summary: ISummary;
 }
 
@@ -110,6 +113,65 @@ export interface IUserGroup {
 }
 
 export type UserGroupPayload = Pick<IUserGroup, 'name' | 'isFavorite' | 'isShared'> & { users: string[]; permissions: string[] };
+
+/**
+ * How a Pouch format fills in summaries: `perSummary` repeats its repeat block once per summary between the fixed start
+ * and end; `combined` writes the document once, each field listing every summary's value, comma-separated.
+ */
+export type PouchMode = 'perSummary' | 'combined';
+
+export interface IPouchPage {
+  orientation: 'portrait' | 'landscape';
+  margins: 'narrow' | 'normal' | 'wide';
+}
+
+/** Tiptap / ProseMirror JSON. */
+export interface PouchDoc {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: PouchDoc[];
+  text?: string;
+  marks?: { type: string; attrs?: Record<string, unknown> }[];
+}
+
+/** A personal export format ("pouch"): a rich document with field placeholders that an export fills with summaries. */
+export interface IPouchFormat {
+  _id: string;
+  name: string;
+  mode: PouchMode;
+  doc: PouchDoc;
+  page: IPouchPage;
+  /** The owner's own flag (false on others' formats). */
+  isFavorite: boolean;
+  /** Others can find, use and copy it. */
+  isShared: boolean;
+  /** The user owns it. */
+  isMine: boolean;
+  /**
+   * The user's relation to it: owner; shared with them personally as a viewer (export with it, copy it) or an editor
+   * (also change it); or only through "shared with everyone".
+   */
+  role: 'owner' | PouchRole | 'public';
+  /** Owner or editor. */
+  canEdit: boolean;
+  owner: UserRef;
+  /** People it's shared with (the owner sees all of them; others only themselves). */
+  members: IPouchMember[];
+  creationDate: string;
+  updateDate: string;
+}
+
+/** What a person a format is shared with may do. */
+export type PouchRole = 'viewer' | 'editor';
+
+export interface IPouchMember {
+  user: UserRef;
+  role: PouchRole;
+}
+
+export type PouchFormatPayload = Pick<IPouchFormat, 'name' | 'mode' | 'doc' | 'page' | 'isFavorite' | 'isShared'> & {
+  members: { user: string; role: PouchRole }[];
+};
 
 export enum FieldsType {
   String = 'string',
@@ -336,7 +398,7 @@ export type QueryTextField = 'text' | 'title' | 'content' | 'notes' | 'comments'
 /** `field`: a content-type catalog field, named by the condition's `fieldId`. */
 export type QueryField = QueryTextField | 'author' | 'contentType' | 'folder' | 'color' | 'eventDate' | 'createdDate' | 'field';
 /** eq / gt / lt / range compare a number catalog field (eq and gt read `from`, lt reads `to`). */
-export type QueryOp = 'all' | 'any' | 'none' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between' | 'eq' | 'gt' | 'lt' | 'range';
+export type QueryOp = 'all' | 'any' | 'none' | 'regex' | 'isOneOf' | 'isNot' | 'after' | 'before' | 'between' | 'eq' | 'gt' | 'lt' | 'range';
 
 /**
  * Capsule (כמוסה): a named word list from the external capsules service, usable in searches and alerts.

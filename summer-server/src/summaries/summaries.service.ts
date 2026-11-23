@@ -12,7 +12,7 @@ import { ContentTypesRepository, FieldRow } from '../content-types/content-types
 import { DatabaseService } from '../database/database.service';
 import { FieldType, SUMMARY_KINDS, summaries } from '../database/schema';
 import { LabelsRepository } from '../labels/labels.repository';
-import { NotificationsService } from '../notifications/notifications.service';
+import { Delivered, NotificationsService } from '../notifications/notifications.service';
 import { validPermissionSet } from '../permissions/permission-assignment';
 import { PermissionsRepository } from '../permissions/permissions.repository';
 import { UsersRepository } from '../users/users.repository';
@@ -265,8 +265,8 @@ export class SummariesService {
         await this.repo.addFolders(id, input.folderIds ?? []);
         await this.repo.addFiles(id, await this.files.store(id, uploads));
         if (!input.values.isDraft) {
-          await this.notifyTagged(me, id, input.values.title, input.taggedUserIds, input.taggedPermissionIds);
-          await this.notifications.onPublished(this.published(id, input), me);
+          const tagged = await this.notifyTagged(me, id, input.values.title, input.taggedUserIds, input.taggedPermissionIds);
+          await this.notifications.onPublished(this.published(id, input), me, tagged);
         }
       });
     } catch (e) {
@@ -309,9 +309,9 @@ export class SummariesService {
         if (!input.values.isDraft) {
           const newlyTagged = input.taggedUserIds.filter((u) => current.isDraft || !previousTagged.includes(u));
           const newlyTaggedGroups = input.taggedPermissionIds.filter((p) => current.isDraft || !previousTaggedGroups.includes(p));
-          await this.notifyTagged(me, id, input.values.title, newlyTagged, newlyTaggedGroups);
-          if (current.isDraft) await this.notifications.onPublished(this.published(id, input), me);
-          else await this.notifications.onUpdated(this.published(id, input), me);
+          const tagged = await this.notifyTagged(me, id, input.values.title, newlyTagged, newlyTaggedGroups);
+          if (current.isDraft) await this.notifications.onPublished(this.published(id, input), me, tagged);
+          else await this.notifications.onUpdated(this.published(id, input), me, tagged);
         }
       });
     } catch (e) {
@@ -515,11 +515,15 @@ export class SummariesService {
     if (!(await this.repo.visibleFolderIds(me, [folderId], 'edit')).has(folderId)) throw new ForbiddenException('only a folder’s managers may move summaries in or out of it');
   }
 
-  /** Tagged users, then members of tagged groups who weren't tagged by name: one notification each. */
-  private async notifyTagged(me: CurrentUser, id: string, title: string, userIds: string[], permissionIds: string[]): Promise<void> {
+  /**
+   * Tagged users, then members of tagged groups who weren't tagged by name: one notification each. Returned, so the
+   * same save's alerts ride on them instead of notifying those people twice.
+   */
+  private async notifyTagged(me: CurrentUser, id: string, title: string, userIds: string[], permissionIds: string[]): Promise<Delivered[]> {
     const n = { summaryId: id, kind: 'tag' as const, createdBy: me.id };
-    await this.notifications.notify(userIds, { ...n, text: `${me.fullName} תייג/ה אותך בתמצית "${title}"` });
-    await this.notifications.notifyGroups(permissionIds, n, (group) => `${me.fullName} תייג/ה את "${group}" בתמצית "${title}"`, userIds);
+    const named = await this.notifications.notify(userIds, { ...n, text: `${me.fullName} תייג/ה אותך בתמצית "${title}"` });
+    const groups = await this.notifications.notifyGroups(permissionIds, n, (group) => `${me.fullName} תייג/ה את "${group}" בתמצית "${title}"`, userIds);
+    return [...named, ...groups];
   }
 
   /** What query alerts are checked against (inside the write's transaction, so the saved rows are what matches). */
@@ -527,6 +531,7 @@ export class SummariesService {
     return {
       id,
       title: input.values.title,
+      text: { title: input.values.title, content: input.values.contentText ?? '', labels: input.labelNames },
       matchesSearch: async (search: Record<string, unknown>) => {
         const f = summarySearchSchema.safeParse(search);
         return f.success && (await this.repo.count(and(eq(summaries.id, id), ...(await this.filters(f.data)))!)) > 0;

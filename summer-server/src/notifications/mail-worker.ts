@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { zonedDate, zonedTimeToUtc } from '../common/time';
 import { APP_CONFIG, AppConfig } from '../config/app-config';
-import { DigestGroup, digestMail, notificationMail } from './mail-templates';
+import { DigestGroup, MailAlert, MailItem, digestMail, notificationMail } from './mail-templates';
 import { Mailer } from './mailer';
 import { MailRow, NotificationsRepository } from './notifications.repository';
 import { NotificationsService } from './notifications.service';
@@ -53,13 +53,28 @@ export class MailWorker implements OnApplicationBootstrap, OnApplicationShutdown
     }
   }
 
+  /** An alert as its mails explain it, worked out once per alert per pass. */
+  private async explain(alert: NonNullable<MailRow['alert']>, cache: Map<string, Promise<MailAlert>>): Promise<MailAlert> {
+    if (!cache.has(alert.id))
+      cache.set(
+        alert.id,
+        Promise.all([this.notifications.describe(alert.search), this.notifications.highlights(alert.search)]).then(([why, highlights]) => ({ name: alert.name, why, highlights })),
+      );
+    return cache.get(alert.id)!;
+  }
+
+  private async item(r: MailRow, cache: Map<string, Promise<MailAlert>>): Promise<MailItem> {
+    return { ...r, alert: r.alert ? await this.explain(r.alert, cache) : null };
+  }
+
   private async sendImmediate(): Promise<void> {
+    const cache = new Map<string, Promise<MailAlert>>();
     for (;;) {
       const rows = await this.repo.claimMail('mail', BATCH);
       const failed: string[] = [];
       for (const r of rows) {
         if (!(await this.deliverable(r))) continue;
-        if (!(await this.send(notificationMail(this.mailContext, r.recipient.email!, r), r.recipient.id))) failed.push(...this.retryable([r]));
+        if (!(await this.send(notificationMail(this.mailContext, r.recipient.email!, await this.item(r, cache)), r.recipient.id))) failed.push(...this.retryable([r]));
       }
       await this.repo.requeueMail('mail', failed);
       // A failing transport waits for the next pass instead of spinning on the same rows.
@@ -85,11 +100,13 @@ export class MailWorker implements OnApplicationBootstrap, OnApplicationShutdown
       if (!r.alert?.isActive || !r.alert.isDigest || !r.recipient.mailAlerts || !(await this.deliverable(r))) continue;
       byUser.set(r.recipient.id, [...(byUser.get(r.recipient.id) ?? []), r]);
     }
+    const cache = new Map<string, Promise<MailAlert>>();
     for (const items of byUser.values()) {
       const groups = new Map<string, DigestGroup>();
       for (const r of items) {
-        const g = groups.get(r.alert!.id) ?? { ruleName: r.alert!.name, items: [] };
-        g.items.push(r);
+        const a = await this.explain(r.alert!, cache);
+        const g = groups.get(r.alert!.id) ?? { ruleName: r.alert!.name, why: a.why, highlights: a.highlights, items: [] };
+        g.items.push({ ...r, alert: a });
         groups.set(r.alert!.id, g);
       }
       const recipient = items[0].recipient;

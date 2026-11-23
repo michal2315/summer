@@ -1,0 +1,172 @@
+@use 'tokens' as *;
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+// The big tabs: calendar or words.
+.modes {
+  display: flex;
+  gap: 4px;
+  background: $background-soft;
+  border-radius: 22px;
+  padding: 4px;
+}
+
+.mode {
+  all: unset;
+  cursor: pointer;
+  flex: 1;
+  height: 36px;
+  border-radius: 18px;
+  color: $gray;
+  font-size: 15px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  &:hover {
+    color: $dark-blue;
+  }
+  &.selected {
+    background: $white;
+    color: $accent;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+}
+
+// The small toggle on the side: which date the range is on.
+.side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fields {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  background: $background-soft;
+  border-radius: 14px;
+  padding: 2px;
+}
+
+.field-opt {
+  all: unset;
+  cursor: pointer;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: $gray;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  &:hover {
+    color: $dark-blue;
+  }
+  &.selected {
+    background: $white;
+    color: $accent;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $primary-pink;
+}
+
+.tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 330px;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.calendar {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.words-input {
+  height: 40px;
+  border-radius: 20px;
+  padding-inline: 16px;
+  font-size: 15px;
+}
+
+.words-result {
+  min-height: 22px;
+  padding-inline: 16px;
+  font-size: 13px;
+}
+
+.words-ok {
+  color: $accent;
+  font-weight: 600;
+}
+
+.words-miss {
+  color: $error-color;
+}
+
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.example {
+  all: unset;
+  cursor: pointer;
+  padding: 3px 12px;
+  border-radius: 14px;
+  background: $background-soft;
+  color: $dark-blue;
+  font-size: 13px;
+  &:hover,
+  &:focus-visible {
+    background: $input-hover-color;
+  }
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid $border-color;
+}
+
+.summary-value {
+  font-weight: 600;
+  color: $accent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spacer {
+  flex: 1;
+}

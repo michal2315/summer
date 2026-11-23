@@ -1,7 +1,7 @@
 import { ICapsule, IQueryGroup, ISummarySearch, QueryTextField, SearchType } from '../models';
 import { capsuleTokenId, isCapsuleToken, positiveWords } from '../utils/capsules';
 import { foldPattern } from '../utils/fold';
-import { QueryTerm, parseQuery } from '../utils/search-syntax';
+import { QueryTerm, parseQuery, regexSource } from '../utils/search-syntax';
 
 /** Capsules already fetched (CapsuleService); an unknown #name highlights as the plain word, like the server searches it. */
 export interface CapsuleResolver {
@@ -40,7 +40,12 @@ export function searchRegex(
   ];
   const parts = terms
     .filter((t) => !t.neg)
-    .map((t) => (t.exact ? `(?<![\\p{L}\\p{N}])${termPattern(t.term)}(?![\\p{L}\\p{N}])` : termPattern(t.term)));
+    .flatMap((t) => {
+      if (!t.regex) return [t.exact ? `(?<![\\p{L}\\p{N}])${termPattern(t.term)}(?![\\p{L}\\p{N}])` : termPattern(t.term)];
+      // A regex JavaScript can't read the server's way isn't highlighted (the results still match it).
+      const source = regexSource(t.term);
+      return source ? [`(?:${source})`] : [];
+    });
   if (!parts.length) return null;
   // Longest first so overlapping terms prefer the longer match.
   parts.sort((a, b) => b.length - a.length);
@@ -63,9 +68,12 @@ function queryWords(q: IQueryGroup | undefined, field: QueryTextField | undefine
     const c = capsules?.byId(capsuleTokenId(w));
     return c ? capsuleTerms(c) : [];
   };
-  return q.children.flatMap((c) =>
-    c.type === 'group' ? queryWords(c, field, capsules) : c.op !== 'none' && (c.field === 'text' || c.field === field) ? (c.words ?? []).flatMap(word) : [],
-  );
+  return q.children.flatMap((c) => {
+    if (c.type === 'group') return queryWords(c, field, capsules);
+    if (c.op === 'none' || (c.field !== 'text' && c.field !== field)) return [];
+    if (c.op === 'regex') return (c.words ?? []).filter(Boolean).map((term) => ({ term, neg: false, exact: false, regex: true }));
+    return (c.words ?? []).flatMap(word);
+  });
 }
 
 /** Highlight only fields whose search type is checked (no types selected ⇒ all), plus :field: terms and the advanced search's words for the field. */

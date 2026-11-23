@@ -1,22 +1,30 @@
 <div class="shelf" [class.collapsed]="collapsed()">
   <div class="bar">
-    <div class="tabs" role="tablist" aria-label="החיפושים והקבוצות שלי">
+    <div class="tabs" role="tablist" aria-label="החיפושים, הקבוצות והפורמטים שלי">
       <button type="button" role="tab" class="tab" [class.active]="tab() === 'searches'" [attr.aria-selected]="tab() === 'searches'" (click)="select('searches')">
         <span nz-icon nzType="save"></span> חיפושים שמורים <span class="count">{{ searchCount() }}</span>
       </button>
       <button type="button" role="tab" class="tab" [class.active]="tab() === 'groups'" [attr.aria-selected]="tab() === 'groups'" (click)="select('groups')">
         <span nz-icon nzType="usergroup-add"></span> קבוצות משתמשים <span class="count">{{ groupCount() }}</span>
       </button>
+      @if (pouchEnabled) {
+        <button type="button" role="tab" class="tab" [class.active]="tab() === 'formats'" [attr.aria-selected]="tab() === 'formats'" (click)="select('formats')">
+          <span nz-icon nzType="file-text"></span> פורמטים לייצוא <span class="count">{{ formatCount() }}</span>
+        </button>
+      }
     </div>
 
     @if (!collapsed()) {
       <div class="tools">
         @if (showFilter()) {
-          <input nz-input nzSize="small" class="filter" placeholder="סינון לפי שם" aria-label="סינון לפי שם" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
+          <input nz-input nzSize="small" class="filter" [placeholder]="tab() === 'formats' ? 'חיפוש לפי שם או מי ששיתף' : 'סינון לפי שם'" [attr.aria-label]="tab() === 'formats' ? 'חיפוש פורמטים' : 'סינון לפי שם'" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
         }
         @if (tab() === 'searches') {
           <a class="tool" routerLink="/notifications" [queryParams]="{ tab: 'mine' }" nz-tooltip="כל החיפושים, ההתראות והחיפושים שאחרים שיתפו" aria-label="חיפושים והתראות"><span nz-icon nzType="appstore"></span></a>
           <a class="tool" routerLink="/notifications/create" nz-tooltip="חיפוש חדש עם תנאים והתראה" aria-label="חיפוש חדש"><span nz-icon nzType="plus"></span></a>
+        } @else if (tab() === 'formats') {
+          <button type="button" class="tool" (click)="browseSharedFormats()" nz-tooltip="פורמטים שאחרים שיתפו" aria-label="פורמטים משותפים"><span nz-icon nzType="team"></span></button>
+          <button type="button" class="tool" (click)="newFormat()" nz-tooltip="פורמט חדש ב-Pouch" aria-label="פורמט חדש"><span nz-icon nzType="plus"></span></button>
         } @else {
           <button type="button" class="tool" (click)="browseSharedGroups()" nz-tooltip="קבוצות שאחרים שיתפו" aria-label="קבוצות משותפות"><span nz-icon nzType="team"></span></button>
           <button type="button" class="tool" (click)="newGroup()" nz-tooltip="קבוצה חדשה" aria-label="קבוצה חדשה"><span nz-icon nzType="plus"></span></button>
@@ -32,4 +40,7 @@
   <!-- Both stay mounted (the groups list owns the create / browse dialogs); only the active one shows. -->
   <app-saved-searches [hidden]="collapsed() || tab() !== 'searches'" [filter]="tab() === 'searches' ? filter() : ''" />
   <app-user-groups [hidden]="collapsed() || tab() !== 'groups'" [filter]="tab() === 'groups' ? filter() : ''" />
+  @if (pouchEnabled) {
+    <app-pouch-formats [hidden]="collapsed() || tab() !== 'formats'" [filter]="tab() === 'formats' ? filter() : ''" />
+  }
 </div>

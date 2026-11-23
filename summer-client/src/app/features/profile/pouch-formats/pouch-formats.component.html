@@ -1,0 +1,58 @@
+<div class="views" role="tablist" aria-label="אילו פורמטים">
+  <button type="button" role="tab" class="view" [class.active]="view() === 'mine'" [attr.aria-selected]="view() === 'mine'" (click)="view.set('mine')">
+    הפורמטים שלי <span class="n">{{ mine().length }}</span>
+  </button>
+  <button type="button" role="tab" class="view" [class.active]="view() === 'shared'" [attr.aria-selected]="view() === 'shared'" (click)="view.set('shared')">
+    שותפו איתי <span class="n">{{ sharedWithMe().length }}</span>
+  </button>
+</div>
+
+@if (list().length) {
+  <ul class="cards">
+    @for (f of list(); track f._id) {
+      <li class="card" (contextmenu)="openMenu($event, menu)">
+        <button type="button" class="open" (click)="edit(f)" [nz-tooltip]="(f.canEdit ? 'פתיחה ב-Pouch' : 'צפייה') + ' · קליק ימני לפעולות'">
+          <span class="name-row">
+            <span nz-icon nzType="file-text" class="kind"></span>
+            <span class="name">{{ f.name }}</span>
+            <span class="marks">
+              @if (f.isFavorite) {
+                <span nz-icon nzType="star" nzTheme="fill" class="mark-fav" aria-label="מועדף"></span>
+              }
+              @if (f.isShared) {
+                <span nz-icon nzType="team" class="mark-shared" aria-label="משותף"></span>
+              }
+              @if (!f.isMine) {
+                <span class="role-badge" [class.editor]="f.role === 'editor'">{{ roleLabel[f.role] }}</span>
+              }
+            </span>
+          </span>
+          <span class="desc">{{ describe(f) }}</span>
+        </button>
+
+        <nz-dropdown-menu #menu="nzDropdownMenu">
+          <ul nz-menu class="shelf-menu">
+            @if (f.isMine) {
+              <li nz-menu-item (click)="toggleFavorite(f)"><span nz-icon nzType="star" [nzTheme]="f.isFavorite ? 'fill' : 'outline'"></span> {{ f.isFavorite ? 'הסרה מהמועדפים' : 'סימון כמועדף' }}</li>
+              <li nz-menu-item (click)="share(f)"><span nz-icon nzType="team"></span> שיתוף והרשאות עריכה…</li>
+            }
+            <li nz-menu-item (click)="edit(f)"><span nz-icon [nzType]="f.canEdit ? 'edit' : 'eye'"></span> {{ f.canEdit ? 'עריכה' : 'צפייה' }}</li>
+            <li nz-menu-item (click)="duplicate(f)"><span nz-icon nzType="copy"></span> {{ f.isMine ? 'שכפול' : 'העתקה אליי' }}</li>
+            @if (f.isMine) {
+              <li nz-menu-divider></li>
+              <li nz-menu-item class="danger" (click)="remove(f)"><span nz-icon nzType="delete"></span> מחיקה</li>
+            }
+          </ul>
+        </nz-dropdown-menu>
+      </li>
+    }
+  </ul>
+} @else if (filter()) {
+  <div class="empty">{{ view() === 'mine' ? 'אין פורמט שלך שמתאים לחיפוש.' : 'אין פורמט ששותף איתך שמתאים לחיפוש.' }}</div>
+} @else if (pouch.list() !== null) {
+  @if (view() === 'mine') {
+    <div class="empty">אין עדיין פורמטים אישיים. פורמט קובע איך ייראה מסמך Word שמייצאים מתמציות — טקסט משלכם, עם שדות שמתמלאים מהתמציות.</div>
+  } @else {
+    <div class="empty">אף אחד עוד לא שיתף איתך פורמט. פורמטים ששותפו עם כולם נמצאים בכפתור "פורמטים משותפים".</div>
+  }
+}

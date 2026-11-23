@@ -13,6 +13,8 @@ $tok-not: #c41d3a;
 $tok-not-bg: #fde3e8;
 $tok-phrase: #8a6400;
 $tok-phrase-bg: #fff3bf;
+$tok-regex: #006d75;
+$tok-regex-bg: #e0f7f7;
 $tok-saved: #9e1068;
 $tok-saved-bg: #ffe6f2;
 
@@ -203,6 +205,18 @@ $tok-saved-bg: #ffe6f2;
 }
 .tok-capsule {
   @include pill($capsule, $capsule-bg);
+}
+.tok-regex {
+  @include pill($tok-regex, $tok-regex-bg);
+}
+.tok-field-regex {
+  @include pill($tok-field, $tok-field-bg);
+}
+// A /regex/ the search would reject (Enter says why).
+.tok-regex-bad,
+.tok-field-regex-bad {
+  @include pill($tok-not, $tok-not-bg);
+  text-decoration: wavy underline;
 }
 // A capsule name's / field value's underscores keep their width but read as spaces.
 .tok-capsule,

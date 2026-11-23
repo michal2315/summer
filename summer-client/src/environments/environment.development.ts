@@ -7,4 +7,5 @@ export const environment: AppEnvironment = {
   production: false,
   avatarUrl: '',
   userMonitoring: '',
+  features: { ...baseEnvironment.features, pouch: true },
 };

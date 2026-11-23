@@ -1,0 +1,204 @@
+@use 'tokens' as *;
+
+$chip: #c2571b; // $orange-strong, as hex for rgba()
+$chip-bg: $orange-50-hex;
+
+:host {
+  display: block;
+  flex: 0 0 260px;
+  min-height: 0;
+  border-inline-end: 1px solid $border-strong;
+  background: $white;
+}
+
+.sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid $border-color;
+}
+
+.title {
+  font-weight: 600;
+  color: $dark-blue;
+}
+
+.hint {
+  margin: 2px 0 10px;
+  font-size: 11px;
+  color: $gray;
+}
+
+.search {
+  border-radius: 14px;
+}
+
+.groups {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px 16px;
+}
+
+.group {
+  padding: 4px 0;
+  & + & {
+    border-top: 1px solid $border-color;
+  }
+}
+
+.group-title {
+  padding: 6px 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: $dark-gray;
+}
+
+.group-toggle {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: $dark-blue;
+  &:hover,
+  &:focus-visible {
+    background: $surface-subtle;
+  }
+}
+
+.chevron {
+  font-size: 10px;
+  color: $gray;
+}
+
+.group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  font-size: 11px;
+  color: $gray;
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 6px 8px;
+}
+
+// The same pill as on the page, so it's obvious what you're placing.
+.field {
+  all: unset;
+  box-sizing: border-box;
+  cursor: grab;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px 2px 8px;
+  border: 1px solid rgba($chip, 0.35);
+  border-radius: 12px;
+  background: $chip-bg;
+  color: $chip;
+  font-size: 12px;
+  line-height: 18px;
+  transition:
+    box-shadow $transition,
+    transform $transition;
+  &:hover,
+  &:focus-visible {
+    box-shadow: 0 2px 6px rgba($chip, 0.22);
+    transform: translateY(-1px);
+  }
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.grip {
+  font-size: 9px;
+  letter-spacing: -2px;
+  opacity: 0.45;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rich {
+  padding: 0 5px;
+  border-radius: 7px;
+  background: rgba($chip, 0.12);
+  font-size: 10px;
+}
+
+.empty {
+  padding: 6px;
+  font-size: 12px;
+  color: $gray;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 4px 6px 8px;
+}
+
+.tile {
+  all: unset;
+  box-sizing: border-box;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid $border-strong;
+  border-radius: 6px;
+  background: $white;
+  font-size: 12px;
+  color: $dark-blue;
+  transition:
+    border-color $transition,
+    box-shadow $transition;
+  &:hover,
+  &:focus-visible {
+    border-color: $orange-strong;
+    box-shadow: 0 2px 6px rgba($primary-orange-hex, 0.15);
+  }
+}
+
+.glyph {
+  flex: 0 0 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: $orange-50;
+  color: $orange-strong;
+  font-weight: 700;
+}
+
+.tile-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

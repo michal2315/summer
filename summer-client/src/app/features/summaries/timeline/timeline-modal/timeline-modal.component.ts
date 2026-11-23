@@ -57,7 +57,7 @@ function escapeHtml(t: string): string {
 /**
  * Horizontal timeline of the summaries the user selected (selection mode → "ציר זמן").
  * Actions bar: add (a quick new summary — title, link, permissions — that joins this timeline, or a custom event on it),
- * a date range filter, placing summaries by event date or creation date, and export to png/jpeg (3× scale) or txt.
+ * a date range filter, placing summaries by event date or creation date, and export to png/jpeg (3× scale), txt or Visio (editable shapes).
  */
 @Component({
   selector: 'app-timeline-modal',
@@ -248,7 +248,7 @@ export class TimelineModalComponent {
     }
   }
 
-  async export(kind: 'png' | 'jpeg' | 'txt') {
+  async export(kind: 'png' | 'jpeg' | 'txt' | 'vsdx') {
     const name = `ציר-זמן-${this.title()}`;
     if (kind === 'txt') {
       const lines = [this.title(), '', ...this.items().map((i) => `${this.date(i)} — ${i.title}`)];
@@ -257,6 +257,24 @@ export class TimelineModalComponent {
     }
     this.exporting.set(true);
     try {
+      if (kind === 'vsdx') {
+        // Loaded on demand, like html2canvas, so the zip library stays out of the main bundle.
+        const { VSDX_MIME, buildTimelineVsdx, hexColor } = await import('../timeline-vsdx');
+        const accent = hexColor(getComputedStyle(document.documentElement).getPropertyValue('--primary-orange')) ?? '#FF7EB9';
+        const file = buildTimelineVsdx({
+          title: this.title(),
+          accent,
+          items: this.items().map((i) => ({
+            date: this.date(i),
+            title: i.title,
+            color: i.color,
+            custom: !!i.event,
+            link: i.summary ? new URL(this.summaryUrl(i.summary), location.origin).href : undefined,
+          })),
+        });
+        saveFile(new Blob([file as BlobPart], { type: VSDX_MIME }), `${name}.vsdx`);
+        return;
+      }
       const blob = await this.render(kind);
       if (blob) saveFile(blob, `${name}.${kind === 'png' ? 'png' : 'jpg'}`);
     } finally {

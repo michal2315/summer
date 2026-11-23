@@ -1,0 +1,70 @@
+<div class="share">
+  <div class="section">
+    <div class="label">שיתוף עם אנשים</div>
+    <div class="hint">כל אחד מקבל הרשאה משלו: <b>שימוש</b> — ייצוא עם הפורמט והעתקה; <b>עריכה</b> — גם שינוי הפורמט. הם יראו אותו ב"שותפו איתי".</div>
+
+    <nz-select
+      class="add"
+      nzShowSearch
+      nzServerSearch
+      nzAllowClear
+      nzPlaceHolder="הוספת אדם — חיפוש לפי שם"
+      [ngModel]="adding()"
+      (ngModelChange)="add($event)"
+      (nzOnSearch)="onSearch($event)"
+      aria-label="הוספת אדם"
+    >
+      @for (u of options(); track u._id) {
+        <nz-option nzCustomContent [nzValue]="u._id" [nzLabel]="u.fullName">
+          <div class="opt">
+            <app-avatar [user]="u" [size]="22" />
+            <span>{{ u.fullName }}{{ u.department ? ' - ' + u.department : '' }}</span>
+          </div>
+        </nz-option>
+      }
+    </nz-select>
+
+    @if (members().length) {
+      <ul class="people">
+        @for (m of members(); track m.user._id) {
+          <li class="person">
+            <app-avatar [user]="m.user" [size]="28" />
+            <div class="who">
+              <div class="name">{{ m.user.fullName }}</div>
+              @if (m.user.department) {
+                <div class="dept">{{ m.user.department }}</div>
+              }
+            </div>
+            <nz-select nzSize="small" class="role" [nzDropdownMatchSelectWidth]="false" [ngModel]="m.role" (ngModelChange)="setRole(m.user._id, $event)" [attr.aria-label]="'הרשאה של ' + m.user.fullName">
+              @for (r of roles; track r.value) {
+                <nz-option nzCustomContent [nzValue]="r.value" [nzLabel]="r.label">
+                  <div class="role-opt">
+                    <div>{{ r.label }}</div>
+                    <div class="role-hint">{{ r.hint }}</div>
+                  </div>
+                </nz-option>
+              }
+            </nz-select>
+            <button type="button" class="remove" (click)="remove(m.user._id)" [attr.aria-label]="'הסרת ' + m.user.fullName"><span nz-icon nzType="close"></span></button>
+          </li>
+        }
+      </ul>
+      <div class="summary">{{ members().length }} אנשים · {{ editors() }} עם הרשאת עריכה</div>
+    } @else {
+      <div class="empty">הפורמט לא משותף עם אף אחד באופן אישי.</div>
+    }
+  </div>
+
+  <div class="section option">
+    <div class="text">
+      <div class="label">שיתוף עם כולם</div>
+      <div class="hint">כל אחד יכול למצוא את הפורמט ב"פורמטים משותפים", לייצא איתו ולהעתיק אותו — בלי לשנות אותו.</div>
+    </div>
+    <nz-switch [ngModel]="isShared()" (ngModelChange)="isShared.set($event)" aria-label="שיתוף עם כולם" />
+  </div>
+
+  <div class="footer">
+    <button nz-button type="button" (click)="cancel()">ביטול</button>
+    <button nz-button nzType="primary" type="button" [nzLoading]="saving()" (click)="save()">שמירה</button>
+  </div>
+</div>

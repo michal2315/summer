@@ -1,0 +1,300 @@
+@let st = s();
+<div class="ribbon">
+  <div class="tabs" role="tablist" aria-label="סרגל כלים">
+    <button type="button" role="tab" class="tab" [class.active]="activeTab() === 'home'" [attr.aria-selected]="activeTab() === 'home'" (click)="tab.set('home')">בית</button>
+    <button type="button" role="tab" class="tab" [class.active]="activeTab() === 'insert'" [attr.aria-selected]="activeTab() === 'insert'" (click)="tab.set('insert')">הוספה</button>
+    <button type="button" role="tab" class="tab" [class.active]="activeTab() === 'layout'" [attr.aria-selected]="activeTab() === 'layout'" (click)="tab.set('layout')">פריסה</button>
+    @if (st.inTable) {
+      <button type="button" role="tab" class="tab contextual" [class.active]="activeTab() === 'table'" [attr.aria-selected]="activeTab() === 'table'" (click)="tab.set('table')">טבלה</button>
+    }
+  </div>
+
+  <!-- mousedown.preventDefault keeps the page's selection while clicking controls. -->
+  <div class="strip" role="toolbar" (mousedown)="$any($event.target).closest('input, nz-select, .ant-select') || $event.preventDefault()">
+    @switch (activeTab()) {
+      @case ('home') {
+        <div class="group">
+          <div class="controls stack">
+            <button type="button" class="rb" [disabled]="!st.canUndo" (click)="run(undo)" nz-tooltip="ביטול (Ctrl+Z)" aria-label="ביטול"><span nz-icon nzType="undo"></span></button>
+            <button type="button" class="rb" [disabled]="!st.canRedo" (click)="run(redo)" nz-tooltip="חזרה (Ctrl+Y)" aria-label="חזרה"><span nz-icon nzType="redo"></span></button>
+          </div>
+          <div class="group-label">ביטול</div>
+        </div>
+
+        <div class="group">
+          <div class="controls rows">
+            <div class="row">
+              <nz-select class="font" nzSize="small" [ngModel]="st.font" (ngModelChange)="setFont($event)" nzShowSearch aria-label="גופן" [nzDropdownMatchSelectWidth]="false">
+                @for (f of fonts; track f) {
+                  <nz-option nzCustomContent [nzValue]="f" [nzLabel]="f"><span [style.font-family]="f">{{ f }}</span></nz-option>
+                }
+              </nz-select>
+              <nz-select class="size" nzSize="small" [ngModel]="st.size" (ngModelChange)="setSize($event)" aria-label="גודל גופן">
+                @for (n of sizes; track n) {
+                  <nz-option [nzValue]="n" [nzLabel]="'' + n"></nz-option>
+                }
+              </nz-select>
+              <button type="button" class="rb text" (click)="stepSize(1)" nz-tooltip="הגדלת גופן" aria-label="הגדלת גופן">A<sup>+</sup></button>
+              <button type="button" class="rb text" (click)="stepSize(-1)" nz-tooltip="הקטנת גופן" aria-label="הקטנת גופן">A<sup>−</sup></button>
+            </div>
+            <div class="row">
+              <button type="button" class="rb" [class.on]="st.bold" [attr.aria-pressed]="st.bold" (click)="run(bold)" nz-tooltip="מודגש (Ctrl+B)" aria-label="מודגש"><span nz-icon nzType="bold"></span></button>
+              <button type="button" class="rb" [class.on]="st.italic" [attr.aria-pressed]="st.italic" (click)="run(italic)" nz-tooltip="נטוי (Ctrl+I)" aria-label="נטוי"><span nz-icon nzType="italic"></span></button>
+              <button type="button" class="rb" [class.on]="st.underline" [attr.aria-pressed]="st.underline" (click)="run(underline)" nz-tooltip="קו תחתון (Ctrl+U)" aria-label="קו תחתון"><span nz-icon nzType="underline"></span></button>
+              <button type="button" class="rb" [class.on]="st.strike" [attr.aria-pressed]="st.strike" (click)="run(strike)" nz-tooltip="קו חוצה" aria-label="קו חוצה"><span nz-icon nzType="strikethrough"></span></button>
+              <button type="button" class="rb text" [class.on]="st.sub" [attr.aria-pressed]="st.sub" (click)="run(sub)" nz-tooltip="כתב תחתי" aria-label="כתב תחתי">x<sub>2</sub></button>
+              <button type="button" class="rb text" [class.on]="st.sup" [attr.aria-pressed]="st.sup" (click)="run(sup)" nz-tooltip="כתב עילי" aria-label="כתב עילי">x<sup>2</sup></button>
+              <span class="sep"></span>
+              <button
+                type="button"
+                class="rb color"
+                nz-popover
+                nzPopoverTrigger="click"
+                [nzPopoverContent]="textColors"
+                [(nzPopoverVisible)]="textColorOpen"
+                nzPopoverPlacement="bottom"
+                nz-tooltip="צבע גופן"
+                aria-label="צבע גופן"
+              >
+                <span nz-icon nzType="font-colors"></span>
+                <span class="bar" [style.background]="st.color || '#05043d'"></span>
+              </button>
+              <ng-template #textColors><app-pouch-colors noneLabel="אוטומטי" [current]="st.color" (pick)="setTextColor($event)" /></ng-template>
+              <button
+                type="button"
+                class="rb color"
+                nz-popover
+                nzPopoverTrigger="click"
+                [nzPopoverContent]="fillColors"
+                [(nzPopoverVisible)]="fillColorOpen"
+                nzPopoverPlacement="bottom"
+                nz-tooltip="צבע הדגשה"
+                aria-label="צבע הדגשה"
+              >
+                <span nz-icon nzType="highlight"></span>
+                <span class="bar" [style.background]="st.fill || '#ffff00'"></span>
+              </button>
+              <ng-template #fillColors><app-pouch-colors [current]="st.fill" (pick)="setFillColor($event)" /></ng-template>
+              <button type="button" class="rb" (click)="clearFormatting()" nz-tooltip="ניקוי עיצוב" aria-label="ניקוי עיצוב"><span nz-icon nzType="clear"></span></button>
+            </div>
+          </div>
+          <div class="group-label">גופן</div>
+        </div>
+
+        <div class="group">
+          <div class="controls rows">
+            <div class="row">
+              <button type="button" class="rb" [class.on]="st.bullet" [attr.aria-pressed]="st.bullet" (click)="run(bulletList)" nz-tooltip="תבליטים" aria-label="תבליטים"><span nz-icon nzType="unordered-list"></span></button>
+              <button type="button" class="rb" [class.on]="st.ordered" [attr.aria-pressed]="st.ordered" (click)="run(orderedList)" nz-tooltip="מספור" aria-label="מספור"><span nz-icon nzType="ordered-list"></span></button>
+              <button type="button" class="rb text" [class.on]="st.quote" [attr.aria-pressed]="st.quote" (click)="run(quote)" nz-tooltip="ציטוט" aria-label="ציטוט">❝</button>
+              <span class="sep"></span>
+              <button type="button" class="rb text dir" [class.on]="!st.ltr" [attr.aria-pressed]="!st.ltr" (click)="setDir('rtl')" nz-tooltip="כיוון טקסט מימין לשמאל" aria-label="מימין לשמאל">¶◂</button>
+              <button type="button" class="rb text dir" [class.on]="st.ltr" [attr.aria-pressed]="st.ltr" (click)="setDir('ltr')" nz-tooltip="כיוון טקסט משמאל לימין" aria-label="משמאל לימין">▸¶</button>
+            </div>
+            <div class="row">
+              <button type="button" class="rb" [class.on]="st.align === 'right'" (click)="setAlign('right')" nz-tooltip="יישור לימין" aria-label="יישור לימין"><span nz-icon nzType="align-right"></span></button>
+              <button type="button" class="rb" [class.on]="st.align === 'center'" (click)="setAlign('center')" nz-tooltip="מרכוז" aria-label="מרכוז"><span nz-icon nzType="align-center"></span></button>
+              <button type="button" class="rb" [class.on]="st.align === 'left'" (click)="setAlign('left')" nz-tooltip="יישור לשמאל" aria-label="יישור לשמאל"><span nz-icon nzType="align-left"></span></button>
+              <button type="button" class="rb" [class.on]="st.align === 'justify'" (click)="setAlign('justify')" nz-tooltip="יישור לשני הצדדים" aria-label="יישור לשני הצדדים"><span nz-icon nzType="menu"></span></button>
+            </div>
+          </div>
+          <div class="group-label">פסקה</div>
+        </div>
+
+        <div class="group">
+          <div class="controls styles">
+            <button type="button" class="style-card" [class.on]="st.block === 'p'" (click)="setBlock('p')"><span class="sample p">אבג</span><span class="name">רגיל</span></button>
+            <button type="button" class="style-card" [class.on]="st.block === 'h1'" (click)="setBlock('h1')"><span class="sample h1">אבג</span><span class="name">כותרת 1</span></button>
+            <button type="button" class="style-card" [class.on]="st.block === 'h2'" (click)="setBlock('h2')"><span class="sample h2">אבג</span><span class="name">כותרת 2</span></button>
+            <button type="button" class="style-card" [class.on]="st.block === 'h3'" (click)="setBlock('h3')"><span class="sample h3">אבג</span><span class="name">כותרת 3</span></button>
+          </div>
+          <div class="group-label">סגנונות</div>
+        </div>
+      }
+
+      @case ('insert') {
+        <div class="group">
+          <div class="controls">
+            <button
+              type="button"
+              class="rb big"
+              nz-popover
+              nzPopoverTrigger="click"
+              [nzPopoverContent]="tablePicker"
+              [(nzPopoverVisible)]="tableOpen"
+              nzPopoverPlacement="bottomRight"
+            >
+              <span nz-icon nzType="table"></span><span>טבלה</span>
+            </button>
+            <ng-template #tablePicker>
+              <div class="table-picker" (mouseleave)="grid.set({ rows: 0, cols: 0 })">
+                <div class="table-grid" dir="rtl">
+                  @for (c of gridCells; track $index) {
+                    <button
+                      type="button"
+                      class="cell"
+                      [class.lit]="c.row <= grid().rows && c.col <= grid().cols"
+                      (mouseenter)="grid.set({ rows: c.row, cols: c.col })"
+                      (focus)="grid.set({ rows: c.row, cols: c.col })"
+                      (click)="insertTable(c.row, c.col)"
+                      [attr.aria-label]="c.row + ' שורות על ' + c.col + ' עמודות'"
+                    ></button>
+                  }
+                </div>
+                <div class="table-size">{{ grid().rows ? grid().rows + ' × ' + grid().cols : 'בחירת גודל' }}</div>
+              </div>
+            </ng-template>
+          </div>
+          <div class="group-label">טבלאות</div>
+        </div>
+
+        <div class="group">
+          <div class="controls">
+            <button type="button" class="rb big" nz-dropdown [nzDropdownMenu]="timelineMenu" nzTrigger="click">
+              <span nz-icon nzType="field-time"></span><span>ציר זמן <span class="caret" aria-hidden="true"></span></span>
+            </button>
+            <nz-dropdown-menu #timelineMenu="nzDropdownMenu">
+              <ul nz-menu>
+                <li nz-menu-item (click)="run(timeline('title'))">כותרות לפי תאריך</li>
+                <li nz-menu-item (click)="run(timeline('content'))">כותרות ותחילת התוכן</li>
+              </ul>
+            </nz-dropdown-menu>
+          </div>
+          <div class="group-label">ציר זמן</div>
+        </div>
+
+        <div class="group">
+          <div class="controls">
+            <button type="button" class="rb big" (click)="pickImage()"><span nz-icon nzType="picture"></span><span>תמונה</span></button>
+          </div>
+          <div class="group-label">איורים</div>
+        </div>
+
+        <div class="group">
+          <div class="controls">
+            <button
+              type="button"
+              class="rb big"
+              [class.on]="st.link"
+              nz-popover
+              nzPopoverTrigger="click"
+              [nzPopoverContent]="linkEditor"
+              [nzPopoverVisible]="linkOpen()"
+              (nzPopoverVisibleChange)="openLink($event)"
+              nzPopoverPlacement="bottom"
+            >
+              <span nz-icon nzType="link"></span><span>קישור</span>
+            </button>
+            <ng-template #linkEditor>
+              <div class="link-editor">
+                <input nz-input nzSize="small" dir="ltr" placeholder="https://" aria-label="כתובת הקישור" [ngModel]="linkHref()" (ngModelChange)="linkHref.set($event)" (keydown.enter)="applyLink()" />
+                <button nz-button nzSize="small" nzType="primary" type="button" (click)="applyLink()">החלה</button>
+                @if (st.link) {
+                  <button nz-button nzSize="small" type="button" (click)="linkHref.set(''); applyLink()" nz-tooltip="הסרת הקישור" aria-label="הסרת הקישור">
+                    <span nz-icon nzType="disconnect"></span>
+                  </button>
+                }
+              </div>
+            </ng-template>
+          </div>
+          <div class="group-label">קישורים</div>
+        </div>
+
+        <div class="group">
+          <div class="controls">
+            <button type="button" class="rb big" (click)="run(rule)"><span nz-icon nzType="line"></span><span>קו מפריד</span></button>
+            <button type="button" class="rb big" (click)="run(pageBreak)"><span nz-icon nzType="scissor"></span><span>מעבר עמוד</span></button>
+          </div>
+          <div class="group-label">עמודים</div>
+        </div>
+      }
+
+      @case ('layout') {
+        <div class="group">
+          <div class="controls">
+            <button type="button" class="rb big" nz-dropdown [nzDropdownMenu]="orientationMenu" nzTrigger="click">
+              <span nz-icon nzType="rotate-right"></span><span>כיוון <span class="caret" aria-hidden="true"></span></span>
+            </button>
+            <nz-dropdown-menu #orientationMenu="nzDropdownMenu">
+              <ul nz-menu>
+                <li nz-menu-item [nzSelected]="page().orientation === 'portrait'" (click)="setPage({ orientation: 'portrait' })">לאורך</li>
+                <li nz-menu-item [nzSelected]="page().orientation === 'landscape'" (click)="setPage({ orientation: 'landscape' })">לרוחב</li>
+              </ul>
+            </nz-dropdown-menu>
+            <button type="button" class="rb big" nz-dropdown [nzDropdownMenu]="marginsMenu" nzTrigger="click">
+              <span nz-icon nzType="border"></span><span>שוליים <span class="caret" aria-hidden="true"></span></span>
+            </button>
+            <nz-dropdown-menu #marginsMenu="nzDropdownMenu">
+              <ul nz-menu>
+                <li nz-menu-item [nzSelected]="page().margins === 'narrow'" (click)="setPage({ margins: 'narrow' })">צרים · 1.27 ס״מ</li>
+                <li nz-menu-item [nzSelected]="page().margins === 'normal'" (click)="setPage({ margins: 'normal' })">רגילים · 2.54 ס״מ</li>
+                <li nz-menu-item [nzSelected]="page().margins === 'wide'" (click)="setPage({ margins: 'wide' })">רחבים · 5.08 ס״מ בצדדים</li>
+              </ul>
+            </nz-dropdown-menu>
+          </div>
+          <div class="group-label">הגדרת עמוד (A4)</div>
+        </div>
+
+        <div class="group">
+          <div class="controls zoom">
+            <button type="button" class="rb" (click)="stepZoom(-1)" nz-tooltip="הקטנה" aria-label="הקטנה"><span nz-icon nzType="zoom-out"></span></button>
+            <button type="button" class="zoom-value" (click)="zoom.set(100)" nz-tooltip="חזרה ל-100%">{{ zoom() }}%</button>
+            <button type="button" class="rb" (click)="stepZoom(1)" nz-tooltip="הגדלה" aria-label="הגדלה"><span nz-icon nzType="zoom-in"></span></button>
+          </div>
+          <div class="group-label">תצוגה</div>
+        </div>
+      }
+
+      @case ('table') {
+        <div class="group">
+          <div class="controls rows">
+            <div class="row">
+              <button type="button" class="rb" (click)="run(rowBefore)" nz-tooltip="שורה מעל" aria-label="שורה מעל"><span nz-icon nzType="insert-row-above"></span></button>
+              <button type="button" class="rb" (click)="run(rowAfter)" nz-tooltip="שורה מתחת" aria-label="שורה מתחת"><span nz-icon nzType="insert-row-below"></span></button>
+              <button type="button" class="rb" (click)="run(colBefore)" nz-tooltip="עמודה מימין" aria-label="עמודה מימין"><span nz-icon nzType="insert-row-right"></span></button>
+              <button type="button" class="rb" (click)="run(colAfter)" nz-tooltip="עמודה משמאל" aria-label="עמודה משמאל"><span nz-icon nzType="insert-row-left"></span></button>
+            </div>
+            <div class="row">
+              <button type="button" class="rb" (click)="run(deleteRow)" nz-tooltip="מחיקת שורה" aria-label="מחיקת שורה"><span nz-icon nzType="delete-row"></span></button>
+              <button type="button" class="rb" (click)="run(deleteCol)" nz-tooltip="מחיקת עמודה" aria-label="מחיקת עמודה"><span nz-icon nzType="delete-column"></span></button>
+              <button type="button" class="rb" (click)="run(deleteTable)" nz-tooltip="מחיקת הטבלה" aria-label="מחיקת הטבלה"><span nz-icon nzType="delete"></span></button>
+            </div>
+          </div>
+          <div class="group-label">שורות ועמודות</div>
+        </div>
+
+        <div class="group">
+          <div class="controls rows">
+            <div class="row">
+              <button type="button" class="rb" [disabled]="!st.canMerge" (click)="run(merge)" nz-tooltip="מיזוג תאים" aria-label="מיזוג תאים"><span nz-icon nzType="merge-cells"></span></button>
+              <button type="button" class="rb" [disabled]="!st.canSplit" (click)="run(split)" nz-tooltip="פיצול תא" aria-label="פיצול תא"><span nz-icon nzType="split-cells"></span></button>
+            </div>
+            <div class="row">
+              <button type="button" class="rb text wide" (click)="run(headerRow)" nz-tooltip="שורת כותרת: מודגשת ומוצללת">כותרת</button>
+            </div>
+          </div>
+          <div class="group-label">מיזוג</div>
+        </div>
+
+        <div class="group">
+          <div class="controls">
+            <button
+              type="button"
+              class="rb big"
+              nz-popover
+              nzPopoverTrigger="click"
+              [nzPopoverContent]="cellColors"
+              [(nzPopoverVisible)]="cellColorOpen"
+              nzPopoverPlacement="bottom"
+            >
+              <span nz-icon nzType="bg-colors"></span><span>הצללה</span>
+            </button>
+            <ng-template #cellColors><app-pouch-colors (pick)="setCellColor($event)" /></ng-template>
+          </div>
+          <div class="group-label">עיצוב תא</div>
+        </div>
+      }
+    }
+  </div>
+  <input #imageInput type="file" accept="image/png,image/jpeg,image/gif" hidden (change)="imageChosen(imageInput)" />
+</div>

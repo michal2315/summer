@@ -17,6 +17,7 @@
 
 .edits .ant-btn { padding-inline: 8px; }
 .menu-count { margin-inline-start: 4px; color: $gray; }
+.menu-fav { color: $star; font-size: 11px; }
 
 // Same swatches as the card's colour picker.
 .palette { display: grid; grid-template-columns: repeat(3, 24px); gap: 8px; }

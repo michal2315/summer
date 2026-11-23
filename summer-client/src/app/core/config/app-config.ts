@@ -21,6 +21,13 @@ export interface AppEnvironment {
   userMonitoring: string;
   notificationsPollMs: number;
   maxToExport: number;
+  /** Feature flags: off hides the feature's entry points. Override per deployment in env-config.js (`features: { pouch: true }`). */
+  features: AppFeatures;
+}
+
+export interface AppFeatures {
+  /** Pouch: personal export formats (export menu, profile shelf). */
+  pouch: boolean;
 }
 
 declare global {
@@ -31,5 +38,9 @@ declare global {
 
 export const APP_CONFIG = new InjectionToken<AppEnvironment>('APP_CONFIG', {
   providedIn: 'root',
-  factory: () => ({ ...environment, ...(window._env_ ?? {}) }),
+  factory: () => {
+    const env = window._env_ ?? {};
+    // Flags merge one by one, so overriding one doesn't switch the others back to off.
+    return { ...environment, ...env, features: { ...environment.features, ...(env.features ?? {}) } };
+  },
 });

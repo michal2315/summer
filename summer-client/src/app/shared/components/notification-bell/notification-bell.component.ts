@@ -35,6 +35,7 @@ export class NotificationBellComponent {
   openNotification(n: INotification) {
     if (!n.isViewed) this.service.markViewed(n._id);
     this.open.set(false);
-    if (n.summaryId) this.router.navigate(['/summaries'], { queryParams: { summaryId: n.summaryId } });
+    // On the notifications page, full width in the feed's place (highlighted by the alert's search, if it came from one).
+    this.router.navigate(['/notifications'], { queryParams: n.summaryId ? { summaryId: n.summaryId, alertQuery: n.queryId ?? null } : {} });
   }
 }

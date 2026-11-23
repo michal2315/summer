@@ -11,7 +11,7 @@ import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { UserService } from '../../../core/auth/user.service';
 import { SUMMARY_COLORS } from '../../../shared/models/colors';
-import { IBulkResult, IContentType } from '../../../shared/models';
+import { IBulkResult, IContentType, IPouchFormat } from '../../../shared/models';
 import { ContentTypeService } from '../../../shared/services/content-type.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { BulkFolderData, BulkFolderModalComponent } from '../bulk-folder-modal/bulk-folder-modal.component';
@@ -22,6 +22,8 @@ import { UploadExcelData, UploadExcelWizardComponent } from '../excel/upload-exc
 import { SummaryActionsService } from '../summary-actions.service';
 import { ExportWordData, ExportWordModalComponent } from '../word/export-word-modal/export-word-modal.component';
 import { SummaryListStore } from '../summary-list.store';
+import { PouchLauncher } from '../../pouch/pouch-launcher.service';
+import { PouchService } from '../../../shared/services/pouch.service';
 
 /**
  * Toolbar over a summaries list (spec "export-buttons-row"). Outside selection mode: "select", plus (on the feed) one
@@ -50,6 +52,14 @@ export class SummaryActionsBarComponent {
   readonly excelActions = input(false);
 
   readonly exporting = signal(false);
+
+  readonly pouchLauncher = inject(PouchLauncher);
+  private readonly pouch = inject(PouchService);
+  readonly pouchFormats = computed(() => this.pouch.list() ?? []);
+
+  constructor() {
+    if (this.pouchLauncher.enabled) this.pouch.ensureLoaded();
+  }
 
   downloadTemplate(t: IContentType) {
     const fieldNames = targetsFor(t, this.contentTypes.fieldsById()).map((f) => f.label);
@@ -204,5 +214,15 @@ export class SummaryActionsBarComponent {
       nzFooter: null,
       nzWidth: 560,
     });
+  }
+
+  /** Export in a personal format: the selection, or (nothing selected) every result of the current search. */
+  exportPouch(format: IPouchFormat) {
+    this.pouchLauncher.export({ format, selectedIds: [...this.store.selected()], search: this.store.currentQuery()?.search }).subscribe();
+  }
+
+  /** Make a new format, then export with it. */
+  newPouch() {
+    this.pouchLauncher.edit().subscribe((f) => f && this.exportPouch(f));
   }
 }

@@ -1,0 +1,87 @@
+@use 'tokens' as *;
+@use 'top-bar' as *;
+
+:host {
+  display: inline-flex;
+  flex: none;
+}
+
+// The search box's look (height, border, white), as a pill.
+.pill {
+  @include top-bar-surface;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 19px;
+  max-width: 300px;
+
+  &.on {
+    border-color: $accent;
+    background: $accent;
+    color: $white;
+    &:hover {
+      border-color: $accent;
+    }
+  }
+}
+
+.pill-main {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  min-width: 0;
+  padding-inline: 14px;
+  border-radius: 19px;
+  font-size: 13px;
+  white-space: nowrap;
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+  .pill.on & {
+    padding-inline-end: 6px;
+  }
+}
+
+.pill-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pill-clear {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  font-size: 11px;
+  color: rgba($white, 0.8);
+  &:hover,
+  &:focus-visible {
+    color: $white;
+    background: rgba($white, 0.18);
+  }
+}
+
+.pill.open:not(.on) {
+  border-color: $accent;
+}
+
+.pill-caret {
+  font-size: 10px;
+  opacity: 0.6;
+  transition: transform 0.15s;
+  .pill.open & {
+    transform: rotate(180deg);
+  }
+}
+
+.dates-dropdown {
+  width: 600px;
+  max-width: calc(100vw - 32px);
+}

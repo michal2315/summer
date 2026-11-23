@@ -163,6 +163,12 @@ export class SummariesController {
     return new StreamableFile(await this.word.export(me, body), { type: DOCX_MIME, disposition: contentDisposition('summer.docx') });
   }
 
+  /** Same selection as the Excel export, as the summaries themselves: the Pouch export fills a format with them. */
+  @Post('export/data')
+  exportData(@Me() me: CurrentUser, @Body() body: unknown): Promise<{ summaries: ApiSummary[]; capped: boolean }> {
+    return this.excel.exportSummaries(me, body);
+  }
+
   @Post('upload/excel')
   @UseInterceptors(FileInterceptor('file'))
   importExcel(@Me() me: CurrentUser, @UploadedFile() file: Upload | undefined, @Body() body: Record<string, unknown>): Promise<{ created: number }> {

@@ -9,14 +9,85 @@ import { SUMMARY_COLORS } from '../models/colors';
  * - @username filters by author; #name is a capsule (`_` for spaces) and joins and / or / not like a word
  * - $name picks one of the user's saved searches (the box runs it); only on its own in the box, otherwise plain text
  * - :field:value searches one field; the value is one word (`_` for spaces: `:author:Michal_Golan`), so a space ends
- *   it, or a "phrase" (whole words only, spaces allowed)
+ *   it, a "phrase" (whole words only, spaces allowed) or a /regex/
+ * - /regex/ is a regular expression, case-insensitive (spaces allowed, `\/` for a slash; unclosed it runs to the end)
  */
 export const MARK = '\u2063';
 
-/** A :field:value token (MARK, `:name:`, then a "phrase" or a word), a "phrase", or a word. */
-const TOKEN_RE = /(?<!\S)\u2063:[^\s:]*(?::(?:"[^"]*"?|\S*))?|"([^"]*)"?|\S+/g;
+/**
+ * A :field:value token (MARK, `:name:`, then a "phrase", a /regex/ or a word), a marked /regex/, a "phrase", or a word.
+ */
+const TOKEN_RE = /(?<!\S)\u2063:[^\s:]*(?::(?:"[^"]*"?|\/(?:\\.?|[^\\/])*\/?|\S*))?|(?<!\S)\u2063\/(?:\\.?|[^\\/])*\/?|"([^"]*)"?|\S+/g;
+/** A /regex/, its pattern in group 1. */
+const REGEX_RE = /^\/((?:\\.?|[^\\/])*)\/?$/;
 
-export type TokenKind = 'term' | 'and' | 'or' | 'not' | 'user' | 'field' | 'capsule' | 'saved';
+export const MAX_REGEX = 200;
+
+/**
+ * The problem with a search regex, if any. Kept in sync with the server's pgRegex (common/sql.ts): JavaScript syntax,
+ * minus what Postgres lacks.
+ */
+export function regexProblem(pattern: string): string | undefined {
+  const r = translateRegex(pattern);
+  return 'problem' in r ? r.problem : undefined;
+}
+
+const WORD = String.raw`\p{L}\p{N}_`;
+const BOUNDARY = `(?:(?<=[${WORD}])(?![${WORD}])|(?<![${WORD}])(?=[${WORD}]))`;
+const NON_BOUNDARY = `(?:(?<=[${WORD}])(?=[${WORD}])|(?<![${WORD}])(?![${WORD}]))`;
+
+/** The same walk as the server's pgRegex, to a JavaScript Unicode-mode source where \b, \B, \w and \W know Hebrew. */
+function translateRegex(pattern: string): { source: string } | { problem: string } {
+  if (pattern.length > MAX_REGEX) return { problem: `\u05d1\u05d9\u05d8\u05d5\u05d9 \u05e8\u05d2\u05d5\u05dc\u05e8\u05d9 \u05d0\u05e8\u05d5\u05da \u05de-${MAX_REGEX} \u05ea\u05d5\u05d5\u05d9\u05dd` };
+  try {
+    new RegExp(pattern);
+  } catch {
+    return { problem: '\u05d1\u05d9\u05d8\u05d5\u05d9 \u05e8\u05d2\u05d5\u05dc\u05e8\u05d9 \u05dc\u05d0 \u05ea\u05e7\u05d9\u05df' };
+  }
+  if (/\(\?<(?![=!])|\\k<|\\[pP]\{/.test(pattern)) return { problem: '\u05e7\u05d1\u05d5\u05e6\u05d5\u05ea \u05e2\u05dd \u05e9\u05dd \u05d5-\\p{\u2026} \u05d0\u05d9\u05e0\u05dd \u05e0\u05ea\u05de\u05db\u05d9\u05dd' };
+  let out = '';
+  let inClass = false;
+  /** Just after `[` or `[^`, where a `]` is literal. */
+  let classStart = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    const wasStart = classStart;
+    classStart = false;
+    if (c === '\\' && i + 1 < pattern.length) {
+      const n = pattern[++i];
+      if (inClass) {
+        if (n === 'W' || n === 'S' || n === 'D') return { problem: `\\${n} \u05d1\u05ea\u05d5\u05da [\u2026] \u05d0\u05d9\u05e0\u05d5 \u05e0\u05ea\u05de\u05da` };
+        out += n === 'w' ? WORD : `\\${n}`;
+      } else out += n === 'b' ? BOUNDARY : n === 'B' ? NON_BOUNDARY : n === 'w' ? `[${WORD}]` : n === 'W' ? `[^${WORD}]` : `\\${n}`;
+      continue;
+    }
+    if (!inClass && c === '[') {
+      inClass = classStart = true;
+      out += pattern[i + 1] === '^' ? '[' + pattern[++i] : '[';
+      continue;
+    }
+    if (inClass && c === ']' && !wasStart) inClass = false;
+    out += inClass && c === ']' ? '\\]' : c;
+  }
+  return { source: out };
+}
+
+/**
+ * A search regex as a JavaScript source for highlighting, matching like the server's (Unicode mode, Hebrew-aware \b
+ * and \w); null when it isn't valid or Unicode mode rejects it (a bare `{`, say): highlighting then skips it.
+ */
+export function regexSource(pattern: string): string | null {
+  const r = translateRegex(pattern);
+  if (!('source' in r)) return null;
+  try {
+    new RegExp(r.source, 'u');
+    return r.source;
+  } catch {
+    return null;
+  }
+}
+
+export type TokenKind = 'term' | 'and' | 'or' | 'not' | 'user' | 'field' | 'capsule' | 'saved' | 'regex';
 
 export interface QueryToken {
   kind: TokenKind;
@@ -67,6 +138,8 @@ export interface QueryTerm {
   neg: boolean;
   /** Came from "quotes": whole words only */
   exact: boolean;
+  /** Written /pattern/: `term` is a search regex (regexProblem / regexSource) */
+  regex?: boolean;
   /** Written #name: `term` is the name, to resolve with the capsules service */
   capsule?: boolean;
   /** `@user` (author) or `:field:value`: the term applies to this field only */
@@ -154,6 +227,8 @@ function fieldValue(text: string, start: number, end: number): Terms | undefined
   if (!field || from > end) return undefined;
   const value = strip(text.slice(from, end));
   const phrase = /^"([^"]*)"?$/.exec(value);
+  const regex = REGEX_RE.exec(value);
+  if (regex) return leaf({ term: regex[1], exact: false, regex: true, field: field.key });
   return leaf(phrase ? { term: phrase[1].trim(), exact: true, field: field.key } : { term: value.replace(/_/g, ' ').trim(), exact: false, field: field.key });
 }
 
@@ -178,6 +253,9 @@ export function parseQuery(text: string): ParsedQuery {
     if (raw.startsWith(MARK + ':')) {
       token.kind = 'field';
       terms = fieldValue(text, token.start, token.end);
+    } else if (raw.startsWith(MARK + '/')) {
+      token.kind = 'regex';
+      terms = leaf({ term: REGEX_RE.exec(strip(raw))?.[1] ?? '', exact: false, regex: true });
     } else if (m[1] !== undefined) {
       terms = leaf({ term: strip(m[1]).trim(), exact: true });
     } else if (raw.startsWith(MARK)) {
@@ -197,8 +275,28 @@ export function parseQuery(text: string): ParsedQuery {
 
 export interface QuerySegment {
   text: string;
-  /** 'phrase': a "quoted phrase" term */
-  kind: TokenKind | 'phrase' | null;
+  /**
+   * 'phrase': a "quoted phrase" term; 'regex-bad': a /regex/ the search would reject; 'field-regex' (/ 'field-regex-bad'):
+   * a :field:/regex/, whose `_` are literal.
+   */
+  kind: TokenKind | 'phrase' | 'regex-bad' | 'field-regex' | 'field-regex-bad' | null;
+}
+
+/** A marked token's display kind: /regex/ ones (alone or as a field's value) say whether the search would take them. */
+function segmentKind(text: string, t: QueryToken): QuerySegment['kind'] {
+  const from = t.kind === 'regex' ? t.start + 1 : t.kind === 'field' ? fieldHead(text, t.start).from : -1;
+  const regex = from >= 0 && from < t.end ? REGEX_RE.exec(strip(text.slice(from, t.end))) : null;
+  if (!regex) return t.kind;
+  const bad = !!regexProblem(regex[1]);
+  return t.kind === 'regex' ? (bad ? 'regex-bad' : 'regex') : bad ? 'field-regex-bad' : 'field-regex';
+}
+
+/** The /regex/ terms in the text (marked ones and :field:/regex/ values) that the search would reject, with why. */
+export function badRegexes(text: string): { pattern: string; problem: string }[] {
+  return parseQuery(text).groups.flat().flatMap((t) => {
+    const problem = t.regex ? regexProblem(t.term) : undefined;
+    return problem ? [{ pattern: t.term, problem }] : [];
+  });
 }
 
 /** Is `name` (from #name) a known capsule? */
@@ -217,10 +315,10 @@ export function querySegments(text: string, isCapsule?: IsCapsule): QuerySegment
   for (const t of parseQuery(text).tokens) {
     const capsule = t.kind === 'capsule' && (!isCapsule || isCapsule(capsuleName(text, t)));
     const phrase = t.kind === 'term' && text[t.start] === '"';
-    const marked = t.kind === 'user' || t.kind === 'field' || t.kind === 'saved' || isOperator(t) || capsule || phrase;
+    const marked = t.kind === 'user' || t.kind === 'field' || t.kind === 'saved' || t.kind === 'regex' || isOperator(t) || capsule || phrase;
     if (!marked) continue;
     if (t.start > last) out.push({ text: text.slice(last, t.start), kind: null });
-    out.push({ text: text.slice(t.start, t.end), kind: phrase ? 'phrase' : t.kind });
+    out.push({ text: text.slice(t.start, t.end), kind: phrase ? 'phrase' : segmentKind(text, t) });
     last = t.end;
   }
   if (last < text.length) out.push({ text: text.slice(last), kind: null });
@@ -248,8 +346,17 @@ export interface ShortcutContext {
 
 const SIGILS: Record<string, 'user' | 'field' | 'capsule' | 'saved'> = { '@': 'user', ':': 'field', '#': 'capsule', '$': 'saved' };
 
-/** The @user / :field:value / #capsule / $saved search the caret is in, marked or not. */
+/** The caret is past the opening `/` of a marked /regex/ (or a :field:/regex/ value) and before its end. */
+function inRegex(text: string, tokens: QueryToken[], caret: number): boolean {
+  return tokens.some((t) => {
+    const from = t.kind === 'regex' ? t.start + 1 : t.kind === 'field' ? fieldHead(text, t.start).from : -1;
+    return from >= 0 && text[from] === '/' && caret > from && caret <= t.end;
+  });
+}
+
+/** The @user / :field:value / #capsule / $saved search the caret is in, marked or not (none inside a /regex/). */
 export function shortcutAt(text: string, caret: number): ShortcutContext | null {
+  if (inRegex(text, parseQuery(text).tokens, caret)) return null;
   const ft = parseQuery(text).tokens.find((t) => t.kind === 'field' && caret > t.start && caret <= t.end);
   if (ft) {
     const body = strip(text.slice(ft.start, caret)).slice(1);
@@ -296,6 +403,13 @@ function operatorWordAt(text: string, caret: number): number | null {
  * Only the keystroke that makes one marks it, so one unmarked with Backspace stays plain.
  */
 export function markTyped(text: string, caret: number): { text: string; caret: number } | null {
+  const typed = caret - 1;
+  const tokens = parseQuery(text).tokens;
+  // Inside a /regex/ everything is the pattern (spaces, operator words, sigils).
+  if (inRegex(text, tokens, caret)) return null;
+  // A `/` starting a word opens a /regex/ (not one inside a "phrase" or :field:value).
+  if (text[typed] === '/' && (typed === 0 || /\s/.test(text[typed - 1])) && !tokens.some((t) => t.start < typed && typed < t.end))
+    return { text: text.slice(0, typed) + MARK + text.slice(typed), caret: caret + 1 };
   const ctx = shortcutAt(text, caret);
   const at = ctx ? (ctx.marked || ctx.blocked || ctx.start !== caret - 1 ? null : ctx.start) : operatorWordAt(text, caret);
   return at === null ? null : { text: text.slice(0, at) + MARK + text.slice(at), caret: caret + 1 };

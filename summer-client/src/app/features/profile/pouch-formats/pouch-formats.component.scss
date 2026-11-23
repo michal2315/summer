@@ -1,0 +1,51 @@
+@use '../shelf-cards' as *;
+@use 'tokens' as *;
+
+.kind {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: $orange-strong;
+}
+
+.views {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.view {
+  all: unset;
+  cursor: pointer;
+  padding: 2px 10px;
+  border: 1px solid $border-strong;
+  border-radius: 12px;
+  font-size: 12px;
+  color: $dark-gray;
+  &:hover,
+  &:focus-visible {
+    border-color: $gray;
+  }
+  &.active {
+    border-color: $orange-strong;
+    background: $orange-50;
+    color: $orange-strong;
+  }
+  .n {
+    margin-inline-start: 3px;
+    color: $gray;
+  }
+}
+
+// What I may do with a format someone shared with me.
+.role-badge {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: $gray-tag;
+  color: $dark-gray;
+  font-size: 10px;
+  line-height: 16px;
+  &.editor {
+    background: $orange-50;
+    color: $orange-strong;
+  }
+}

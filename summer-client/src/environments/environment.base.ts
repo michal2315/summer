@@ -19,4 +19,5 @@ export const baseEnvironment: AppEnvironment = {
   userMonitoring: 'https://monitoring.example-university.edu/api/event',
   notificationsPollMs: 60_000,
   maxToExport: 500,
+  features: { pouch: false },
 };

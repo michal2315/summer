@@ -355,6 +355,24 @@ $border: #ececf2;
   color: $gray;
 }
 
+.regex {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.regex-input {
+  font-family: ui-monospace, Consolas, monospace;
+  &.invalid {
+    border-color: $error-color;
+  }
+}
+
+.regex-problem {
+  font-size: 12px;
+  color: $error-color;
+}
+
 @media (max-width: $bp-mobile) {
   .cond {
     flex-wrap: wrap;

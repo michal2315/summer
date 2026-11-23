@@ -24,6 +24,7 @@ import { QueryService } from '../../../shared/services/query.service';
 import { stripPaging } from '../../../shared/services/search-history.service';
 import { SummaryService } from '../../../shared/services/summary.service';
 import { capsuleTokenId, isCapsuleToken, treeCapsuleIds } from '../../../shared/utils/capsules';
+import { regexProblem } from '../../../shared/utils/search-syntax';
 import { QUERY_KIND_LABEL, describeSearch } from '../search-query';
 import {
   EditCondition,
@@ -41,6 +42,7 @@ import {
   opLabel,
   readsFrom,
   readsTo,
+  treeRegexProblem,
   newCondition,
   newGroup,
   opTone,
@@ -215,8 +217,12 @@ export class AdvancedSearchComponent {
 
   /** A catalog operator change within the same kind keeps the value; the bounds an operator doesn't read are dropped on send. */
   setOp(c: EditCondition, op: QueryOp) {
-    this.update(c, { op });
+    // Words and a regex don't carry over: a word isn't meant as a pattern, nor a pattern (or capsule) as words.
+    const regexChanged = (op === 'regex') !== (c.op === 'regex');
+    this.update(c, regexChanged ? { op, words: [] } : { op });
   }
+
+  readonly regexProblem = regexProblem;
 
   setNumber(c: EditCondition, key: 'from' | 'to', n: number | null) {
     this.update(c, { [key]: n === null || n === undefined || Number.isNaN(n) ? undefined : String(n) });
@@ -268,6 +274,11 @@ export class AdvancedSearchComponent {
   }
 
   submit() {
+    const problem = treeRegexProblem(this.query());
+    if (problem) {
+      this.message.error(problem);
+      return;
+    }
     this.run.emit(this.query());
   }
 
@@ -291,6 +302,11 @@ export class AdvancedSearchComponent {
   save() {
     const name = this.saveName().trim();
     if (this.saveBusy() || !name || !this.query() || this.savedMatch()) return;
+    const problem = treeRegexProblem(this.query());
+    if (problem) {
+      this.message.error(problem);
+      return;
+    }
     this.saveBusy.set(true);
     const done = () => this.saveBusy.set(false);
     this.queries.create(name, 'advanced', this.searchToSave(), this.saveAlert() ? { isActive: true } : undefined).subscribe({

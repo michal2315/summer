@@ -183,7 +183,27 @@
     <div class="cond-value">
       @switch (kind) {
         @case ('text') {
-          <app-capsule-words-input placeholder="מילה או ביטוי + Enter, # לכמוסה" [ngModel]="c.words" (ngModelChange)="update(c, { words: $event })" />
+          @if (c.op === 'regex') {
+            <div class="regex">
+              <input
+                nz-input
+                nzSize="small"
+                class="regex-input"
+                dir="ltr"
+                spellcheck="false"
+                placeholder="^שיעור \d+"
+                aria-label="ביטוי רגולרי"
+                [class.invalid]="c.words[0] && regexProblem(c.words[0])"
+                [ngModel]="c.words[0]"
+                (ngModelChange)="update(c, { words: $event ? [$event] : [] })"
+              />
+              @if (c.words[0] && regexProblem(c.words[0]); as problem) {
+                <div class="regex-problem" role="alert">{{ problem }}</div>
+              }
+            </div>
+          } @else {
+            <app-capsule-words-input placeholder="מילה או ביטוי + Enter, # לכמוסה" [ngModel]="c.words" (ngModelChange)="update(c, { words: $event })" />
+          }
         }
         @case ('number') {
           <div class="dates">

@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser } from '../auth/identity-provider';
+import { CapsulesService } from '../capsules/capsules.service';
 import { ApiNotification, ApiNotificationFeedItem } from '../common/api-types';
 import { parse, unique, zBoolString, zId, zList } from '../common/validation';
+import { APP_CONFIG, AppConfig } from '../config/app-config';
 import { NOTIFICATION_KINDS, NotificationKind } from '../database/schema';
 import { PermissionsRepository } from '../permissions/permissions.repository';
 import { alertPart } from '../queries/query-search';
+import { capsuleRefs, summarySearchSchema } from '../summaries/summary-search';
+import { Highlight, MatchedText, describeSearch, foundLabels, searchHighlights, searchRefs } from './alert-explain';
 import { AlertRule, MailPreferences, NotificationsRepository, Recipient } from './notifications.repository';
 
 const FEED_PAGE = 20;
@@ -20,7 +24,7 @@ const feedQuery = z.object({
 const preferencesBody = z.object({ mailAlerts: z.boolean().optional(), mailActivity: z.boolean().optional() });
 
 /** A stored notification and who got it. */
-interface Delivered {
+export interface Delivered {
   notificationId: string;
   recipient: Recipient;
 }
@@ -39,6 +43,8 @@ function mailFlags(u: Recipient, alert?: Pick<AlertRule, 'isMail' | 'isDigest'>)
 export interface PublishedSummary {
   id: string;
   title: string;
+  /** What an alert's words are looked for in, to say which were found. */
+  text: MatchedText;
   /** Does the summary match this query's search (the feed's own SQL)? */
   matchesSearch: (search: Record<string, unknown>) => Promise<boolean>;
 }
@@ -46,8 +52,10 @@ export interface PublishedSummary {
 @Injectable()
 export class NotificationsService {
   constructor(
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly repo: NotificationsRepository,
     private readonly permissions: PermissionsRepository,
+    private readonly capsules: CapsulesService,
   ) {}
 
   /**
@@ -66,21 +74,22 @@ export class NotificationsService {
 
   /**
    * notify() for tagged permission groups: every member (by last-known groups) once, under the first group they are in.
-   * `skip` holds people already notified about this event. Returns everyone covered, so callers can chain.
+   * `skip` holds people already notified about this event. Returns the notifications it stored.
    */
   async notifyGroups(
     permissionIds: string[],
     n: { summaryId: string; kind: NotificationKind; createdBy: string; commentId?: string },
     text: (groupName: string) => string,
     skip: string[] = [],
-  ): Promise<string[]> {
+  ): Promise<Delivered[]> {
     const told = new Set(skip);
+    const sent: Delivered[] = [];
     for (const p of await this.permissions.byIds(unique(permissionIds))) {
       const members = (await this.repo.groupMemberIds(p.groupName)).filter((id) => !told.has(id));
       members.forEach((id) => told.add(id));
-      await this.notify(members, { ...n, text: text(p.name) });
+      sent.push(...(await this.notify(members, { ...n, text: text(p.name) })));
     }
-    return [...told];
+    return sent;
   }
 
   /**
@@ -99,24 +108,29 @@ export class NotificationsService {
     return this.repo.canView(principal, summaryId);
   }
 
-  /** A summary became visible to others (created published, or a draft was published): followers + matching alerts. */
-  async onPublished(s: PublishedSummary, author: CurrentUser): Promise<void> {
-    const followers = await this.repo.followerIds(author.id);
+  /**
+   * A summary became visible to others (created published, or a draft was published): followers + matching alerts.
+   * `told` holds who this same save already notified (the people it tags): they get no second notification, and an
+   * alert of theirs that matches rides on the one they got.
+   */
+  async onPublished(s: PublishedSummary, author: CurrentUser, told: Delivered[] = []): Promise<void> {
+    const notified = new Map(told.map((d) => [d.recipient.id, d]));
+    const followers = (await this.repo.followerIds(author.id)).filter((id) => !notified.has(id));
     const sent = await this.notify(followers, { summaryId: s.id, text: `${author.fullName} פרסם/ה תמצית חדשה "${s.title}"`, kind: 'follow', createdBy: author.id });
-    const notified = new Map(sent.map((d) => [d.recipient.id, d]));
+    sent.forEach((d) => notified.set(d.recipient.id, d));
 
     await this.notifyAlerts(s, author, notified, 'חדשה');
   }
 
-  /** A published summary was edited: it may match queries now that it didn't before. */
-  async onUpdated(s: PublishedSummary, author: CurrentUser): Promise<void> {
-    await this.notifyAlerts(s, author, new Map(), 'שעודכנה');
+  /** A published summary was edited: it may match queries now that it didn't before. `told`: as in onPublished. */
+  async onUpdated(s: PublishedSummary, author: CurrentUser, told: Delivered[] = []): Promise<void> {
+    await this.notifyAlerts(s, author, new Map(told.map((d) => [d.recipient.id, d])), 'שעודכנה');
   }
 
   /**
    * Each alert notifies its user once per summary, the first time the summary matches its query (alert hits remember
-   * it). One notification per person per event: an alert whose user was already told this time records its hit and
-   * adds its e-mails to that notification.
+   * it). One notification per person per event: an alert whose user was already told this time records its hit,
+   * says so in that notification's text, and adds its e-mails to it. Texts name the alert and the words it found.
    */
   private async notifyAlerts(s: PublishedSummary, author: CurrentUser, notified: Map<string, Delivered>, what: string): Promise<void> {
     const alerts = await this.repo.activeAlerts();
@@ -124,18 +138,36 @@ export class NotificationsService {
     for (const alert of alerts) {
       if (alert.userId === author.id || done.has(alert.id)) continue;
       if (!(await s.matchesSearch(alertPart(alert.search)))) continue;
+      const found = foundLabels(await this.highlights(alert.search), s.text);
+      const foundText = found.length ? ` · נמצא: ${found.slice(0, 5).join(', ')}` : '';
       const earlier = notified.get(alert.userId);
       if (earlier) {
         const { mail, digest } = mailFlags(earlier.recipient, alert);
-        if (mail || digest) await this.repo.addAlertDelivery(earlier.notificationId, alert.id, mail, digest);
+        await this.repo.addAlertDelivery(earlier.notificationId, alert.id, mail, digest, ` · תואמת גם להתראה "${alert.name}"${foundText}`);
         await this.repo.addAlertHit(alert.id, s.id);
         continue;
       }
-      const sent = await this.notify([alert.userId], { summaryId: s.id, text: `תמצית ${what} תואמת לחיפוש "${alert.name}": "${s.title}"`, kind: 'alert', createdBy: author.id }, alert);
+      const text = `התראה "${alert.name}": תמצית ${what} "${s.title}" מאת ${author.fullName}${foundText}`;
+      const sent = await this.notify([alert.userId], { summaryId: s.id, text, kind: 'alert', createdBy: author.id }, alert);
       if (!sent.length) continue;
       await this.repo.addAlertHit(alert.id, s.id);
       sent.forEach((d) => notified.set(d.recipient.id, d));
     }
+  }
+
+  /** The words an alert's search looks for, as highlights (see alert-explain). */
+  async highlights(search: Record<string, unknown>): Promise<Highlight[]> {
+    const f = summarySearchSchema.safeParse(alertPart(search));
+    if (!f.success) return [];
+    return searchHighlights(f.data, await this.capsules.lookup(capsuleRefs(f.data)));
+  }
+
+  /** An alert's search in words ("why it matched"), one phrase per thing it asks for. */
+  async describe(search: Record<string, unknown>): Promise<string[]> {
+    const f = summarySearchSchema.safeParse(alertPart(search));
+    if (!f.success) return [];
+    const [names, capsules] = await Promise.all([this.repo.names(searchRefs(f.data)), this.capsules.lookup(capsuleRefs(f.data))]);
+    return describeSearch(f.data, { ...names, capsules }, this.config.timezone);
   }
 
   async inbox(me: CurrentUser): Promise<ApiNotification[]> {
@@ -147,6 +179,7 @@ export class NotificationsService {
       creationDate: r.createdAt.toISOString(),
       isViewed: r.viewedAt !== null,
       createdBy: r.authorId ? { _id: r.authorId, username: r.authorUsername!, fullName: r.authorFullName! } : undefined,
+      queryId: r.queryId ?? undefined,
     }));
   }
 
@@ -154,9 +187,12 @@ export class NotificationsService {
   async feed(me: CurrentUser, query: unknown): Promise<{ items: Omit<ApiNotificationFeedItem, 'summary'>[]; hasMore: boolean }> {
     const q = parse(feedQuery, query ?? {});
     const rows = await this.repo.feed(me, { queryId: q.queryId, kinds: q.kinds, unread: q.unread, offset: q.offset, limit: FEED_PAGE });
+    const page = rows.slice(0, FEED_PAGE);
+    const why = new Map<string, string[]>();
+    for (const r of page) if (r.queryId && !why.has(r.queryId)) why.set(r.queryId, await this.describe(r.querySearch ?? {}));
     return {
       hasMore: rows.length > FEED_PAGE,
-      items: rows.slice(0, FEED_PAGE).map((r) => ({
+      items: page.map((r) => ({
         _id: r.id,
         text: r.text,
         summaryId: r.summaryId ?? undefined,
@@ -164,7 +200,7 @@ export class NotificationsService {
         isViewed: r.viewedAt !== null,
         createdBy: r.authorId ? { _id: r.authorId, username: r.authorUsername!, fullName: r.authorFullName! } : undefined,
         kind: r.kind,
-        ...(r.queryId ? { query: { _id: r.queryId, name: r.queryName! } } : {}),
+        ...(r.queryId ? { query: { _id: r.queryId, name: r.queryName!, why: why.get(r.queryId) ?? [] } } : {}),
       })),
     };
   }

@@ -1,0 +1,362 @@
+@use 'tokens' as *;
+
+$on: #c2571b; // $orange-strong, as hex for rgba()
+$on-bg: $orange-50-hex;
+
+:host {
+  display: block;
+}
+
+.ribbon {
+  background: $white;
+  border-bottom: 1px solid $border-strong;
+  box-shadow: 0 1px 4px rgba(5, 4, 61, 0.05);
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px 12px 0;
+  background: $surface-subtle;
+  border-bottom: 1px solid $border-strong;
+}
+
+.tab {
+  all: unset;
+  cursor: pointer;
+  padding: 5px 14px 6px;
+  border-radius: 6px 6px 0 0;
+  font-size: 13px;
+  color: $dark-gray;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  &:hover,
+  &:focus-visible {
+    color: $dark-blue;
+    background: rgba(255, 255, 255, 0.6);
+  }
+  &.active {
+    color: $on;
+    font-weight: 600;
+    background: $white;
+    border-color: $border-strong;
+    border-bottom-color: $white;
+    box-shadow: inset 0 2px 0 $on;
+  }
+  &.contextual {
+    color: $on;
+    &::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-inline-end: 6px;
+      border-radius: 50%;
+      background: $on;
+      vertical-align: middle;
+    }
+  }
+}
+
+.strip {
+  display: flex;
+  align-items: stretch;
+  min-height: 86px;
+  padding: 6px 8px 0;
+  overflow-x: auto;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 10px;
+  & + & {
+    border-inline-start: 1px solid $border-color;
+  }
+}
+
+.controls {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  &.rows {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 4px;
+  }
+  &.stack {
+    flex-direction: column;
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.group-label {
+  padding: 3px 0 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+  color: $gray;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: $border-strong;
+}
+
+.rb {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  position: relative;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  color: $dark-blue;
+  font-size: 15px;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+  &:hover:not([disabled]),
+  &:focus-visible {
+    background: $surface-subtle;
+    border-color: $border-strong;
+  }
+  &.on {
+    background: $on-bg;
+    border-color: rgba($on, 0.35);
+    color: $on;
+  }
+  &[disabled] {
+    cursor: default;
+    opacity: 0.35;
+  }
+  &.text {
+    font-size: 13px;
+    font-weight: 600;
+    sup,
+    sub {
+      font-size: 9px;
+    }
+  }
+  &.wide {
+    font-weight: 400;
+  }
+  &.color {
+    flex-direction: column;
+    gap: 0;
+    padding-top: 2px;
+    .bar {
+      width: 16px;
+      height: 3px;
+      border-radius: 1px;
+      margin-top: 1px;
+    }
+  }
+  &.big {
+    flex-direction: column;
+    height: 62px;
+    min-width: 58px;
+    padding: 4px 8px;
+    gap: 4px;
+    font-size: 12px;
+    > [nz-icon] {
+      font-size: 22px;
+      color: $on;
+    }
+    > span:last-child {
+      display: inline-flex;
+      align-items: center;
+      line-height: 1;
+    }
+  }
+}
+
+// A small chevron for dropdown buttons, drawn rather than an icon so it stays light.
+.caret {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-inline-start: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-1.5px) rotate(45deg);
+  opacity: 0.55;
+}
+
+.font {
+  width: 136px;
+}
+
+.size {
+  width: 58px;
+}
+
+// The font and size pickers: the same quiet border and chevron as the ribbon's buttons.
+.font,
+.size {
+  ::ng-deep {
+    .ant-select-selector {
+      border-radius: 5px !important;
+      border-color: $border-strong !important;
+      transition: border-color 0.12s;
+    }
+    &:hover .ant-select-selector {
+      border-color: $gray !important;
+    }
+    &.ant-select-focused .ant-select-selector {
+      border-color: $on !important;
+      box-shadow: 0 0 0 2px rgba($on, 0.12) !important;
+    }
+    .ant-select-arrow {
+      width: 5px;
+      height: 5px;
+      margin-top: -4px;
+      inset-inline-end: 10px;
+      border-right: 1.5px solid $gray;
+      border-bottom: 1.5px solid $gray;
+      transform: rotate(45deg);
+      .anticon {
+        display: none;
+      }
+    }
+  }
+}
+
+// The style gallery: each card shows its look.
+.styles {
+  gap: 4px;
+}
+
+.style-card {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 68px;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid $border-strong;
+  border-radius: 5px;
+  background: $white;
+  &:hover,
+  &:focus-visible {
+    border-color: $gray;
+  }
+  &.on {
+    border-color: $on;
+    box-shadow: inset 0 0 0 1px $on;
+  }
+  .sample {
+    color: $dark-blue;
+    line-height: 1.1;
+    font-family: Arial, sans-serif;
+    &.p {
+      font-size: 13px;
+    }
+    &.h1 {
+      font-size: 19px;
+      font-weight: 700;
+    }
+    &.h2 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    &.h3 {
+      font-size: 14px;
+      font-weight: 700;
+    }
+  }
+  .name {
+    font-size: 10px;
+    color: $gray;
+  }
+}
+
+.zoom {
+  gap: 4px;
+}
+
+.zoom-value {
+  all: unset;
+  cursor: pointer;
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  color: $dark-blue;
+  padding: 3px 4px;
+  border-radius: 4px;
+  &:hover,
+  &:focus-visible {
+    background: $surface-subtle;
+  }
+}
+
+// Popover contents (rendered in the overlay, so they need no host scoping beyond the component's own).
+.table-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 18px);
+  gap: 3px;
+}
+
+.cell {
+  all: unset;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1px solid $border-strong;
+  border-radius: 2px;
+  background: $white;
+  &.lit {
+    border-color: $on;
+    background: $on-bg;
+  }
+}
+
+.table-size {
+  font-size: 12px;
+  color: $dark-gray;
+  text-align: center;
+}
+
+.link-editor {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  input {
+    width: 240px;
+  }
+}
+
+// The direction glyphs read the same way whatever the page's direction.
+.dir {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

@@ -206,3 +206,18 @@ html.coral-mode app-summy {
   --summy-face: #ffb3d9;
   --summy-rays: #ff85c0;
 }
+
+// The date pill's dropdown (search-dates): a card under the pill, no arrow.
+.search-dates-overlay {
+  padding-top: 6px;
+  .ant-popover-arrow {
+    display: none;
+  }
+  .ant-popover-inner {
+    border-radius: 16px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+  }
+  .ant-popover-inner-content {
+    padding: 16px;
+  }
+}

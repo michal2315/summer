@@ -1,4 +1,13 @@
+@use 'top-bar' as *;
+
+// A circle like the search box beside it.
+.top-btn {
+  all: unset;
+  cursor: pointer;
+  @include top-bar-circle;
+}
+
 // The bell's size, so the two sit together.
 .gear {
-  font-size: 20px;
+  font-size: 18px;
 }
