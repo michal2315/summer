@@ -111,6 +111,53 @@
   box-shadow: 0 4px 12px -4px rgba($primary-pink, 0.55);
 }
 
+// One topic on its own: compact rows.
+.topics-title {
+  margin: 12px 8px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $gray;
+}
+
+.topic {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: $border-radius;
+  &:hover,
+  &:focus-visible {
+    background: $app-background;
+    .topic-go {
+      color: $primary-pink;
+    }
+  }
+}
+
+.topic-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: $dark-blue;
+}
+
+.topic-desc {
+  grid-row: 2;
+  font-size: 12px;
+  color: $dark-gray;
+}
+
+.topic-go {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  align-self: center;
+  font-size: 11px;
+  color: $gray;
+}
+
 .foot {
   margin-top: 8px;
   padding-top: 6px;

@@ -13,6 +13,8 @@ const GAP = 14;
 const MIN_RING_RADIUS = 8;
 /** The bubble dims (not hidden) only when a step's prep takes noticeably long. */
 const BUSY_DELAY_MS = 180;
+/** After a `do` step is done: long enough to see the bubble turn green, and the page change it caused. */
+const DONE_PAUSE_MS = 700;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const frame = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
@@ -52,6 +54,8 @@ export class TourOverlayComponent {
   readonly busy = signal(false);
   readonly done = signal(false);
   readonly entered = signal(false);
+  /** The step's `arrive` line, when the page changed since the last step; `byUser` = the user's own click did it. */
+  readonly arrived = signal<{ text: string; byUser: boolean } | null>(null);
 
   readonly keyHints = computed<KeyHint[]>(() =>
     (this.shown()?.kbd ?? []).map((k) => {
@@ -69,6 +73,9 @@ export class TourOverlayComponent {
   private raf = 0;
   private poll = 0;
   private lastLayout = '';
+  private lastPage: string | null = null;
+  /** The last `do` step was done by the user (not skipped). */
+  private completed = false;
 
   constructor() {
     effect(() => {
@@ -108,6 +115,10 @@ export class TourOverlayComponent {
   private async show(step: TourStep) {
     const token = ++this.token;
     this.clearTimers();
+    // Whether the user got here by doing the last step themselves (else the tour, or nothing, moved the page).
+    const byUser = this.completed;
+    this.completed = false;
+    this.lastPage ??= this.page();
     const busyTimer = setTimeout(() => this.busy.set(true), BUSY_DELAY_MS);
     try {
       await step.prep?.(this.tour.ctx);
@@ -115,9 +126,21 @@ export class TourOverlayComponent {
       /* a failed prep still shows the step, as a centered card if its element is missing */
     }
     if (token !== this.token) return;
+    if (step.when && !step.when(this.tour.ctx)) {
+      clearTimeout(busyTimer);
+      // Seen, so a step that never applies to this user isn't offered as new forever.
+      this.tour.markSeen(step);
+      this.completed = byUser;
+      this.tour.skip();
+      return;
+    }
     const target = step.sel ? await this.waitFor(step.sel) : null;
     clearTimeout(busyTimer);
     if (token !== this.token) return;
+
+    const page = this.page();
+    this.arrived.set(step.arrive && page !== this.lastPage ? { text: step.arrive, byUser } : null);
+    this.lastPage = page;
 
     this.tour.markSeen(step);
     this.target = target;
@@ -133,7 +156,11 @@ export class TourOverlayComponent {
         if (!step.do!.until(this.tour.ctx)) return;
         clearInterval(this.poll);
         this.done.set(true);
-        setTimeout(() => token === this.token && this.tour.go(1), 550);
+        setTimeout(() => {
+          if (token !== this.token) return;
+          this.completed = true;
+          this.tour.go(1);
+        }, DONE_PAUSE_MS);
       }, 200);
     }
 
@@ -142,17 +169,28 @@ export class TourOverlayComponent {
     this.lastLayout = '';
     this.place();
     this.entered.set(true);
-    const primary = this.pop()?.nativeElement.querySelector<HTMLElement>('.primary-action');
-    primary?.focus({ preventScroll: true });
+    // Someone typing (e.g. the search step) keeps their caret; otherwise Enter / Space go to the main button.
+    if (!isTyping(this.document.activeElement)) {
+      this.pop()?.nativeElement.querySelector<HTMLElement>('.primary-action')?.focus({ preventScroll: true });
+    }
   }
 
   private stop() {
     this.token++;
     this.clearTimers();
     this.target = null;
+    this.lastPage = null;
+    this.completed = false;
     this.shown.set(null);
+    this.arrived.set(null);
     this.entered.set(false);
     this.busy.set(false);
+  }
+
+  /** Which page the app is on, for `arrive`: the path, plus the folder or running summary the home page shows. */
+  private page(): string {
+    const url = new URL(this.tour.ctx.url(), 'http://x');
+    return [url.pathname, url.searchParams.get('folderId'), url.searchParams.get('runningId')].join('|');
   }
 
   private clearTimers() {
@@ -281,8 +319,8 @@ export class TourOverlayComponent {
       this.close();
       return;
     }
-    // While the user is asked to type somewhere, arrows belong to that field.
-    if (this.doing() && isTyping(e.target)) return;
+    // Arrows in a field (e.g. the search box the user just typed in) belong to that field.
+    if (isTyping(e.target)) return;
     // RTL: left is forward.
     if (e.key === 'ArrowLeft' && !this.doing()) {
       e.preventDefault();

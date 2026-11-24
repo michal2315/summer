@@ -8,13 +8,21 @@
     <div class="pop" #pop role="dialog" [attr.aria-label]="s.title" [class.in]="entered()" [class.busy]="busy()" [class.done]="done()">
       <div class="top">
         <span class="topic">{{ tour.topicTitle(s) }}</span>
-        @if (tour.isNew(s)) {
+        @if (tour.isNew(s) && !tour.fullTourRunning()) {
           <span class="new">חדש</span>
         }
         <button type="button" class="close" (click)="close()" title="סגירת הסיור (Esc)" aria-label="סגירת הסיור">
           <span nz-icon nzType="close"></span>
         </button>
       </div>
+
+      @if (arrived(); as a) {
+        <!-- The page changed since the last step: say where we are, so it doesn't just appear. -->
+        <div class="arrive" role="status">
+          <span nz-icon [nzType]="a.byUser ? 'check-circle' : 'arrow-left'" [nzTheme]="a.byUser ? 'fill' : 'outline'"></span>
+          {{ a.text }}
+        </div>
+      }
 
       <div class="title" role="heading" aria-level="2">{{ s.title }}</div>
       <div class="body">{{ s.body }}</div>
@@ -47,15 +55,21 @@
       }
 
       @if (doing() && s.do; as d) {
-        <div class="do"><span class="pulse"></span>{{ d.hint }}</div>
+        @if (done()) {
+          <div class="do ok"><span nz-icon nzType="check-circle" nzTheme="fill"></span> מעולה!</div>
+        } @else {
+          <div class="do"><span class="pulse"></span>{{ d.hint }}</div>
+        }
       }
 
       <div class="foot">
         @if (!tour.isFirst()) {
           <button nz-button type="button" (click)="prev()">הקודם</button>
         }
-        <span class="steps">{{ tour.index() + 1 }} / {{ tour.steps().length }}</span>
-        <span class="spacer"></span>
+        <!-- How far along: a bar, not "4 / 15" — steps that don't apply to this user are skipped. -->
+        <span class="progress" role="progressbar" [attr.aria-valuenow]="tour.index() + 1" aria-valuemin="1" [attr.aria-valuemax]="tour.steps().length" aria-label="התקדמות בסיור">
+          <span class="progress-fill" [style.width.%]="tour.progress() * 100"></span>
+        </span>
         @if (s.action; as a) {
           <button nz-button type="button" (click)="runAction(s)">{{ a.label }}</button>
         }

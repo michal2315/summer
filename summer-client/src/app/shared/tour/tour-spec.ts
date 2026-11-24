@@ -1,12 +1,18 @@
+import { AppFeatures } from '../../core/config/app-config';
 import { ALT_KEYS, AltKeyId } from '../keyboard/alt-keys';
+import { MARK } from '../utils/search-syntax';
 
-/** What a step's prep / do / action may use to drive the app. Implemented by TourService. */
+/** What a step's prep / do / when / action may use to drive the app. Implemented by TourService. */
 export interface TourContext {
-  /** Navigate to a path (no-op when already there, query params ignored), then wait for the page to render. */
-  go(path: string): Promise<void>;
+  /**
+   * Navigate to a path, then wait for the page to render. No-op when already there: by path only (query params
+   * ignored), or with `exact` only when the URL is exactly `path` (e.g. "all summaries" rather than a folder).
+   */
+  go(path: string, exact?: boolean): Promise<void>;
   /** The current router URL, query included. */
   url(): string;
   userId(): string | null;
+  feature(name: keyof AppFeatures): boolean;
   showShortcuts(): void;
 }
 
@@ -14,7 +20,10 @@ export interface TourContext {
  * One tour step.
  * - `sel`: CSS selector(s) of the element to spotlight — the first visible, clickable match wins. Omit for a centered card.
  * - `kbd`: shortcuts as 'Alt+G' or 'Alt+G label'.
- * - `do`: the user performs it; the tour moves on by itself once `until()` is true.
+ * - `do`: the user performs it (the page stays usable); the tour moves on by itself once `until()` is true.
+ * - `when`: checked after `prep`; false skips the step (e.g. nothing to sort, a feature that is off).
+ * - `arrive`: said at the top of the step when the page changed since the last step ("אתם עכשיו ב…"), so a new
+ *   page never just appears. Write it so it fits both a page the user opened and one the tour opened.
  * - `action`: a button that ends the tour and runs something.
  * - `added`: ISO date — the step is marked "חדש" (hub, nudge, dot on the tour button) for NEW_DAYS.
  */
@@ -26,7 +35,9 @@ export interface TourStep {
   tip?: string;
   kbd?: string[];
   prep?: (ctx: TourContext) => Promise<void>;
+  when?: (ctx: TourContext) => boolean;
   do?: { hint: string; until: (ctx: TourContext) => boolean };
+  arrive?: string;
   action?: { label: string; run: (ctx: TourContext) => void };
   added?: string;
 }
@@ -35,7 +46,7 @@ export interface TourTopic {
   id: string;
   title: string;
   desc: string;
-  /** The basics tour: offered first and shown automatically on a first visit. */
+  /** A chapter of the full tour: offered first and shown automatically on a first visit. */
   core?: boolean;
   steps: TourStep[];
 }
@@ -43,66 +54,304 @@ export interface TourTopic {
 /** How long a step with `added` counts as new. */
 export const NEW_DAYS = 30;
 
+/** The full tour (WELCOME_STEP, every core topic, FINISH_STEP) as the hub offers it. */
+export const FULL_TOUR = { title: 'הסיור המלא', desc: 'תיקיות, מיון הלקטים, חיפוש, תמציות רצף ו-Pouch · כ-3 דקות' };
+
 const alt = (id: AltKeyId) => `Alt+${ALT_KEYS[id].key}`;
 /** The element bound to an Alt shortcut (AltKeyDirective sets aria-keyshortcuts). */
 const altSel = (id: AltKeyId) => `[aria-keyshortcuts="${alt(id)}"]`;
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel);
+/** Waits (up to `ms`) for an element to exist. */
+async function waitFor(sel: string, ms = 2000): Promise<HTMLElement | null> {
+  const until = Date.now() + ms;
+  let el = $(sel);
+  while (!el && Date.now() < until) {
+    await wait(50);
+    el = $(sel);
+  }
+  return el;
+}
+/** Scrolls an element into view (the spotlight only finds what is on screen). */
+async function reveal(sel: string) {
+  const el = await waitFor(sel);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await wait(60);
+}
+/** Clicks an element when it's there, then gives the app a moment to react. */
+async function click(sel: string, ms = 250) {
+  const el = $(sel);
+  if (!el) return;
+  el.click();
+  await wait(ms);
+}
+async function waitUntil(test: () => boolean, ms = 2000) {
+  const until = Date.now() + ms;
+  while (!test() && Date.now() < until) await wait(50);
+}
+
+const path = (ctx: TourContext) => ctx.url().split(/[?#]/)[0];
 const summaryOpen = (ctx: TourContext) => /[?&]summaryId=/.test(ctx.url());
+const folderOpen = (ctx: TourContext) => /[?&]folderId=/.test(ctx.url());
+const runningOpen = (ctx: TourContext) => /[?&]runningId=/.test(ctx.url()) || path(ctx).startsWith('/running/');
+
+const FOLDER_LINK = 'app-folder-tree .node:not(.root):not(.unfiled) .link';
+const SEARCH_BOX = 'app-summary-search .box';
+const SEARCH_INPUT = 'app-summary-search input.input';
+const ADVANCED = 'app-advanced-search';
+const RUNNING_CARD = '.card:has(> .running-banner)';
+const POUCH_TAB = 'app-profile-shelf .tab:has([nztype="file-text"])';
+const hasToSort = () => !!$('.to-sort');
 
 export const WELCOME_STEP: TourStep = {
   id: '_welcome',
-  title: 'ברוכים הבאים ל-Summer',
-  body: 'סיור קצר על הבסיס: התפריט, החיפוש, פתיחת תמצית וכתיבה. באחד הצעדים תתבקשו לעשות בעצמכם.',
-  tip: 'אפשר לצאת בכל רגע עם Esc ולחזור מכפתור "סיור ועזרה" בתחתית התפריט.',
+  title: 'ברוכים הבאים ל-Summer החדש',
+  body: 'בכמה דקות נעבור על מה שחדש: תיקיות, מיון הלקטים הישנים, חיפוש, תמציות רצף ו-Pouch. ברוב הצעדים תלחצו בעצמכם, והסיור ימשיך לבד.',
+  tip: 'Esc יוצא מהסיור. אפשר לחזור אליו מ"סיור ועזרה" בתחתית התפריט.',
+};
+
+export const FINISH_STEP: TourStep = {
+  id: '_finish',
+  sel: '.tour-btn',
+  title: 'זהו, אפשר להתחיל',
+  body: 'כל חלק בסיור אפשר לראות שוב מכאן, וגם נושאים נוספים: התראות, בחירה וייצוא, מקלדת.',
+  tip: 'משהו לא עובד או לא ברור? "פנייה לצוות סאני" בתחתית התפריט.',
+  arrive: 'אתם עכשיו ב"כל התמציות"',
+  kbd: [alt('tour')],
+  prep: (ctx) => ctx.go('/summaries', true),
 };
 
 /**
  * The guided tour, the hub's topics and the what's-new nudge all come from here.
  * RULE: every new feature adds a step (in the right topic) with `added: 'YYYY-MM-DD'`.
  * `id`s are remembered per user as seen — keep them stable.
+ * Prefer `do` steps (the user clicks the real thing) over the tour navigating; when the page changes, set `arrive`.
  */
 export const TOUR_TOPICS: TourTopic[] = [
+  // ---- the full tour, in order
   {
-    id: 'basics',
+    id: 'hierarchy',
     core: true,
-    title: 'סיור בסיס',
-    desc: 'תפריט, חיפוש, תמציות וכתיבה · כ-2 דקות',
+    title: 'תיקיות',
+    desc: 'עץ התיקיות שבתפריט',
     steps: [
       {
-        id: 'b-nav',
-        sel: '.nav',
-        title: 'התפריט',
-        body: 'הלוגו מחזיר לדף הבית, הכרטיס שלכם פותח את הפרופיל, ומתחתיו עץ התיקיות — לחיצה על תיקייה מציגה את התמציות שבה.',
-        tip: 'בתחתית התפריט: סיור ועזרה ופנייה לצוות סאני.',
-        kbd: [`${alt('home')} דף הבית`, `${alt('profile')} פרופיל`],
-        prep: (ctx) => ctx.go('/summaries'),
+        id: 'h-tree',
+        sel: 'app-folder-tree .body',
+        title: 'תיקיות במקום לקטים',
+        body: 'כל התמציות מסודרות עכשיו בעץ תיקיות. בתיקייה יכולות להיות תיקיות משנה, ותמצית יכולה להיות בכמה תיקיות.',
+        added: '2026-11-23',
+        prep: (ctx) => ctx.go('/summaries', true),
+        do: { hint: 'לחצו על תיקייה כלשהי בעץ', until: folderOpen },
       },
       {
-        id: 'b-search',
-        sel: altSel('search'),
-        title: 'חיפוש',
-        body: 'מחפש בכל התמציות תוך כדי הקלדה — בכותרת, בתוכן ובשדות.',
-        tip: '@ מסנן לפי כותב/ת, :שדה:ערך מחפש בשדה אחד, ואפשר לחבר מילים עם וגם / או / לא.',
+        id: 'h-folder',
+        sel: '.title-group',
+        title: 'התיקייה נפתחה',
+        body: 'כאן התמציות שבתיקייה וגם בכל תיקיות המשנה שלה. "כל התמציות" בראש העץ מחזיר להכול.',
+        tip: 'קליק ימני על תיקייה: תיקיית משנה, עריכה והרשאות, העברה.',
+        arrive: 'אתם עכשיו בתוך התיקייה',
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          if (folderOpen(ctx)) return;
+          await click(FOLDER_LINK);
+          await waitUntil(() => folderOpen(ctx));
+        },
+      },
+    ],
+  },
+  {
+    id: 'staging',
+    core: true,
+    title: 'המעבר מ-Summer הישן',
+    desc: 'מיון הלקטים הישנים לתיקיות',
+    steps: [
+      {
+        id: 'st-link',
+        sel: '.to-sort',
+        title: 'הלקטים הישנים שלכם',
+        body: 'הלקטים מ-Summer הישן מחכים למיון לתיקיות החדשות. יש להם דף משלו שעושה את זה מהר.',
+        added: '2026-11-23',
+        when: hasToSort,
+        do: { hint: 'לחצו על הקישור כדי לעבור לדף המיון', until: (ctx) => path(ctx) === '/staging' },
+      },
+      {
+        id: 'st-page',
+        sel: ['app-staging-page .columns', 'app-staging-page .page'],
+        title: 'דף המיון',
+        body: 'מימין הלקטים הישנים, משמאל התיקיות החדשות. מסמנים תמציות ולוחצים על תיקייה, או גוררים אותן אליה.',
+        tip: 'לקט שכבר מסודר טוב? "להשאיר כמו שהוא" הופך אותו לתיקייה בלי לפרק אותו.',
+        arrive: 'אתם עכשיו בדף המיון',
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          if (hasToSort()) await ctx.go('/staging');
+        },
+        when: (ctx) => path(ctx) === '/staging',
+      },
+    ],
+  },
+  {
+    id: 'search',
+    core: true,
+    title: 'חיפוש',
+    desc: 'סימנים, חיפוש מתקדם וחיפושים שמורים',
+    steps: [
+      {
+        id: 's-ops',
+        sel: SEARCH_BOX,
+        title: 'חיפוש עם סימנים',
+        body: 'מילה רגילה נמצאת בכל מקום בתמצית. סימנים מדייקים: @ לכותב/ת, :שדה: לשדה אחד, # לכמוסה, ו"וגם / או / לא" בין מילים.',
+        tip: 'כל הסימנים, כולל ביטויים רגולריים: עמדו עם העכבר על / בקצה התיבה.',
+        arrive: 'אתם עכשיו ב"כל התמציות"',
         kbd: [alt('search'), '/ מכל מקום'],
+        added: '2026-11-23',
+        prep: (ctx) => ctx.go('/summaries', true),
+        do: { hint: 'נסו: הקלידו @ בתיבה', until: () => !!$<HTMLInputElement>(SEARCH_INPUT)?.value.includes(MARK) },
       },
       {
-        id: 'b-advanced',
+        id: 's-advanced',
         sel: altSel('advancedSearch'),
         title: 'חיפוש מתקדם',
-        body: 'כשמילה אחת לא מספיקה: בונים שאילתה מתנאים וקבוצות, עם וגם / או, על שדות התמצית.',
+        body: 'כשצריך כמה תנאים יחד: על שדות, על תאריכים, עם וגם / או.',
         kbd: [alt('advancedSearch')],
+        added: '2026-11-23',
+        prep: (ctx) => ctx.go('/summaries'),
+        do: { hint: 'לחצו על הכפתור כדי לפתוח אותו', until: () => !!$(ADVANCED) },
       },
       {
-        id: 'b-view',
-        sel: 'nz-radio-group[aria-label="תצוגה"]',
-        title: 'כרטיסים או טבלה',
-        body: 'אותה רשימה בשתי תצוגות: כרטיסים לקריאה, טבלה לסריקה מהירה של הרבה תמציות.',
-        kbd: [`${alt('listView')} כרטיסים`, `${alt('tableView')} טבלה`],
+        id: 's-advanced-panel',
+        sel: `${ADVANCED} .panel`,
+        title: 'בונים שאילתה',
+        body: 'מוסיפים תנאים וקבוצות, והמשפט למעלה מתאר במילים מה יחופש. "חיפוש" מריץ, ואפשר גם לשמור בשם.',
+        tip: 'אפשר להתחיל מחיפוש שמור ולשנות אותו.',
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          await ctx.go('/summaries');
+          if (!$(ADVANCED)) await click(altSel('advancedSearch'));
+        },
       },
+      {
+        id: 's-saved',
+        sel: SEARCH_BOX,
+        title: 'חיפושים שמורים',
+        body: 'חיפוש שתרצו לחזור אליו? אחרי שמריצים אותו, כפתור השמירה בתיבה שומר אותו בשם. לחיצה על תיבה ריקה מציגה את כל השמורים.',
+        tip: 'על חיפוש שמור אפשר לקבל התראה כשנכתבת תמצית חדשה שמתאימה לו (הפעמון שבתיבה).',
+        kbd: [`${alt('pinSearch')} שמירה`, `${alt('alertSearch')} התראה`],
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          await ctx.go('/summaries');
+          // Close the advanced panel and clear what was typed in the previous steps.
+          await click('app-summary-search .overlay', 120);
+          await click(altSel('clearSearch'), 120);
+        },
+      },
+    ],
+  },
+  {
+    id: 'running',
+    core: true,
+    title: 'תמציות רצף',
+    desc: 'נושא מתמשך שמתעדכן בתמציתוניות',
+    steps: [
+      {
+        id: 'r-card',
+        sel: RUNNING_CARD,
+        title: 'תמצית רצף',
+        body: 'תמצית שמלווה נושא לאורך זמן: כל עדכון הוא "תמציתונית" קצרה, והרצף מרכז את כולן. מזהים אותה לפי הפס שבראש הכרטיס.',
+        arrive: 'אתם עכשיו ב"כל התמציות"',
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          await ctx.go('/summaries', true);
+          await waitFor('app-summary-card');
+          await reveal(RUNNING_CARD);
+        },
+        when: () => !!$(RUNNING_CARD),
+        do: { hint: 'לחצו על הכרטיס כדי לפתוח את הרצף', until: runningOpen },
+      },
+      {
+        id: 'r-page',
+        sel: 'app-running-page .running',
+        title: 'בתוך הרצף',
+        body: 'מימין פרטי הנושא, ולידם כל התמציתוניות על ציר זמן. "+ תמציתונית" מוסיף עדכון חדש.',
+        tip: 'רצף חדש: "תמצית חדשה" ← "תמצית רצף".',
+        arrive: 'אתם עכשיו בתמצית הרצף',
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          if (runningOpen(ctx)) return;
+          await click(RUNNING_CARD);
+          await waitUntil(() => runningOpen(ctx));
+        },
+        when: runningOpen,
+      },
+      {
+        id: 'r-what',
+        title: 'תמצית רצף',
+        body: 'תמצית שמלווה נושא לאורך זמן: כל עדכון הוא "תמציתונית" קצרה, והרצף מציג את כולן על ציר זמן. מזהים אותה ברשימה לפי הפס "תמצית רצף" שבראש הכרטיס.',
+        tip: 'רצף חדש: "תמצית חדשה" ← "תמצית רצף".',
+        when: (ctx) => !runningOpen(ctx) && !$(RUNNING_CARD),
+      },
+    ],
+  },
+  {
+    id: 'pouch',
+    core: true,
+    title: 'Pouch',
+    desc: 'ייצוא ל-Word בפורמט שלכם',
+    steps: [
+      {
+        id: 'p-intro',
+        sel: '.nav a.user',
+        title: 'Pouch: ייצוא בפורמט שלכם',
+        body: 'Pouch מייצא תמציות למסמך Word שנראה בדיוק כמו שתרצו: מעצבים פורמט פעם אחת, והתמציות נכנסות אליו. הפורמטים נמצאים בפרופיל.',
+        added: '2026-11-23',
+        when: (ctx) => ctx.feature('pouch'),
+        do: { hint: 'לחצו על השם שלכם כדי לעבור לפרופיל', until: (ctx) => path(ctx).startsWith('/profile/') },
+      },
+      {
+        id: 'p-tab',
+        sel: POUCH_TAB,
+        title: 'הפורמטים שלכם',
+        body: 'כאן, ליד החיפושים השמורים, נמצאים הפורמטים שיצרתם ואלה שאחרים שיתפו אתכם.',
+        arrive: 'אתם עכשיו בפרופיל שלכם',
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          await ctx.go(`/profile/${ctx.userId()}`);
+          await reveal('app-profile-shelf');
+        },
+        when: (ctx) => ctx.feature('pouch'),
+        do: { hint: 'פתחו את "פורמטים לייצוא"', until: () => !!$(`${POUCH_TAB}.active`) },
+      },
+      {
+        id: 'p-new',
+        sel: 'app-profile-shelf [aria-label="פורמט חדש"]',
+        title: 'פורמט חדש',
+        body: 'הפלוס פותח את Pouch: כותבים מסמך רגיל ומשבצים בו שדות מהתמצית, כמו כותרת, תאריך ותוכן.',
+        tip: 'ייצוא: "בחירה" ברשימת התמציות ← "ייצוא" ← "פורמט אישי".',
+        added: '2026-11-23',
+        prep: async (ctx) => {
+          await ctx.go(`/profile/${ctx.userId()}`);
+          if (!$(`${POUCH_TAB}.active`)) await click(POUCH_TAB, 120);
+          await reveal('app-profile-shelf');
+        },
+        when: (ctx) => ctx.feature('pouch'),
+      },
+    ],
+  },
+
+  // ---- more topics, from the hub
+  {
+    id: 'basics',
+    title: 'קריאה וכתיבה',
+    desc: 'פתיחת תמצית, תצוגות, תמצית חדשה והתראות',
+    steps: [
       {
         id: 'b-open',
         sel: '.feed-scroller',
         title: 'פתיחת תמצית',
         body: 'לחיצה על תמצית פותחת אותה בצד, בלי לאבד את המקום ברשימה. לחיצה נוספת סוגרת.',
+        prep: (ctx) => ctx.go('/summaries'),
         do: { hint: 'לחצו על תמצית כלשהי', until: summaryOpen },
       },
       {
@@ -110,70 +359,51 @@ export const TOUR_TOPICS: TourTopic[] = [
         sel: 'app-summary-detail',
         title: 'התמצית בצד',
         body: 'כאן קוראים את התמצית ומגיבים. את רוחב החלונית אפשר לשנות בגרירה.',
-        tip: 'כפתור מסך מלא פותח את התמצית בעמוד משלה — עם קישור לשיתוף.',
+        tip: 'כפתור מסך מלא פותח את התמצית בעמוד משלה, עם קישור לשיתוף.',
+      },
+      {
+        id: 'b-view',
+        sel: 'nz-radio-group[aria-label="תצוגה"]',
+        title: 'כרטיסים או טבלה',
+        body: 'אותה רשימה בשתי תצוגות: כרטיסים לקריאה, טבלה לסריקה מהירה.',
+        kbd: [`${alt('listView')} כרטיסים`, `${alt('tableView')} טבלה`],
       },
       {
         id: 'b-new',
         sel: altSel('newSummary'),
         title: 'תמצית חדשה',
-        body: 'בוחרים סוג תוכן, ממלאים את השדות ושומרים — או שומרים כטיוטה וממשיכים אחר כך.',
+        body: 'בוחרים סוג תוכן, ממלאים ושומרים — או שומרים כטיוטה וממשיכים אחר כך.',
         kbd: [alt('newSummary')],
       },
       {
         id: 'b-bell',
         sel: altSel('notificationsBell'),
         title: 'התראות',
-        body: 'תמציות חדשות שמתאימות לחיפושים השמורים שלכם עם התראה. את כל ההתראות ואת ניהולן מוצאים ב"דף ההתראות" שבחלונית הפעמון.',
+        body: 'כאן מגיעות ההתראות על חיפושים שמורים. "דף ההתראות" שבחלונית מרכז את כולן.',
         kbd: [alt('notificationsBell')],
-      },
-      {
-        id: 'b-help',
-        sel: '.tour-btn',
-        title: 'תמיד אפשר לחזור',
-        body: 'כאן אפשר להתחיל את הסיור מחדש ולראות מה חדש.',
-        tip: 'נקודה ורודה על הכפתור = יש משהו חדש שעוד לא ראיתם.',
-        kbd: [alt('tour')],
       },
     ],
   },
   {
-    id: 'search',
-    title: 'חיפוש לעומק',
-    desc: 'תחביר, חיפושים נעוצים ומיון',
+    id: 'search-more',
+    title: 'עוד בחיפוש',
+    desc: 'כמוסות, שיתוף, מיון וקפיצה בזמן',
     steps: [
       {
-        id: 's-syntax',
-        sel: altSel('search'),
-        title: 'תחביר החיפוש',
-        body: '@שם — תמציות של כותב/ת. :שדה:ערך — חיפוש בשדה אחד (כותרת, סוג, תווית, צבע…). $שם — מריץ חיפוש שמור. "מירכאות" — מילים שלמות בלבד. וגם / או / לא מחברים בין מילים.',
-        tip: 'כל חלק בתיבה נצבע לפי התפקיד שלו. Backspace מיד אחרי סימן מחזיר אותו לטקסט רגיל.',
-        added: '2026-11-15',
-        prep: (ctx) => ctx.go('/summaries'),
-      },
-      {
         id: 's-capsules',
-        sel: altSel('search'),
+        sel: SEARCH_BOX,
         title: 'כמוסות',
         body: '# פותח רשימת כמוסות: קבוצות מילים שמורות שנכנסות לחיפוש כיחידה אחת. כל מילה בכמוסה היא חובה, רשות או אסורה.',
-        tip: 'כמוסות עובדות גם בחיפוש המתקדם ובהתראות. לחיצה על כמוסה מציגה את המילים שבה.',
+        tip: 'כמוסות עובדות גם בחיפוש המתקדם ובהתראות.',
         added: '2026-10-26',
         prep: (ctx) => ctx.go('/summaries'),
       },
       {
         id: 's-alert',
-        sel: [altSel('alertSearch'), altSel('search')],
-        title: 'התראה על חיפוש ושיתוף',
-        body: 'אחרי חיפוש, הפעמון שבתיבה שולח התראה בכל פעם שתמצית חדשה (או שנערכה) מתאימה לחיפוש. כפתור השיתוף מעתיק קישור לחיפוש.',
+        sel: [altSel('alertSearch'), SEARCH_BOX],
+        title: 'התראה ושיתוף',
+        body: 'אחרי חיפוש, הפעמון שבתיבה מתריע על כל תמצית חדשה שמתאימה. כפתור השיתוף מעתיק קישור לחיפוש.',
         kbd: [`${alt('alertSearch')} התראה`, `${alt('shareSearch')} קישור`],
-        added: '2026-10-26',
-      },
-      {
-        id: 's-history',
-        sel: altSel('search'),
-        title: 'חיפושים אחרונים ושמורים',
-        body: 'לחיצה על תיבה ריקה מציגה את החיפושים האחרונים והשמורים, וגם קיצורי חיפוש מוכנים.',
-        tip: 'אחרי חיפוש, הנעץ שבתיבה שומר אותו בשם. את החיפושים השמורים מנהלים בפרופיל ובדף ההתראות.',
-        kbd: [`${alt('pinSearch')} שמירה`, `${alt('clearSearch')} ניקוי`],
         added: '2026-10-26',
       },
       {
@@ -188,92 +418,52 @@ export const TOUR_TOPICS: TourTopic[] = [
         title: 'קפיצה בזמן',
         body: 'הפס שלצד הרשימה מראה איפה אתם בה; גוררים אותו כדי לקפוץ, והתאריך מוצג תוך כדי.',
       },
+      {
+        id: 'h-new',
+        sel: 'app-folder-tree .root [aria-label="תיקייה חדשה"]',
+        title: 'תיקייה חדשה',
+        body: 'יוצר תיקייה ברמה העליונה; תיקיות משנה יוצרים בקליק ימני על תיקייה.',
+        added: '2026-10-24',
+      },
+      {
+        id: 'h-handle',
+        sel: '.nav-handle',
+        title: 'רוחב התפריט',
+        body: 'גוררים את המפריד כדי לשנות את רוחב התפריט והעץ.',
+        added: '2026-10-24',
+      },
     ],
   },
   {
     id: 'select',
     title: 'בחירה וייצוא',
-    desc: 'פעולות על כמה תמציות יחד, ו-Excel',
+    desc: 'פעולות על כמה תמציות יחד, Excel ו-Word',
     steps: [
-      {
-        id: 'x-excel',
-        sel: ['app-summary-actions-bar .excel', 'app-summary-actions-bar'],
-        title: 'Excel',
-        body: 'מורידים תבנית לסוג התוכן, ממלאים בה כמה תמציות ומעלים את כולן בבת אחת.',
-        prep: (ctx) => ctx.go('/summaries'),
-      },
       {
         id: 'x-select',
         sel: altSel('selectMode'),
         title: 'מצב בחירה',
         body: 'מוסיף תיבת סימון לכל תמצית ברשימה.',
         kbd: [alt('selectMode')],
-        do: { hint: 'לחצו על "בחירה"', until: () => !!document.querySelector('app-summary-actions-bar .count') },
+        prep: (ctx) => ctx.go('/summaries'),
+        do: { hint: 'לחצו על "בחירה"', until: () => !!$('app-summary-actions-bar .count') },
       },
       {
         id: 'x-actions',
         sel: 'app-summary-actions-bar',
         title: 'מה עושים עם הנבחרות',
-        body: 'תיקייה, תגיות, צבע, ציר זמן וייצוא ל-Excel או ל-Word. מועדפים, טיוטה ומחיקה — בתפריט ⋯.',
-        tip: 'תיבת הסימון שליד המונה בוחרת בבת אחת את כל מה שנטען ברשימה. בלי בחירה, הייצוא כולל את כל תוצאות החיפוש.',
-      },
-    ],
-  },
-  {
-    id: 'hierarchy',
-    title: 'תיקיות',
-    desc: 'עץ התיקיות שבתפריט',
-    steps: [
-      {
-        id: 'h-tree',
-        sel: 'app-folder-tree',
-        title: 'עץ התיקיות',
-        body: 'לחיצה על תיקייה מציגה בדף הבית את כל התמציות שבה ובתיקיות המשנה. "תמציות ללא שיוך" מציג את מה שלא שויך. התיבה שמעל העץ מחפשת לפי שם תיקייה.',
-        tip: 'קליק ימני על תיקייה או תמצית — כל הפעולות שלה, כולל פתיחה בכרטיסייה חדשה (גם Ctrl+קליק).',
-        added: '2026-11-18',
-        prep: (ctx) => ctx.go('/summaries'),
+        body: 'תיקייה, תגיות, צבע, ציר זמן וייצוא ל-Excel, ל-Word או לפורמט אישי של Pouch.',
+        tip: 'בלי בחירה, הייצוא כולל את כל תוצאות החיפוש.',
       },
       {
-        id: 'h-new',
-        sel: 'app-folder-tree .root [aria-label="תיקייה חדשה"]',
-        title: 'תיקייה חדשה',
-        body: 'יוצר תיקייה ברמה העליונה; תיקיות משנה ותמציות מוסיפים מתוך כל תיקייה.',
-        added: '2026-10-24',
-      },
-      {
-        id: 'h-staging',
-        sel: '.to-sort',
-        title: 'מיון לקטים מ-Summer הישן',
-        body: 'כשיש לקטים מ-Summer הישן שמחכים לכם, הקישור הזה מוביל לדף המיון: בוחרים או מחפשים תמציות וגוררים אותן לתיקייה — כולל התמציות שלכם בלקטים של אחרים.',
-        added: '2026-11-18',
-      },
-      {
-        id: 'h-handle',
-        sel: '.nav-handle',
-        title: 'רוחב התפריט',
-        body: 'גוררים את המפריד כדי לשנות את רוחב התפריט והעץ. גם החצים במקלדת עובדים כשהוא בפוקוס.',
-        added: '2026-10-24',
-      },
-    ],
-  },
-  {
-    id: 'running',
-    title: 'תמציות רצף',
-    desc: 'נושא מתמשך שמתעדכן בתמציתוניות',
-    steps: [
-      {
-        id: 'r-what',
-        title: 'מה זו תמצית רצף',
-        body: 'תמצית שמלווה נושא לאורך זמן. כל עדכון נכתב כתמציתונית קצרה, והרצף מציג את כולן יחד — ברשימה או על ציר זמן.',
-        added: '2026-10-24',
-        prep: (ctx) => ctx.go('/summaries'),
-      },
-      {
-        id: 'r-card',
-        sel: '.running-banner',
-        title: 'ברשימה',
-        body: 'תמצית רצף מסומנת בפס עליון עם מספר התמציתוניות וטווח התאריכים. תמציתונית מראה מאיזה רצף היא באה.',
-        added: '2026-10-24',
+        id: 'x-excel',
+        sel: ['app-summary-actions-bar .excel', 'app-summary-actions-bar'],
+        title: 'העלאה מ-Excel',
+        body: 'מורידים תבנית לסוג התוכן, ממלאים בה כמה תמציות ומעלים את כולן בבת אחת.',
+        prep: async (ctx) => {
+          await ctx.go('/summaries');
+          await click('app-summary-actions-bar .close', 120);
+        },
       },
     ],
   },
@@ -286,8 +476,9 @@ export const TOUR_TOPICS: TourTopic[] = [
         id: 'n-rules',
         sel: 'app-notifications-settings .panel .list',
         title: 'ההתראות שלי',
-        body: 'כל התראה היא על חיפוש שמור. כשתמצית חדשה מתאימה לחיפוש — מקבלים התראה במערכת, במייל או בשניהם. כאן משהים, עורכים ומבטלים.',
-        tip: 'מגיעים לכאן מ"דף ההתראות" שבחלונית הפעמון. בצד השני של הדף: כל התמציות שקיבלתם עליהן התראה.',
+        body: 'כל התראה היא על חיפוש שמור: כשתמצית חדשה מתאימה לו — מקבלים התראה במערכת, במייל או בשניהם. כאן משהים, עורכים ומבטלים.',
+        tip: 'בצד השני של הדף: כל התמציות שקיבלתם עליהן התראה.',
+        arrive: 'אתם עכשיו בדף ההתראות',
         added: '2026-11-05',
         prep: (ctx) => ctx.go('/notifications'),
       },
@@ -295,13 +486,13 @@ export const TOUR_TOPICS: TourTopic[] = [
         id: 'n-new',
         sel: 'app-notifications-settings .panel-header [nztype="primary"]',
         title: 'התראה חדשה',
-        body: 'חיפוש חדש עם התראה: טקסט או תנאים (גם על שדות של סוגי התוכן), ואיך לקבל את ההתראה. אפשר גם להפעיל התראה על חיפוש שכבר שמרתם.',
+        body: 'חיפוש חדש עם התראה: טקסט או תנאים, ואיך לקבל את ההתראה.',
       },
       {
         id: 'n-shared',
         sel: 'app-notifications-settings .panel .tabs',
         title: 'חיפושים משותפים',
-        body: 'ב"החיפושים שלי" משתפים חיפוש עם כולם. ב"משותפים" — מה שאחרים שיתפו: מריצים, מקבלים עליו התראה או שומרים עותק לעריכה.',
+        body: 'ב"החיפושים שלי" משתפים חיפוש עם כולם. ב"משותפים" — מה שאחרים שיתפו: מריצים, מקבלים עליו התראה או שומרים עותק.',
         added: '2026-11-18',
       },
     ],
@@ -309,29 +500,33 @@ export const TOUR_TOPICS: TourTopic[] = [
   {
     id: 'personal',
     title: 'פרופיל והעדפות',
-    desc: 'קבוצות משתמשים, חיפושים שמורים והעדפות',
+    desc: 'חיפושים שמורים, קבוצות משתמשים והעדפות',
     steps: [
       {
         id: 'p-shelf',
         sel: 'app-profile-shelf',
         title: 'המדף בפרופיל',
-        body: 'בפרופיל שלכם: החיפושים השמורים וקבוצות המשתמשים בלשוניות. קליק ימני על כרטיס — מועדף, התראה, שיתוף, עריכה.',
+        body: 'החיפושים השמורים, קבוצות המשתמשים והפורמטים, בלשוניות. קליק ימני על כרטיס — מועדף, התראה, שיתוף, עריכה.',
+        arrive: 'אתם עכשיו בפרופיל שלכם',
         added: '2026-11-18',
-        prep: (ctx) => ctx.go(`/profile/${ctx.userId()}`),
+        prep: async (ctx) => {
+          await ctx.go(`/profile/${ctx.userId()}`);
+          await reveal('app-profile-shelf');
+        },
       },
       {
         id: 'p-groups',
         sel: 'app-profile-shelf .tabs',
         title: 'קבוצות משתמשים',
-        body: 'שם לכמה משתמשים וקבוצות יחד. בשדה "תיוג" בתמצית, בחירת קבוצה מתייגת את כל החברים בה — ואפשר לשמור תיוג קיים כקבוצה.',
-        tip: 'קבוצות שאחרים שיתפו אפשר לעיין בהן ולהעתיק לעצמכם.',
+        body: 'שם לכמה משתמשים יחד. בשדה "תיוג" בתמצית, בחירת קבוצה מתייגת את כל החברים בה.',
         added: '2026-11-18',
       },
       {
         id: 'p-prefs',
         sel: '[aria-label="העדפות"]',
         title: 'העדפות',
-        body: 'גלגל השיניים שליד הפעמון: האם החיפוש נשמר במעבר בין תיקיות, וזמנים יחסיים או תאריך ושעה. נשמר בחשבון.',
+        body: 'גלגל השיניים שליד הפעמון: האם החיפוש נשמר במעבר בין תיקיות, וזמנים יחסיים או תאריך ושעה.',
+        arrive: 'אתם עכשיו ב"כל התמציות"',
         added: '2026-11-18',
         prep: (ctx) => ctx.go('/summaries'),
       },

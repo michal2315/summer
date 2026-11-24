@@ -1,9 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { UserService } from '../../core/auth/user.service';
+import { APP_CONFIG } from '../../core/config/app-config';
 import { StorageService } from '../../core/storage/storage.service';
 import { AltKeysService } from '../keyboard/alt-keys.service';
-import { NEW_DAYS, TOUR_TOPICS, TourContext, TourStep, TourTopic, WELCOME_STEP } from './tour-spec';
+import { FINISH_STEP, FULL_TOUR, NEW_DAYS, TOUR_TOPICS, TourContext, TourStep, TourTopic, WELCOME_STEP } from './tour-spec';
 
 const KEYS = { done: 'tour.done', seen: 'tour.seen', nudged: 'tour.nudged' };
 
@@ -19,9 +20,12 @@ export class TourService {
   private readonly storage = inject(StorageService);
   private readonly users = inject(UserService);
   private readonly altKeys = inject(AltKeysService);
+  private readonly features = inject(APP_CONFIG).features;
 
   readonly topics = TOUR_TOPICS;
-  readonly core = TOUR_TOPICS.find((t) => t.core);
+  readonly fullTour = FULL_TOUR;
+  /** The chapters of the full tour. */
+  private readonly core = TOUR_TOPICS.filter((t) => t.core);
   private readonly topicOfStep = new Map<TourStep, TourTopic>(TOUR_TOPICS.flatMap((t) => t.steps.map((s) => [s, t] as const)));
   private readonly allSteps = TOUR_TOPICS.flatMap((t) => t.steps);
 
@@ -33,18 +37,25 @@ export class TourService {
   readonly current = computed<TourStep | null>(() => this.steps()[this.index()] ?? null);
   readonly isFirst = computed(() => this.index() === 0);
   readonly isLast = computed(() => this.index() === this.steps().length - 1);
+  /** The full tour is running: everything in it is new to a first-time user, so no "חדש" badges. */
+  readonly fullTourRunning = computed(() => this.steps().includes(WELCOME_STEP));
+  readonly progress = computed(() => (this.steps().length ? (this.index() + 1) / this.steps().length : 0));
+  /** Which way the user last moved: a step whose `when` is false is skipped in that direction. */
+  private dir: 1 | -1 = 1;
 
   /** The element the hub opens next to; null = hub closed. */
   readonly hubAnchor = signal<HTMLElement | null>(null);
   readonly nudgeOpen = signal(false);
 
   readonly ctx: TourContext = {
-    go: async (path) => {
-      if (this.router.url.split(/[?#]/)[0] !== path) await this.router.navigateByUrl(path);
+    go: async (path, exact) => {
+      const here = exact ? this.router.url : this.router.url.split(/[?#]/)[0];
+      if (here !== path) await this.router.navigateByUrl(path);
       await frame();
     },
     url: () => this.router.url,
     userId: () => this.users.userId(),
+    feature: (name) => !!this.features[name],
     showShortcuts: () => this.altKeys.toggleHelp(true),
   };
 
@@ -53,13 +64,14 @@ export class TourService {
   }
 
   topicTitle(step: TourStep): string {
-    return step === WELCOME_STEP ? (this.core?.title ?? '') : (this.topicOfStep.get(step)?.title ?? '');
+    return step === WELCOME_STEP || step === FINISH_STEP ? FULL_TOUR.title : (this.topicOfStep.get(step)?.title ?? '');
   }
 
   start(steps: TourStep[]) {
     this.closeHub();
     this.nudgeOpen.set(false);
     if (!steps.length) return;
+    this.dir = 1;
     this.index.set(0);
     this.steps.set(steps);
   }
@@ -69,11 +81,16 @@ export class TourService {
     this.start(this.unseenNew());
   }
 
+  /** The full tour: every chapter, between a welcome and a closing step. */
   welcome() {
-    this.start([WELCOME_STEP, ...(this.core?.steps ?? [])]);
+    this.start([WELCOME_STEP, ...this.core.flatMap((t) => t.steps), FINISH_STEP]);
   }
 
-  /** First visit → the basics tour (returns true). Otherwise offers unseen new steps, once per session. */
+  startTopic(topic: TourTopic) {
+    this.start(topic.steps);
+  }
+
+  /** First visit → the full tour (returns true). Otherwise offers unseen new steps, once per session. */
   greet(): boolean {
     if (!this.storage.get<boolean>(KEYS.done)) {
       this.welcome();
@@ -89,15 +106,22 @@ export class TourService {
   }
 
   go(delta: 1 | -1) {
+    this.dir = delta;
     const next = this.index() + delta;
     if (next < 0) return;
     if (next >= this.steps().length) this.end();
     else this.index.set(next);
   }
 
+  /** The current step doesn't apply (its `when` is false): move on the way the user was going. */
+  skip() {
+    if (this.dir === -1 && this.index() === 0) this.go(1);
+    else this.go(this.dir);
+  }
+
   end() {
     if (!this.steps().length) return;
-    if (this.steps().some((s) => this.topicOfStep.get(s)?.core)) this.storage.set(KEYS.done, true);
+    if (this.steps().includes(WELCOME_STEP)) this.storage.set(KEYS.done, true);
     this.steps.set([]);
   }
 

@@ -5,8 +5,14 @@
   <button type="button" class="close" (click)="tour.closeHub()" aria-label="סגירה"><span nz-icon nzType="close"></span></button>
 </div>
 
+<button type="button" class="core" (click)="tour.welcome()">
+  <span class="core-title">{{ tour.fullTour.title }}</span>
+  <span class="core-desc">{{ tour.fullTour.desc }}</span>
+  <span class="core-go">התחלה</span>
+</button>
+
 @if (unseen.length) {
-  <button type="button" class="core" (click)="tour.startNew()">
+  <button type="button" class="core secondary" (click)="tour.startNew()">
     <span class="core-title">מה חדש · {{ unseen.length }}</span>
     <span class="core-desc">
       @for (s of unseen.slice(0, 3); track s.id) {
@@ -18,13 +24,17 @@
   </button>
 }
 
-@if (tour.core; as core) {
-  <button type="button" class="core" [class.secondary]="unseen.length" (click)="tour.welcome()">
-    <span class="core-title">{{ core.title }}</span>
-    <span class="core-desc">{{ core.desc }}</span>
-    <span class="core-go">התחלה</span>
-  </button>
-}
+<!-- Each chapter of the full tour, and the extra topics, on their own. -->
+<div class="topics-title">נושא אחד בלבד</div>
+<div class="topics">
+  @for (t of tour.topics; track t.id) {
+    <button type="button" class="topic" (click)="tour.startTopic(t)">
+      <span class="topic-title">{{ t.title }}</span>
+      <span class="topic-desc">{{ t.desc }}</span>
+      <span class="topic-go" nz-icon nzType="left"></span>
+    </button>
+  }
+</div>
 
 <div class="foot">
   @if (extension.info()) {
